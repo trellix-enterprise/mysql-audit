@@ -1,0 +1,63 @@
+Compiling instructions:
+
+make sure you have installed the following packages:
+
+autoconf
+automake
+gcc-c++
+
+To compile you will need to obtain the MySQL source code.
+
+==== MySQL 5.1 ======
+
+Extract the MySQL source code in the root directory. For example:
+
+unzip  zip-sources/mysql-5.1.40.zip
+
+
+Then run the following command: 
+
+cd mysql-5.1.40
+CXX=gcc ./configure
+cd include
+make
+
+Then goto top dir and run:
+
+chmod +x bootstrap.sh
+./bootstrap.sh
+
+This will create configure script. Then run:
+
+CXX='gcc -static-libgcc' CC='gcc -static-libgcc' ./configure --with-mysql=mysql-5.1.40
+
+
+==== MySQL 5.5 ======
+
+Extract MySQL 5.5 source code
+
+go to mysql-src dir and run:
+
+cd mysql-5.5.8
+cmake .
+make
+
+back to working dir and run:
+
+CXX='gcc -static-libgcc' CC='gcc -static-libgcc' ./configure --with-mysql=mysql-5.5.8 --with-mysql-libservices=mysql-5.5.8/libservices/libmysqlservices.a
+make
+
+==== Compiling with make =====
+
+Go to top source dir and run:
+
+make
+
+Plugin will be compiled at:
+
+src/.libs/libaudit_plugin.so
+
+Some documentation about configure command for mysql: 
+
+http://dev.mysql.com/doc/refman/5.1/en/source-configuration-options.html
+
