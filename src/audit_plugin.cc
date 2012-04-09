@@ -132,7 +132,8 @@ static const ThdOffsets thd_offsets_arr[] =
         {"5.5.19","0765dadb23315bb076bc6e21cfb2de40", 6048, 6096, 3800, 4224, 88, 2560},
         //offsets for: /mysqlrpm/5.5.20/usr/sbin/mysqld (5.5.20)
         {"5.5.20","9f6122576930c5d09ca9244094c83f24", 6048, 6096, 3800, 4224, 88, 2560},
-        
+        //offsets for: mysqlrpm/5.5.21/usr/sbin/mysqld (5.5.21)
+        {"5.5.21","4a03ad064ed393dabdde175f3ea05ff2", 6048, 6096, 3800, 4224, 88, 2560},
 
 				//DISTRIBUTION: tar.gz
 		//offsets for: /mysql/5.1.30/bin/mysqld (5.1.30)
@@ -228,9 +229,9 @@ static const ThdOffsets thd_offsets_arr[] =
         {"5.5.18","099d31c0cd0754934b84c17f683d019e", 6040, 6088, 3792, 4216, 88, 2560},
         {"5.5.19","f000f941c4e4f7b84e66d7b8c115ca8f", 6048, 6096, 3800, 4224, 88, 2560},
         //offsets for: /mysql/5.5.20/bin/mysqld (5.5.20)
-        {"5.5.20","8b68e84332b442d58a46ae4299380a99", 6048, 6096, 3800, 4224, 88, 2560}
-
-
+        {"5.5.20","8b68e84332b442d58a46ae4299380a99", 6048, 6096, 3800, 4224, 88, 2560},
+        //offsets for: mysql/5.5.21/bin/mysqld (5.5.21)
+        {"5.5.21","66d23cb577e2bcfe29da08833f5e7d8b", 6048, 6096, 3800, 4224, 88, 2560}
 
 };
 
@@ -332,7 +333,8 @@ static const ThdOffsets thd_offsets_arr[] =
         {"5.5.19","f3c31e2a5d95d3511b7106441f38929e", 3808, 3836, 2360, 2692, 44, 1640},
         //offsets for: /mysqlrpm/5.5.20/usr/sbin/mysqld (5.5.20)
         {"5.5.20","c73100bcb0d967b627cad72e66503194", 3808, 3836, 2360, 2692, 44, 1640},
-
+        //offsets for: mysqlrpm/5.5.21/usr/sbin/mysqld (5.5.21)
+        {"5.5.21","18d78ced97227b83e62e9b43ba5b3883", 3808, 3836, 2360, 2692, 44, 1640},
 
         //DISTRIBUTION: tar.gz
 		//offsets for: mysql/5.1.30/bin/mysqld (5.1.30)
@@ -428,8 +430,9 @@ static const ThdOffsets thd_offsets_arr[] =
         //offsets for: /mysql/5.5.19/bin/mysqld (5.5.19)
         {"5.5.19","b407d678b9b855bfd29ba3c9f014d4b0", 3808, 3836, 2360, 2692, 44, 1640},
         //offsets for: /mysql/5.5.20/bin/mysqld (5.5.20)
-        {"5.5.20","cb9b6887ea525fe9965121d357163fe4", 3808, 3836, 2360, 2692, 44, 1640}
-
+        {"5.5.20","cb9b6887ea525fe9965121d357163fe4", 3808, 3836, 2360, 2692, 44, 1640},
+        //offsets for: mysql/5.5.21/bin/mysqld (5.5.21)
+        {"5.5.21","a0762cee3ad5d4e77480956144900213", 3808, 3836, 2360, 2692, 44, 1640}
 };
 
 #endif
@@ -453,7 +456,7 @@ static int delay_ms_val =0;
 static char *delay_cmds_string = NULL;
 
 static char delay_cmds_array [SQLCOM_END + 2][MAX_COMMAND_CHAR_NUMBERS];
-
+static SHOW_VAR com_status_vars_array [MAX_COM_STATUS_VARS_RECORDS] = {0};
 /**
  * The trampoline function we use. Define it via a macro which simply fills it with nops.
  */
@@ -477,7 +480,7 @@ static int trampoline_check_user(THD *thd, enum enum_server_command command, con
 }
 static unsigned int trampoline_check_user_size =0;
 
-bool trampoline_acl_authenticate(THD *thd, uint connect_errors, uint com_change_user_pkt_len){
+static bool trampoline_acl_authenticate(THD *thd, uint connect_errors, uint com_change_user_pkt_len){
     TRAMPOLINE_NOP_DEF;
     return 0; //dummy return as this does a jump.
 }
@@ -552,7 +555,7 @@ static int  trampoline_send_result_to_client(Query_cache *pthis, THD *thd, char 
 }
 
 #if MYSQL_VERSION_ID > 50505
-bool trampoline_open_tables(THD *thd, TABLE_LIST **start, uint *counter, uint flags,
+static bool trampoline_open_tables(THD *thd, TABLE_LIST **start, uint *counter, uint flags,
                 Prelocking_strategy *prelocking_strategy)
 {
 	TRAMPOLINE_NOP_DEF;
@@ -1090,6 +1093,74 @@ static int setup_offsets()
     DBUG_RETURN(1);
 }
 
+
+const char * retrieve_command (THD * thd)
+{
+    const char *cmd = NULL;
+
+    int command = Audit_formatter::thd_inst_command(thd);
+    if (command < 0 || command > COM_END)
+    {
+        command = COM_END;
+    }
+    const int sql_command = thd_sql_command(thd);
+    if (sql_command >=0 && sql_command <= (MAX_COM_STATUS_VARS_RECORDS -1) )
+    {
+        cmd = com_status_vars_array[sql_command + 1].name;
+    }
+    if(!cmd)
+    {
+        cmd = command_name[command].str;
+    }
+    Security_context * sctx = Audit_formatter::thd_inst_main_security_ctx(thd);
+    if (strcmp (cmd, "Connect") ==0 && (sctx->priv_user == NULL || *sctx->priv_user == 0x0))
+    {
+        cmd = "Failed Login";				
+    }
+    return cmd;
+}
+
+static int set_com_status_vars_array ()
+{
+    DBUG_ENTER("set_com_status_vars_array");
+    SHOW_VAR *com_status_vars;
+    int sv_idx =0;
+    while (strcmp (status_vars[sv_idx].name,"Com") !=0 && status_vars[sv_idx].name != NullS)
+    {
+        sv_idx ++;
+    }
+    if (strcmp (status_vars[sv_idx].name,"Com")==0)
+    {
+        int status_vars_index =0;
+        com_status_vars = (SHOW_VAR*)status_vars[sv_idx].value;
+        size_t initial_offset = (size_t) com_status_vars[0].value;
+        while  (com_status_vars[status_vars_index].name != NullS)
+        {
+            int sql_command_idx = (com_status_vars[status_vars_index].value - (char*) (initial_offset)) / sizeof (ulong);
+            if (sql_command_idx >=0 && sql_command_idx < MAX_COM_STATUS_VARS_RECORDS)
+            {
+                com_status_vars_array [sql_command_idx].name = com_status_vars[status_vars_index].name;
+                com_status_vars_array [sql_command_idx].type = com_status_vars[status_vars_index].type;
+                com_status_vars_array [sql_command_idx].value = com_status_vars[status_vars_index].value;
+            }
+            else
+            {
+                sql_print_error("%s Failed sql_command_idx [%d] is out of bounds. Plugin Init failed.",
+                                       log_prefix, sql_command_idx);
+                DBUG_RETURN (1);
+            }
+            status_vars_index ++;
+        }
+
+    }
+    else
+    {
+        sql_print_error("%s Failed looking up 'Com' entry in status_vars. Plugin Init failed.",
+                       log_prefix);
+        DBUG_RETURN (1);
+    }
+    DBUG_RETURN (0);
+}
 /*
  Initialize the daemon plugin installation.
 
@@ -1116,6 +1187,7 @@ static int audit_plugin_init(void *p)
     {
         DBUG_RETURN(1);
     }
+   
     //setup audit handlers (initially disabled)
     int res = json_file_handler.init(&json_formatter);
     if (res != 0)
@@ -1276,7 +1348,10 @@ static int audit_plugin_init(void *p)
                 log_prefix, *(bool (*)(THD *thd, TABLE_LIST **start, uint *counter, uint flags)) &open_tables, 
                 trampoline_open_tables_size);	
 #endif
-
+    if (set_com_status_vars_array () !=0)
+    {
+        DBUG_RETURN(1);
+    }
     DBUG_RETURN(0);
 }
 
@@ -1485,7 +1560,7 @@ mysql_declare_plugin_end;
  * We set here the audit plugin version to the same as the first built in plugin.
  * This is so we can have a single lib for all versions (needed in 5.1)
  */
-void __attribute__ ((constructor)) audit_plugin_so_init(void)
+extern "C" void __attribute__ ((constructor)) audit_plugin_so_init(void)
 {
     if (mysqld_builtins && mysqld_builtins[0])
     {
@@ -1503,7 +1578,7 @@ void __attribute__ ((constructor)) audit_plugin_so_init(void)
 }
 #else
 extern struct st_mysql_plugin *mysql_mandatory_plugins[];
-void __attribute__ ((constructor)) audit_plugin_so_init(void)
+extern "C"  void __attribute__ ((constructor)) audit_plugin_so_init(void)
 {
 
 	

@@ -78,52 +78,6 @@ const char *  Audit_formatter::retrive_object_type (TABLE_LIST *pObj)
 	return "TABLE";
 }
 
-const char * retrieve_command (THD * thd)
-{
-	    const char *cmd;
-        SHOW_VAR *com_status_vars;
-        int sv_idx =0;
-        int command = Audit_formatter::thd_inst_command(thd);
-        if (command < 0 || command > COM_END)
-        {
-	        command = COM_END;
-        }
-	    const int sql_command = thd_sql_command(thd);
-        while (strcmp (status_vars[sv_idx].name,"Com") !=0 && status_vars[sv_idx].name != NullS)
-        {
-            sv_idx ++;
-        }
-        if (strcmp (status_vars[sv_idx].name,"Com")==0)
-        {
-           int status_vars_index =0;
-           com_status_vars = (SHOW_VAR*)status_vars[sv_idx].value;
-           size_t initial_offset = (size_t) com_status_vars[0].value;
-           while  (com_status_vars[status_vars_index].value !=  (char*) (sizeof (ulong) * (sql_command + 1) + initial_offset)
-                 && com_status_vars[status_vars_index].name != NullS)
-            {
-                status_vars_index ++;
-            }
-            if (com_status_vars[status_vars_index].value != NullS)
-            {
-                cmd = com_status_vars[status_vars_index].name;
-            }
-            else 
-            {
-                cmd = command_name[command].str;
-            }
-        }
-        else
-        {
-           cmd = "UNKNOWN";
-        }
-	    Security_context * sctx = Audit_formatter::thd_inst_main_security_ctx(thd);
-		if (strcmp (cmd, "Connect") ==0 && (sctx->priv_user == NULL || *sctx->priv_user ==0x0))
-		{
-			cmd = "Failed Login";				
-		}
-		return cmd;
-}
-
 
 void Audit_handler::stop_all()
 {
@@ -363,6 +317,15 @@ static inline void yajl_add_uint64(yajl_gen gen, const char * name, uint64 num)
     snprintf(buf, max_int64_str_len, "%llu", num);
     yajl_add_string_val(gen, name, buf);
 }
+static inline void yajl_add_obj( yajl_gen gen,  const char *db,const char* ptype,const char * name =NULL)
+{
+    yajl_add_string_val(gen, "db", db);
+    if (name)
+    {
+        yajl_add_string_val(gen, "name", name);
+    }
+    yajl_add_string_val(gen, "obj_type",ptype);
+}
 
 //void Audit_file_handler::print_sleep (THD *thd, int delay_ms)
 //{
@@ -388,7 +351,7 @@ ssize_t Audit_json_formatter::event_format(ThdSesData* pThdData, IWriter * write
     unsigned long thdid = thd_get_thread_id(pThdData->getTHD());
     query_id_t qid = thd_inst_query_id(pThdData->getTHD());
 	int command = thd_inst_command(pThdData->getTHD());
-    const char *cmd = pThdData->getCmdName();
+
 	
 	Security_context * sctx = thd_inst_main_security_ctx(pThdData->getTHD());
 
@@ -407,7 +370,31 @@ ssize_t Audit_json_formatter::event_format(ThdSesData* pThdData, IWriter * write
 	yajl_add_string_val(gen, "priv_user", sctx->priv_user);
 	yajl_add_string_val(gen, "host", sctx->host);
     yajl_add_string_val(gen, "ip", sctx->ip);    
-    yajl_add_string_val(gen, "cmd", cmd);
+    const char *cmd = pThdData->getCmdName();
+    //only print tables if  lex is not null and it is not a quit command
+    LEX * pLex = Audit_formatter::thd_lex(pThdData->getTHD());
+    QueryTableInf *pQuery_cache_table_list =  getQueryCacheTableList1 (pThdData->getTHD());
+    if (pLex && command != COM_QUIT && pLex->query_tables == NULL && pQuery_cache_table_list)
+    {
+        yajl_add_string_val(gen, "cmd", "select");
+        yajl_add_string(gen, "objects");
+        yajl_gen_array_open(gen);
+        for (int i=0;i<pQuery_cache_table_list->num_of_elem && i < MAX_NUM_QUERY_TABLE_ELEM && pQuery_cache_table_list->num_of_elem >=0;i++)
+        {
+            yajl_gen_map_open(gen);
+            yajl_add_obj (gen, pQuery_cache_table_list->db[i],pQuery_cache_table_list->object_type[i],pQuery_cache_table_list->table_name[i] );
+            yajl_gen_map_close(gen);
+
+        }
+        yajl_gen_array_close(gen);
+
+    }
+    else 
+    {
+
+        yajl_add_string_val(gen, "cmd", cmd);
+    }
+    
 	
 	if (strcmp (cmd,"Init DB") ==0 || strcmp (cmd, "SHOW TABLES")== 0 || strcmp (cmd,  "SHOW TABLE")==0)
 	{
@@ -415,14 +402,12 @@ ssize_t Audit_json_formatter::event_format(ThdSesData* pThdData, IWriter * write
 		{
 		     yajl_add_string(gen, "objects");
 			 yajl_gen_array_open(gen);
-			 yajl_add_string_val(gen, "db",(pThdData->getTHD())->db);
-			 yajl_add_string_val(gen, "obj_type","database");
+             yajl_add_obj (gen,(pThdData->getTHD())->db,"database", NULL);
 			 yajl_gen_array_close(gen);
 		}
 	}
 
-    //only print tables if  lex is not null and it is not a quit command
-	LEX * pLex = Audit_formatter::thd_lex(pThdData->getTHD());
+
     if (pLex && command != COM_QUIT && pLex->query_tables)
     {
         yajl_add_string(gen, "objects");
@@ -433,16 +418,14 @@ ssize_t Audit_json_formatter::event_format(ThdSesData* pThdData, IWriter * write
         while (table)
         {
             yajl_gen_map_open(gen);
-            yajl_add_string_val(gen, "db", table->get_db_name());
-            yajl_add_string_val(gen, "name", table->get_table_name());	
             if (isFirstElementInView  && strstr (cmd,"_view")!=NULL )
             {
-			    yajl_add_string_val(gen, "obj_type","view");      
+                yajl_add_obj (gen,table->get_db_name(), "view",table->get_table_name());
                 isFirstElementInView = false;
             }
             else 
             {
-               yajl_add_string_val(gen, "obj_type",retrive_object_type(table));  
+                yajl_add_obj (gen,table->get_db_name(), retrive_object_type(table),table->get_table_name());
 			}
             yajl_gen_map_close(gen);
             table = table->next_global;
@@ -450,25 +433,6 @@ ssize_t Audit_json_formatter::event_format(ThdSesData* pThdData, IWriter * write
         yajl_gen_array_close(gen);
     }
 
-	QueryTableInf *pQuery_cache_table_list =  getQueryCacheTableList1 (pThdData->getTHD());
-
-	if (pLex && command != COM_QUIT && pLex->query_tables == NULL && pQuery_cache_table_list)
-	{
-		yajl_add_string(gen, "objects");
-		yajl_gen_array_open(gen);
-
-		for (int i=0;i<pQuery_cache_table_list->num_of_elem && i < MAX_NUM_QUERY_TABLE_ELEM && pQuery_cache_table_list->num_of_elem >=0;i++)
-		{
-			yajl_gen_map_open(gen);
-			yajl_add_string_val(gen, "db", pQuery_cache_table_list->db[i]);
-			yajl_add_string_val(gen, "name", pQuery_cache_table_list->table_name[i]);					
-			yajl_add_string_val(gen,"type",pQuery_cache_table_list->object_type[i]);			
-			yajl_gen_map_close(gen);
-			
-		}
-
-		yajl_gen_array_close(gen);
-	}
 
     size_t qlen = 0;
 

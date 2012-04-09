@@ -95,6 +95,9 @@ CXXFLAGS="-fno-implicit-templates -fno-exceptions -fno-rtti "
 #add pthread libs
 LIBS="$LIBS -lpthread"
 
+
+
+
 #make sure we have const
 AC_C_CONST
 AC_TYPE_SIZE_T
@@ -113,10 +116,12 @@ echo "Version: $MYSQL_AUDIT_PLUGIN_VERSION-$MYSQL_AUDIT_PLUGIN_REVISION"
 CPPFLAGS="$CPPFLAGS -DMYSQL_AUDIT_PLUGIN_VERSION='\"$MYSQL_AUDIT_PLUGIN_VERSION\"'"
 CPPFLAGS="$CPPFLAGS -DMYSQL_AUDIT_PLUGIN_REVISION='\"$MYSQL_AUDIT_PLUGIN_REVISION\"'"
 
+
 #subst the relevant variables
 AC_SUBST(CPPFLAGS)
 AC_SUBST(CXXLAGS)
 AC_SUBST(CLAGS)
+
 
 AC_CONFIG_FILES([Makefile
 		src/Makefile

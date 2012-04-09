@@ -33,6 +33,7 @@ typedef struct _THDPRINTED {
 const char * retrieve_command (THD * thd);
 typedef size_t OFFSET;
 
+#define MAX_COM_STATUS_VARS_RECORDS 512
 
 /**
  * The struct usd to hold offsets. We should have one per version.
@@ -158,7 +159,7 @@ public:
         return thd->query;
 #endif
     }
-	//virtual char * retrieve_command (THD * thd);
+
 };
 
 
