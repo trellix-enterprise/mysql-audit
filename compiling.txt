@@ -6,7 +6,9 @@ autoconf
 automake
 gcc-c++
 
-To compile you will need to obtain the MySQL source code.
+To compile you will need to obtain the MySQL source code. MySQL source code is available at: 
+
+http://dev.mysql.com/downloads/mysql/
 
 ==== MySQL 5.1 ======
 
