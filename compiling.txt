@@ -1,6 +1,7 @@
-Compiling instructions:
+Compiling instructions
+=======================
 
-make sure you have installed the following packages:
+Make sure you have installed the following packages:
 
 autoconf
 automake
