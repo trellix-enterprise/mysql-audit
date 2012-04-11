@@ -2,11 +2,11 @@
 
 if [ $# = 0 ]; then 	
 	echo "Usage: $0 <mysqld executable> [optional mysqld symbols]"
-	echo "Will extract offsets from mysqld. Requires gdb and mysqld symbols."
+	echo "Will extract offsets from mysqld. Requires gdb, md5sum and mysqld symbols."
 	exit 1
 fi
 
-#extract the version
+#extract the version of mysqld
 
 FULL_MYVER=`$1 --version | grep -P  -o 'Ver\s+[\w\.-]+'| awk '{print $2}'`
 
