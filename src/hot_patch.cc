@@ -12,11 +12,6 @@
 
 
 
-
-#define unprotect(addr,len)  (mprotect(addr,len,PROT_READ|PROT_WRITE|PROT_EXEC))
-#define protect(addr,len)  (mprotect(addr,len,PROT_READ|PROT_EXEC))
-#define GETPAGESIZE()         sysconf (_SC_PAGE_SIZE)
-
 #define unprotect(addr,len)  (mprotect(addr,len,PROT_READ|PROT_WRITE|PROT_EXEC))
 #define protect(addr,len)  (mprotect(addr,len,PROT_READ|PROT_EXEC))
 #define GETPAGESIZE()         sysconf (_SC_PAGE_SIZE)
@@ -67,15 +62,6 @@ static void WriteJump(void *pAddress, ULONG_PTR JumpTo)
 	BYTE * pbJmpSrc = pCur + 5;
     *pCur++ = 0xE9;   // jmp +imm32
     *((ULONG_PTR *)pCur) = JumpTo - (ULONG_PTR)pbJmpSrc;    
-
-/* old jump indirect requires 10 bytes (TOO big)
-        *pCur = 0xff;     // jmp [addr]
-        *(++pCur) = 0x25;
-        pCur++;
-        *((DWORD *) pCur) = (DWORD)(((ULONG_PTR) pCur) + sizeof (DWORD));
-        pCur += sizeof (DWORD);
-        *((ULONG_PTR *)pCur) = JumpTo;
-*/
 
 #else
 
@@ -182,54 +168,7 @@ int hot_patch_function (void* targetFunction, void* newFunction, void * trampoli
     else
     {
         return -1;
-    }
-    /* OLD unused code
-    int res = unprotect((void *)trampolinePage,PAGE_SIZE);
-    if(res != 0)
-    {
-    	sql_print_error("%s error un protecting trampoline page: 0x%x errno: %s. Aborting.",log_prefix, trampolinePage, strerror(errno));
-    	return -1;
-    }
-	//copy original code we are going to write over
-    memcpy( trampolineFunction, targetFunction, TRAMPOLINE_COPY_LENGTH) ;
-	//copy the jmp back to original code
-    memset( (void *)((DATATYPE_ADDRESS)trampolineFunction + TRAMPOLINE_COPY_LENGTH), JMP_OPCODE, OPCODE_LENGTH ) ;
-	//calculate where we want to jump back. The jump is relative.
-	//We are jumping from: trampolineFunction + TRAMPOLINE_COPY_LENGTH + MIN_REQUIRED_FOR_DETOUR
-	//to: targetFunction + TRAMPOLINE_COPY_LENGTH
-	//the diff is: targetFunction + TRAMPOLINE_COPY_LENGTH - (trampolineFunction + TRAMPOLINE_COPY_LENGTH + MIN_REQUIRED_FOR_DETOUR)
-	//TRAMPOLINE_COPY_LENGTH can be removed from both sides to get:
-    DATATYPE_ADDRESS jumpBackAddress = (DATATYPE_ADDRESS)targetFunction - ((DATATYPE_ADDRESS)trampolineFunction + MIN_REQUIRED_FOR_DETOUR);
-    //copy the location to the trampolineFunction
-    memcpy( (void *)((DATATYPE_ADDRESS) trampolineFunction + TRAMPOLINE_COPY_LENGTH + OPCODE_LENGTH), &jumpBackAddress, ADDRESS_LENGTH) ;
-	//protect the page
-	protect((void *)trampolinePage,PAGE_SIZE);
-
-	//now modify the code of the target function
-	DATATYPE_ADDRESS targetPage = get_page_address(targetFunction);
-	cond_info_print(info_print, "%s targetPage: 0x%x targetFunction: 0x%x",log_prefix, targetPage, targetFunction);
-
-    res = unprotect((void *)targetPage,PAGE_SIZE);
-	if(res == 0)
-	{
-		cond_info_print(info_print, "%s unprotect res: %d",log_prefix, res);
-		cond_info_print(info_print, "%s setting jump code: 0x%x length: %d at: 0x%x", log_prefix, JMP_OPCODE, OPCODE_LENGTH, targetFunction);
-		memset(targetFunction, JMP_OPCODE, OPCODE_LENGTH) ;
-		//calculate where we want to jump to. Jump is relative (see above jump calcluation)
-		DATATYPE_ADDRESS jumpAddress = (DATATYPE_ADDRESS)newFunction - ((DATATYPE_ADDRESS)targetFunction + MIN_REQUIRED_FOR_DETOUR);
-		DATATYPE_ADDRESS targetFuncJumpAddress = (DATATYPE_ADDRESS)targetFunction + OPCODE_LENGTH;
-		cond_info_print(info_print, "%s setting jump address: 0x%x length: %d at: 0x%x", log_prefix, jumpAddress, ADDRESS_LENGTH, targetFuncJumpAddress);
-		memcpy((void *)targetFuncJumpAddress, &jumpAddress, ADDRESS_LENGTH) ;
-		res = protect((void *)targetPage,PAGE_SIZE);
-		cond_info_print(info_print, "%s protect res: %d",log_prefix, res);
-	}
-	else
-	{
-		sql_print_error("%s error un protecting target function page: 0x%x errno: %s. Aborted.", log_prefix, targetPage, strerror(errno));
-		return -2;
-	}
-	return 0;
-	*/
+    }    
 }
 
 
@@ -248,21 +187,5 @@ void remove_hot_patch_function (void* targetFunction, void * trampolineFunction,
 	cond_info_print(info_print, "%s targetPage: 0x%x targetFunction: 0x%x",log_prefix, targetPage, targetFunction);
 
 	UnhookFunction ((ULONG_PTR) targetFunction, (ULONG_PTR)trampolineFunction,trampolinesize);
-	return;
-
-	/** OLD unused code
-	int res = unprotect((void *)targetPage,PAGE_SIZE);
-	if(res == 0)
-	{
-		cond_info_print(info_print, "%s unprotect res: %d", log_prefix, res);
-		cond_info_print(info_print, "%s copying org code from trampoline function: 0x%x length: %d to: 0x%x", log_prefix, trampolineFunction, TRAMPOLINE_COPY_LENGTH, targetFunction);
-		memcpy(targetFunction, trampolineFunction, TRAMPOLINE_COPY_LENGTH) ;
-		res = protect((void *)targetPage,PAGE_SIZE);
-		cond_info_print(info_print, "%s protect res: %d",log_prefix, res);
-	}
-	else
-	{
-		cond_info_print(info_print, "%s ERROR un protecting page: 0x%x errno: %d", log_prefix, targetPage, errno);
-	}
-	*/
+	return;	
 }
