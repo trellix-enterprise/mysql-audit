@@ -35,6 +35,9 @@ typedef size_t OFFSET;
 
 #define MAX_COM_STATUS_VARS_RECORDS 512
 
+#define MAX_OBJECT_CHAR_NUMBERS 130
+#define MAX_NUM_OBJECT_ELEM 256
+
 /**
  * The struct usd to hold offsets. We should have one per version.
  */

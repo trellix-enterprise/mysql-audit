@@ -104,6 +104,8 @@ static const ThdOffsets thd_offsets_arr[] =
     {"5.1.60-community","d9497964e8983a348538c0d05eaee7f0", 6328, 6392, 3688, 3960, 88, 2048},
     //offsets for: /mysqlrpm/5.1.61/usr/sbin/mysqld (5.1.61-community)
     {"5.1.61-community","bda6030d35e7fafa5b1e57154a53b804", 6328, 6392, 3688, 3960, 88, 2048},
+    //offsets for: 
+    {"5.1.63","2a6d7c81179baf6bc6bbb807b8b54967", 6336, 6400, 3696, 3968, 88, 2048},
     //offsets for: mysqlrpm/5.5.8/usr/sbin/mysqld (5.5.8)
     {"5.5.8","70a882693d54df8ab7c7d9f256e317bb", 6032, 6080, 3776, 4200, 88, 2560},
     //offsets for: mysqlrpm/5.5.9/usr/sbin/mysqld (5.5.9)
@@ -454,8 +456,16 @@ static my_bool validate_checksum_enable = FALSE;
 static char * offsets_string = NULL;
 static int delay_ms_val =0;
 static char *delay_cmds_string = NULL;
+static char *record_cmds_string = NULL;
+static char *record_objs_string = NULL;
 
 static char delay_cmds_array [SQLCOM_END + 2][MAX_COMMAND_CHAR_NUMBERS];
+static char record_cmds_array [SQLCOM_END + 2][MAX_COMMAND_CHAR_NUMBERS];
+static char record_objs_array [MAX_NUM_OBJECT_ELEM + 2][MAX_OBJECT_CHAR_NUMBERS];
+static int num_delay_cmds = 0;
+static int num_record_cmds = 0;
+static int num_record_objs = 0;
+
 static SHOW_VAR com_status_vars_array [MAX_COM_STATUS_VARS_RECORDS] = {0};
 /**
  * The trampoline function we use. Define it via a macro which simply fills it with nops.
@@ -506,9 +516,49 @@ THDPRINTED * GetThdPrintedList (THD *thd)
   return NULL;
 }
 
+static int check_array(const char *cmd, char *array, int length) {
+  for (int k=0; array[k * length + 0] !='\0';k++) {   
+    int j=0;
+    while (array[k * length + j] !='\0' && cmd[j] !='\0'
+	   && array[k * length + j] == tolower (cmd[j])) {
+      j++;
+    }
+    if (array[k * length + j] == '\0' && j !=0) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
 static void audit(ThdSesData *pThdData)
 {
   THDPRINTED *pThdPrintedList = GetThdPrintedList (pThdData->getTHD());
+  if (num_record_cmds > 0) {
+      const char * cmd = pThdData->getCmdName();
+      if (!check_array(cmd, (char *) record_cmds_array, MAX_COMMAND_CHAR_NUMBERS)) {
+	return;
+      }
+  }
+
+  if (num_record_objs > 0) {
+    LEX *pLex = Audit_formatter::thd_lex(pThdData->getTHD());
+    TABLE_LIST * table = pLex->query_tables;
+    int matched = 0;
+    while (table && !matched)  {
+      char *name = table->get_table_name();
+      char *db = table->get_db_name();
+      char obj[MAX_OBJECT_CHAR_NUMBERS];
+      strcpy(obj, db);
+      strcat(obj, ":");
+      strcat(obj, name);
+      matched = check_array(obj, (char *) record_objs_array, MAX_OBJECT_CHAR_NUMBERS);
+      table = table->next_global;
+    }
+    if (!matched) {
+      return;
+    }
+  }
+
   if (pThdPrintedList && pThdPrintedList->cur_index  < MAX_NUM_QUEUE_ELEM)
     {
       if (pThdPrintedList->is_thd_printed_queue[pThdPrintedList->cur_index] == 0)
@@ -528,21 +578,11 @@ static void audit(ThdSesData *pThdData)
   if (delay_ms_val > 0) 
     {
       const char * cmd = pThdData->getCmdName();
-      for (int k=0; delay_cmds_array[k][0] !='\0';k++)
-	{   
-	  int j=0;
-	  for (;delay_cmds_array[k][j] !='\0' 
-		 && cmd[j] !='\0'
-		 && delay_cmds_array[k][j] == tolower (cmd[j]);j++)
-	    {
-
-	    }
-	  if (delay_cmds_array[k][j] == '\0' && j !=0)
-	    {
-	      //Audit_file_handler::print_sleep(thd,delay_ms_val);
-	      my_sleep (delay_ms_val *1000);
-	      break;
-	    }
+      int delay = check_array(cmd, (char *) delay_cmds_array, MAX_COMMAND_CHAR_NUMBERS);
+      if (delay)
+	{
+	  //Audit_file_handler::print_sleep(thd,delay_ms_val);
+	  my_sleep (delay_ms_val *1000);
 	}
     }	
 }
@@ -887,47 +927,47 @@ static bool parse_thd_offsets_string (char *poffsets_string)
 {
   
   char  offset_str [2048] = {0};
-    char *poffset_str = offset_str;
-      strncpy (poffset_str,poffsets_string,2048);
-	char * comma_delimiter = strchr (poffset_str,',');
-	  int i =0;
-	    OFFSET *pOffset;
-	      size_t len = strlen (poffset_str);
-		
-		for (int j=0;j<len;j++)
-		  {
-		    if (!((poffset_str[j] >= '0' && poffset_str[j] <='9') || poffset_str[j] == ' ' || poffset_str[j] == ','))
-		      return false;
-		      }
-		  while (comma_delimiter !=NULL)
-		    {
-		      *comma_delimiter = '\0';
-			pOffset = (OFFSET*)&Audit_formatter::thd_offsets.query_id + i;
-			  if ((size_t)pOffset- (size_t)&Audit_formatter::thd_offsets < sizeof (Audit_formatter::thd_offsets))
-			    {
-			      sscanf (poffset_str, "%d", pOffset);
-				}
-			  else 
-			    {
-			      return false;
-				}
-			    i++;
-			      poffset_str = comma_delimiter + 1;
-				comma_delimiter = strchr (poffset_str,',');
-				  }
-		    if (poffset_str !=NULL)
-		      {
-			pOffset = &Audit_formatter::thd_offsets.query_id + i;
-			  if ((size_t)pOffset- (size_t)&Audit_formatter::thd_offsets < sizeof (Audit_formatter::thd_offsets))
-			    {
-			      sscanf (poffset_str, "%d", pOffset);
-				}
-			  else
-			    {
-			      return false;
-				}
-			    }
-		    return true;
+  char *poffset_str = offset_str;
+  strncpy (poffset_str,poffsets_string,2048);
+  char * comma_delimiter = strchr (poffset_str,',');
+  int i =0;
+  OFFSET *pOffset;
+  size_t len = strlen (poffset_str);
+  
+  for (int j=0;j<len;j++)
+    {
+      if (!((poffset_str[j] >= '0' && poffset_str[j] <='9') || poffset_str[j] == ' ' || poffset_str[j] == ','))
+	return false;
+    }
+  while (comma_delimiter !=NULL)
+    {
+      *comma_delimiter = '\0';
+      pOffset = (OFFSET*)&Audit_formatter::thd_offsets.query_id + i;
+      if ((size_t)pOffset- (size_t)&Audit_formatter::thd_offsets < sizeof (Audit_formatter::thd_offsets))
+	{
+	  sscanf (poffset_str, "%d", pOffset);
+	}
+      else 
+	{
+	  return false;
+	}
+      i++;
+      poffset_str = comma_delimiter + 1;
+      comma_delimiter = strchr (poffset_str,',');
+    }
+  if (poffset_str !=NULL)
+    {
+      pOffset = &Audit_formatter::thd_offsets.query_id + i;
+      if ((size_t)pOffset- (size_t)&Audit_formatter::thd_offsets < sizeof (Audit_formatter::thd_offsets))
+	{
+	  sscanf (poffset_str, "%d", pOffset);
+	}
+      else
+	{
+	  return false;
+	}
+    }
+  return true;
 }
 
 /**
@@ -1097,69 +1137,69 @@ static int setup_offsets()
 const char * retrieve_command (THD * thd)
 {
   const char *cmd = NULL;
-    
-    int command = Audit_formatter::thd_inst_command(thd);
-      if (command < 0 || command > COM_END)
-	{
-	  command = COM_END;
-	    }
-	const int sql_command = thd_sql_command(thd);
-	  if (sql_command >=0 && sql_command <= (MAX_COM_STATUS_VARS_RECORDS -1) )
-	    {
-	      cmd = com_status_vars_array[sql_command + 1].name;
-		}
-	    if(!cmd)
-	      {
-		cmd = command_name[command].str;
-		  }
-	      Security_context * sctx = Audit_formatter::thd_inst_main_security_ctx(thd);
-		if (strcmp (cmd, "Connect") ==0 && (sctx->priv_user == NULL || *sctx->priv_user == 0x0))
-		  {
-		    cmd = "Failed Login";				
-		      }
-		  return cmd;
-		    }
+  
+  int command = Audit_formatter::thd_inst_command(thd);
+  if (command < 0 || command > COM_END)
+    {
+      command = COM_END;
+    }
+  const int sql_command = thd_sql_command(thd);
+  if (sql_command >=0 && sql_command <= (MAX_COM_STATUS_VARS_RECORDS -1) )
+    {
+      cmd = com_status_vars_array[sql_command + 1].name;
+    }
+  if(!cmd)
+    {
+      cmd = command_name[command].str;
+    }
+  Security_context * sctx = Audit_formatter::thd_inst_main_security_ctx(thd);
+  if (strcmp (cmd, "Connect") ==0 && (sctx->priv_user == NULL || *sctx->priv_user == 0x0))
+    {
+      cmd = "Failed Login";				
+    }
+  return cmd;
+}
 
 static int set_com_status_vars_array ()
 {
   DBUG_ENTER("set_com_status_vars_array");
   SHOW_VAR *com_status_vars;
-    int sv_idx =0;
-    while (strcmp (status_vars[sv_idx].name,"Com") !=0 && status_vars[sv_idx].name != NullS)
-      {
-        sv_idx ++;
-	  }
-      if (strcmp (status_vars[sv_idx].name,"Com")==0)
-	{
-	  int status_vars_index =0;
-	    com_status_vars = (SHOW_VAR*)status_vars[sv_idx].value;
-	      size_t initial_offset = (size_t) com_status_vars[0].value;
-		while  (com_status_vars[status_vars_index].name != NullS)
-		  {
-		    int sql_command_idx = (com_status_vars[status_vars_index].value - (char*) (initial_offset)) / sizeof (ulong);
-		      if (sql_command_idx >=0 && sql_command_idx < MAX_COM_STATUS_VARS_RECORDS)
-			{
-			  com_status_vars_array [sql_command_idx].name = com_status_vars[status_vars_index].name;
-			    com_status_vars_array [sql_command_idx].type = com_status_vars[status_vars_index].type;
-			      com_status_vars_array [sql_command_idx].value = com_status_vars[status_vars_index].value;
-				}
-		      else
-			{
-			  sql_print_error("%s Failed sql_command_idx [%d] is out of bounds. Plugin Init failed.",
-					  log_prefix, sql_command_idx);
-			    DBUG_RETURN (1);
-			      }
-			status_vars_index ++;
-			  }
-		  
-		  }
-      else
-	{
-	  sql_print_error("%s Failed looking up 'Com' entry in status_vars. Plugin Init failed.",
-			  log_prefix);
-	    DBUG_RETURN (1);
-	      }
-      DBUG_RETURN (0);
+  int sv_idx =0;
+  while (strcmp (status_vars[sv_idx].name,"Com") !=0 && status_vars[sv_idx].name != NullS)
+    {
+      sv_idx ++;
+    }
+  if (strcmp (status_vars[sv_idx].name,"Com")==0)
+    {
+      int status_vars_index =0;
+      com_status_vars = (SHOW_VAR*)status_vars[sv_idx].value;
+      size_t initial_offset = (size_t) com_status_vars[0].value;
+      while  (com_status_vars[status_vars_index].name != NullS)
+        {
+	  int sql_command_idx = (com_status_vars[status_vars_index].value - (char*) (initial_offset)) / sizeof (ulong);
+	  if (sql_command_idx >=0 && sql_command_idx < MAX_COM_STATUS_VARS_RECORDS)
+            {
+	      com_status_vars_array [sql_command_idx].name = com_status_vars[status_vars_index].name;
+	      com_status_vars_array [sql_command_idx].type = com_status_vars[status_vars_index].type;
+	      com_status_vars_array [sql_command_idx].value = com_status_vars[status_vars_index].value;
+            }
+	  else
+            {
+	      sql_print_error("%s Failed sql_command_idx [%d] is out of bounds. Plugin Init failed.",
+			      log_prefix, sql_command_idx);
+	      DBUG_RETURN (1);
+            }
+	  status_vars_index ++;
+        }
+      
+    }
+  else
+    {
+      sql_print_error("%s Failed looking up 'Com' entry in status_vars. Plugin Init failed.",
+		      log_prefix);
+      DBUG_RETURN (1);
+    }
+  DBUG_RETURN (0);
 }
 /*
   Initialize the daemon plugin installation.
@@ -1414,8 +1454,9 @@ static void json_log_socket_enable(THD *thd, struct st_mysql_sys_var *var,
     }
 }
 
-static void delay_cmds_string_handler (THD *thd, struct st_mysql_sys_var *var,
-				       void *tgt, const void *save)
+static int string_handler (THD *thd, struct st_mysql_sys_var *var,
+			    void *tgt, const void *save, 
+			    char *string_array, int rows, int length)
 {
 
   char *old= *(char **) tgt;
@@ -1429,41 +1470,60 @@ static void delay_cmds_string_handler (THD *thd, struct st_mysql_sys_var *var,
   const char* save_string;
   save_string = *static_cast<const char*const*>(save);
  
-  int k =0;
-  if (save_string !=NULL)
-    {
+  int r =0;
+  if (save_string !=NULL) {
+    int p = 0;
+    for (int i = 0; save_string[i] != '\0'; i++) {
+      // consider space and tab and comma to be separators
+      // strings of multiple of them will be only a single separator
+      if (save_string[i] == ' ' || save_string[i] == '\t' || save_string[i] == ',') {
+	if (p > 0) {
+	  string_array[r * length + p ] = '\0';
+	  p = 0;
+	  r++;
+	  if (r == (rows - 1)) {
+	    break;
+	  }
+	}
+      }
+      // otherwise copy the character over
+      else {
+	string_array[r * length + p] = tolower(save_string[i]);
+	p++;
+      }
+    }
+    // if we have copied chars to the current row, then terminate the string and 
+    // go to the next row.
+    if (p > 0) {
+      string_array[r * length + p] = '\0';
+      r++;
+    }
+    // now terminate the list
+    string_array[r * length + 0] = '\0';
+  }
 
-      int j =0;
-      for (int i=0; save_string[i] !='\0'; i++,j++)
-        {
-	  while (save_string[i] ==' ' || save_string[i] == '\t' || save_string[i] == ',' )
-            {
-	      if (save_string[i] == ',')
-                {
-		  if (j+1 < MAX_COMMAND_CHAR_NUMBERS)
-                    {
-		      delay_cmds_array[k][j] = '\0';
-                    }
-		  k++;
-		  j=0;
-                }
-	      i++;
-            }
-	  if (k < SQLCOM_END && j < MAX_COMMAND_CHAR_NUMBERS)
-            {
-	      delay_cmds_array[k][j] = tolower (save_string[i]);
-            }
-        }
-      if (k < SQLCOM_END  && j < MAX_COMMAND_CHAR_NUMBERS)
-        {
-	  delay_cmds_array[k][j] = '\0';
-        }
-       
-    }
-  if (k < SQLCOM_END)
-    {
-      delay_cmds_array[k+1][0]='\0';
-    }
+  return r;
+}
+
+static void delay_cmds_string_handler (THD *thd, struct st_mysql_sys_var *var,
+				       void *tgt, const void *save)
+{
+  num_delay_cmds = string_handler(thd, var, tgt, save, (char *) delay_cmds_array, SQLCOM_END + 2, MAX_COMMAND_CHAR_NUMBERS);
+  sql_print_information("%s Set num_delay_cmds: %d", log_prefix, num_delay_cmds);
+}
+
+static void record_cmds_string_handler (THD *thd, struct st_mysql_sys_var *var,
+				       void *tgt, const void *save)
+{
+  num_record_cmds = string_handler(thd, var, tgt, save, (char *) record_cmds_array, SQLCOM_END + 2, MAX_COMMAND_CHAR_NUMBERS);
+  sql_print_information("%s Set num_record_cmds: %d", log_prefix, num_record_cmds);
+}
+
+static void record_objs_string_handler (THD *thd, struct st_mysql_sys_var *var,
+				       void *tgt, const void *save)
+{
+  num_record_objs = string_handler(thd, var, tgt, save, (char *) record_objs_array, MAX_NUM_OBJECT_ELEM + 2, MAX_OBJECT_CHAR_NUMBERS);
+  sql_print_information("%s Set num_record_objs: %d", log_prefix, num_record_objs);
 }
 
 //setup sysvars which update directly the relevant plugins
@@ -1517,6 +1577,16 @@ static MYSQL_SYSVAR_STR(delay_cmds, delay_cmds_string,
 			"AUDIT plugin delay commands to match against comma separated. If empty then delay is disabled.",
 			NULL, delay_cmds_string_handler, NULL);
 
+static MYSQL_SYSVAR_STR(record_cmds, record_cmds_string,
+			PLUGIN_VAR_RQCMDARG,
+			"AUDIT plugin commands to record, comma separated",
+			NULL, record_cmds_string_handler, NULL);
+
+static MYSQL_SYSVAR_STR(record_objs, record_objs_string,
+			PLUGIN_VAR_RQCMDARG,
+			"AUDIT plugin objects to record, comma separated",
+			NULL, record_objs_string_handler, NULL);
+
 /*
  * Plugin system vars
  */
@@ -1534,6 +1604,8 @@ static struct st_mysql_sys_var* audit_system_variables[] =
     MYSQL_SYSVAR(is_thd_printed_list),
     MYSQL_SYSVAR(delay_ms),
     MYSQL_SYSVAR(delay_cmds),
+    MYSQL_SYSVAR(record_cmds),
+    MYSQL_SYSVAR(record_objs),
     NULL };
 
 //declare our plugin
