@@ -1,16 +1,16 @@
 /*
- This program is free software; you can redistribute it and/or modify
- it under the terms of the GNU General Public License as published by
- the Free Software Foundation; version 2 of the License.
-
- This program is distributed in the hope that it will be useful,
- but WITHOUT ANY WARRANTY; without even the implied warranty of
- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- GNU General Public License for more details.
-
- You should have received a copy of the GNU General Public License
- along with this program; if not, write to the Free Software
- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; version 2 of the License.
+  
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License for more details.
+  
+  You should have received a copy of the GNU General Public License
+  along with this program; if not, write to the Free Software
+  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
 
 /*
  * audit_handler.cc
@@ -22,128 +22,128 @@
 //for definition of sockaddr_un
 #include <sys/un.h>
 #include "static_assert.h"
-
-
-
+  
+  
+  
 /**
  * Will write into buff the date prefix for txt formatter. Return the number of bytes written
  * (not including null terminate).
  */
-static int log_date_prefix(char * buff, size_t buff_size)
-{
+  static int log_date_prefix(char * buff, size_t buff_size)
+  {
     struct tm tm_tmp;
-    time_t result= time(NULL);
-    localtime_r(&result, &tm_tmp);
-    //my_snprintf is limited regarding formatting but sufficient for this
-    return my_snprintf(buff, buff_size, "%02d%02d%02d %2d:%02d:%02d: ",
-                    tm_tmp.tm_year % 100,
-                    tm_tmp.tm_mon+1,
-                    tm_tmp.tm_mday,
-                    tm_tmp.tm_hour,
-                    tm_tmp.tm_min,
-                    tm_tmp.tm_sec);
-}
-
-
-//utility macro to log also with a date as a prefix
+      time_t result= time(NULL);
+	localtime_r(&result, &tm_tmp);
+	  //my_snprintf is limited regarding formatting but sufficient for this
+	  return my_snprintf(buff, buff_size, "%02d%02d%02d %2d:%02d:%02d: ",
+			     tm_tmp.tm_year % 100,
+			     tm_tmp.tm_mon+1,
+			     tm_tmp.tm_mday,
+			     tm_tmp.tm_hour,
+			     tm_tmp.tm_min,
+			     tm_tmp.tm_sec);
+	    }
+	    
+	    
+  //utility macro to log also with a date as a prefix
 #define log_with_date(f, ...) do{\
-    struct tm tm_tmp;\
-    time_t result= time(NULL);\
-    localtime_r(&result, &tm_tmp);\
-    fprintf(f, "%02d%02d%02d %2d:%02d:%02d: ",\
+	    struct tm tm_tmp;\
+	    time_t result= time(NULL);\
+	    localtime_r(&result, &tm_tmp);\
+	    fprintf(f, "%02d%02d%02d %2d:%02d:%02d: ",\
                     tm_tmp.tm_year % 100,\
                     tm_tmp.tm_mon+1,\
                     tm_tmp.tm_mday,\
                     tm_tmp.tm_hour,\
                     tm_tmp.tm_min,\
                     tm_tmp.tm_sec);\
-    fprintf(f, __VA_ARGS__);\
-}while(0)
-
-
-//initialize static stuff
-ThdOffsets Audit_formatter::thd_offsets = { 0 };
-Audit_handler * Audit_handler::m_audit_handler_list[Audit_handler::MAX_AUDIT_HANDLERS_NUM];
-const char * Audit_json_formatter::DEF_MSG_DELIMITER = "\\n";
-
+		    fprintf(f, __VA_ARGS__);\
+		    }while(0)
+		       
+		       
+		       //initialize static stuff
+		       ThdOffsets Audit_formatter::thd_offsets = { 0 };
+		       Audit_handler * Audit_handler::m_audit_handler_list[Audit_handler::MAX_AUDIT_HANDLERS_NUM];
+		       const char * Audit_json_formatter::DEF_MSG_DELIMITER = "\\n";
+		       
 #define C_STRING_WITH_LEN(X) ((char *) (X)), ((size_t) (sizeof(X) - 1))
-
-
-const char *  Audit_formatter::retrive_object_type (TABLE_LIST *pObj)
-{
-    if (pObj->view)
-	{
-		return "VIEW";
-	}	
-	return "TABLE";
-}
-
-
-void Audit_handler::stop_all()
-{
-    for (int i = 0; i < MAX_AUDIT_HANDLERS_NUM; ++i)
-    {
-        if (m_audit_handler_list[i] != NULL)
-        {
-            m_audit_handler_list[i]->set_enable(false);
-        }
-    }
-}
-
-void Audit_handler::log_audit_all(ThdSesData *pThdData)
-{
-    for (int i = 0; i < MAX_AUDIT_HANDLERS_NUM; ++i)
-    {
-        if (m_audit_handler_list[i] != NULL)
-        {
-            m_audit_handler_list[i]->log_audit(pThdData);
-        }
-    }
-}
-		
-void Audit_handler::set_enable(bool val)
-{
-    lock_exclusive();
-    if (m_enabled == val) //we are already enabled simply return
-    {
-        unlock();
-        return;
-    }
-    m_enabled = val;
-    if (m_enabled)
-    {
-        //call the startup of the handler
-        handler_start();
-    }
-    else
-    {
-        //call the cleanup of the handler
-        handler_stop();
-    }
-    unlock();
-}
-
-void Audit_handler::log_audit(ThdSesData *pThdData)
-{
-    lock_shared();
-    if (!m_enabled)
-    {
-        unlock();
-        return;
-    }
-    //sanity check that offsets match
-	//we can also consider using secutiry context function to do some sanity checks
-	//  char buffer[2048];
-    //  thd_security_context(thd, buffer, 2048, 2000);
-    //  fprintf(log_file, "info from security context: %s\n", buffer);
-    unsigned long inst_thread_id = Audit_formatter::thd_inst_thread_id(pThdData->getTHD());
-    unsigned long plug_thread_id = thd_get_thread_id(pThdData->getTHD());
-    if (inst_thread_id != plug_thread_id)
-    {
-        if (m_print_offset_err)
-        {
-            m_print_offset_err = false;
-            sql_print_error(
+		       
+		       
+		       const char *  Audit_formatter::retrive_object_type (TABLE_LIST *pObj)
+		       {
+			 if (pObj->view)
+			   {
+			     return "VIEW";
+			       }	
+			   return "TABLE";
+			     }
+			     
+			     
+			     void Audit_handler::stop_all()
+			     {
+			       for (int i = 0; i < MAX_AUDIT_HANDLERS_NUM; ++i)
+				 {
+				   if (m_audit_handler_list[i] != NULL)
+				     {
+				       m_audit_handler_list[i]->set_enable(false);
+					 }
+				     }
+				 }
+				 
+				 void Audit_handler::log_audit_all(ThdSesData *pThdData)
+				 {
+				   for (int i = 0; i < MAX_AUDIT_HANDLERS_NUM; ++i)
+				     {
+				       if (m_audit_handler_list[i] != NULL)
+					 {
+					   m_audit_handler_list[i]->log_audit(pThdData);
+					     }
+					 }
+				     }
+				     
+				     void Audit_handler::set_enable(bool val)
+				     {
+				       lock_exclusive();
+					 if (m_enabled == val) //we are already enabled simply return
+					   {
+					     unlock();
+					       return;
+						 }
+					   m_enabled = val;
+					     if (m_enabled)
+					       {
+						 //call the startup of the handler
+						 handler_start();
+						   }
+					     else
+					       {
+						 //call the cleanup of the handler
+						 handler_stop();
+						   }
+					       unlock();
+						 }
+						 
+						 void Audit_handler::log_audit(ThdSesData *pThdData)
+						 {
+						   lock_shared();
+						     if (!m_enabled)
+						       {
+							 unlock();
+							   return;
+							     }
+						       //sanity check that offsets match
+						       //we can also consider using secutiry context function to do some sanity checks
+						       //  char buffer[2048];
+						       //  thd_security_context(thd, buffer, 2048, 2000);
+						       //  fprintf(log_file, "info from security context: %s\n", buffer);
+						       unsigned long inst_thread_id = Audit_formatter::thd_inst_thread_id(pThdData->getTHD());
+							 unsigned long plug_thread_id = thd_get_thread_id(pThdData->getTHD());
+							   if (inst_thread_id != plug_thread_id)
+							     {
+							       if (m_print_offset_err)
+								 {
+								   m_print_offset_err = false;
+								     sql_print_error(
                     "%s Thread id from thd_get_thread_id doesn't match calculated value from offset %lu <> %lu. Aborting!",
                     AUDIT_LOG_PREFIX, inst_thread_id, plug_thread_id);
         }		
