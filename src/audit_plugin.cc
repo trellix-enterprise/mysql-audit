@@ -454,6 +454,7 @@ static my_bool json_socket_handler_enable = FALSE;
 static my_bool uninstall_plugin_enable = FALSE;
 static my_bool validate_checksum_enable = FALSE;
 static char * offsets_string = NULL;
+static char * checksum_string = NULL;
 static int delay_ms_val =0;
 static char *delay_cmds_string = NULL;
 static char *record_cmds_string = NULL;
@@ -987,8 +988,44 @@ static int setup_offsets()
   //[mysqld]
   //audit_offsets=6200, 6264, 3672, 3944, 88, 2048
 
+  if (validate_checksum_enable)
+    {
+      sql_print_information ("%s Audit validate checksum enabled. Mysqld %s ",log_prefix, my_progname);
+      my_MD5Context context;
+      my_MD5Init (&context);
+      unsigned char * file_buff;
+      MY_STAT stat_arg;
+      File fd;
+      if (my_stat(my_progname,&stat_arg,MYF(MY_WME)))
+	{
+	  if ((fd = my_open(my_progname,O_RDONLY, MYF(MY_WME))) > 0)
+	    {
+	      file_buff = (unsigned char*) my_malloc ((uint) stat_arg.st_size, MYF (MY_WME));
+	      if (read(fd,(char*) file_buff,(uint) stat_arg.st_size) >= 0L)
+		{
+		  my_MD5Update (&context, file_buff, stat_arg.st_size);
+		  my_MD5Final (digest, &context);
+		}
+	      (void) my_close(fd,MYF(0));
+	      free (file_buff);
+	    }
+	}
+
+      for (int j = 0; j < 16; j++) {
+	sprintf(&(digest_str[j*2]), "%02x", digest[j]);
+      }
+
+    }
+
   if (offsets_string !=NULL) 
     {
+      if (checksum_string != NULL && strlen(checksum_string) > 0) {
+	if (strncasecmp(checksum_string, digest_str, 32)) {
+	  // Checksum failed
+	  sql_print_information("%s checksum check failed for %s, but found %s", log_prefix, checksum_string, digest_str);
+	  DBUG_RETURN(1);
+	}
+      }
       
       char buf[32*1024] = {0};
       THD * thd = (THD *)buf;
@@ -1029,31 +1066,7 @@ static int setup_offsets()
   //[mysqld]
   //audit_validate_checksum=1
   //plugin-load=AUDIT=libaudit_plugin.so
-  if (validate_checksum_enable)
-    {
-      sql_print_information ("%s Audit validate checksum enabled. Mysqld %s ",log_prefix, my_progname);
-      my_MD5Context context;
-      my_MD5Init (&context);
-      unsigned char * file_buff;
-      MY_STAT stat_arg;
-      File fd;
-      if (my_stat(my_progname,&stat_arg,MYF(MY_WME)))
-	{
-	  if ((fd = my_open(my_progname,O_RDONLY, MYF(MY_WME))) > 0)
-	    {
-	      file_buff = (unsigned char*) my_malloc ((uint) stat_arg.st_size, MYF (MY_WME)); 
-	      if (read(fd,(char*) file_buff,(uint) stat_arg.st_size) >= 0L)
-		{
-		  my_MD5Update (&context, file_buff, stat_arg.st_size);
-		  my_MD5Final (digest, &context);
-		}
-	      (void) my_close(fd,MYF(0));
-	      free (file_buff);
-	    }
-	}
 
-
-    }
   bool bCheckSumValidation = false;
   for(int i=0; i < arr_size; i++)
     {
@@ -1065,24 +1078,9 @@ static int setup_offsets()
       //plugin-load=AUDIT=libaudit_plugin.so
       if (validate_checksum_enable && strlen (offset->md5digest) >0)
 	{
-	  memset (digest_str,0,sizeof (digest_str));
 	  bCheckSumValidation = true;
 	  int kd=0;
-	  for (int j=0;j<16;j++)
-	    {
-	      unsigned char Dig=0;
-	      char DigStr[3]={0};
-	      DigStr[0]= offset->md5digest[kd++];
-	      DigStr[1]= offset->md5digest[kd++];
-	      sscanf (DigStr,"%x",&Dig);
-	      sprintf (digest_str,"%s %2x",digest_str,digest[j]);
-	      if (Dig != digest[j])
-		{
-		  bCheckSumValidation = false;
-		}
-	    }
-	  if (bCheckSumValidation)
-	    {
+	  if (!strncasecmp(digest_str, offset->md5digest, 32)) {
 	      sql_print_information ("%s Checksum is %s verified", log_prefix, digest_str);
 	      sql_print_information("%s Using offsets from offset version: %s", log_prefix, offset->version);
 	      Audit_formatter::thd_offsets = *offset;
@@ -1568,6 +1566,11 @@ static MYSQL_SYSVAR_STR(offsets, offsets_string,
 			"AUDIT plugin offsets. Comma separated list of offsets to use for extracting data",
 			NULL, NULL, NULL);
 
+static MYSQL_SYSVAR_STR(checksum, checksum_string,
+			PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY  | PLUGIN_VAR_MEMALLOC,
+			"AUDIT plugin checksum. Checksum for mysqld corresponding to offsets",
+			NULL, NULL, "");
+
 static MYSQL_SYSVAR_BOOL(uninstall_plugin, uninstall_plugin_enable,
 			 PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY ,
 			 "AUDIT uninstall plugin Enable|Disable. Default disabled. If disabled attempts to uninstall the AUDIT plugin via the sql UNINSTALL command will fail.", NULL, NULL, 0);
@@ -1620,6 +1623,7 @@ static struct st_mysql_sys_var* audit_system_variables[] =
     MYSQL_SYSVAR(delay_cmds),
     MYSQL_SYSVAR(record_cmds),
     MYSQL_SYSVAR(record_objs),
+    MYSQL_SYSVAR(checksum),
     NULL };
 
 //declare our plugin
