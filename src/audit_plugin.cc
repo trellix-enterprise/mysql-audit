@@ -1201,6 +1201,50 @@ static int set_com_status_vars_array ()
     }
   DBUG_RETURN (0);
 }
+
+static int string_to_array (const void *save, void *array, int rows, int length)
+{
+
+  const char* save_string;
+  save_string = *static_cast<const char*const*>(save);
+  char* string_array;
+  string_array = (char *) array;
+
+  int r =0;
+  if (save_string !=NULL) {
+    int p = 0;
+    for (int i = 0; save_string[i] != '\0'; i++) {
+      // consider space and tab and comma to be separators
+      // strings of multiple of them will be only a single separator
+      if (save_string[i] == ' ' || save_string[i] == '\t' || save_string[i] == ',') {
+	if (p > 0) {
+	  string_array[r * length + p ] = '\0';
+	  p = 0;
+	  r++;
+	  if (r == (rows - 1)) {
+	    break;
+	  }
+	}
+      }
+      // otherwise copy the character over
+      else {
+	string_array[r * length + p] = tolower(save_string[i]);
+	p++;
+      }
+    }
+    // if we have copied chars to the current row, then terminate the string and
+    // go to the next row.
+    if (p > 0) {
+      string_array[r * length + p] = '\0';
+      r++;
+    }
+    // now terminate the list
+    string_array[r * length + 0] = '\0';
+  }
+
+  return r;
+}
+
 /*
   Initialize the daemon plugin installation.
 
@@ -1227,6 +1271,20 @@ static int audit_plugin_init(void *p)
     {
       DBUG_RETURN(1);
     }
+
+  // setup any values from my.cnf
+  if (delay_cmds_string != NULL) {
+    num_delay_cmds = string_to_array(&delay_cmds_string, delay_cmds_array, SQLCOM_END + 2, MAX_COMMAND_CHAR_NUMBERS);
+    sql_print_information("%s Set num_delay_cmds: %d", log_prefix, num_delay_cmds);
+  }
+  if (record_cmds_string != NULL) {
+    num_record_cmds = string_to_array(&record_cmds_string, record_cmds_array, SQLCOM_END + 2, MAX_COMMAND_CHAR_NUMBERS);
+    sql_print_information("%s Set num_record_cmds: %d", log_prefix, num_record_cmds);
+  }
+  if (record_objs_string != NULL) {
+    num_record_objs = string_to_array(&record_objs_string, record_objs_array, MAX_NUM_OBJECT_ELEM + 2, MAX_OBJECT_CHAR_NUMBERS);
+    sql_print_information("%s Set num_record_objs: %d", log_prefix, num_record_objs);
+  }
    
   //setup audit handlers (initially disabled)
   int res = json_file_handler.init(&json_formatter);
@@ -1454,75 +1512,31 @@ static void json_log_socket_enable(THD *thd, struct st_mysql_sys_var *var,
     }
 }
 
-static int string_handler (THD *thd, struct st_mysql_sys_var *var,
-			    void *tgt, const void *save, 
-			    char *string_array, int rows, int length)
-{
 
-  char *old= *(char **) tgt;
-  *(char **)tgt= my_strdup(*(char **) save, MYF(0));   
-#if MYSQL_VERSION_ID > 50505	
-  my_free(old);
-#else
-  my_free(old, MYF(0));
-#endif
-
-  const char* save_string;
-  save_string = *static_cast<const char*const*>(save);
- 
-  int r =0;
-  if (save_string !=NULL) {
-    int p = 0;
-    for (int i = 0; save_string[i] != '\0'; i++) {
-      // consider space and tab and comma to be separators
-      // strings of multiple of them will be only a single separator
-      if (save_string[i] == ' ' || save_string[i] == '\t' || save_string[i] == ',') {
-	if (p > 0) {
-	  string_array[r * length + p ] = '\0';
-	  p = 0;
-	  r++;
-	  if (r == (rows - 1)) {
-	    break;
-	  }
-	}
-      }
-      // otherwise copy the character over
-      else {
-	string_array[r * length + p] = tolower(save_string[i]);
-	p++;
-      }
-    }
-    // if we have copied chars to the current row, then terminate the string and 
-    // go to the next row.
-    if (p > 0) {
-      string_array[r * length + p] = '\0';
-      r++;
-    }
-    // now terminate the list
-    string_array[r * length + 0] = '\0';
-  }
-
-  return r;
-}
-
-static void delay_cmds_string_handler (THD *thd, struct st_mysql_sys_var *var,
+static void delay_cmds_string_update (THD *thd, struct st_mysql_sys_var *var,
 				       void *tgt, const void *save)
 {
-  num_delay_cmds = string_handler(thd, var, tgt, save, (char *) delay_cmds_array, SQLCOM_END + 2, MAX_COMMAND_CHAR_NUMBERS);
+  // FIXME: This might leak memory for each update, but prevents a crash when original settings were in my.cnf
+  *(char **)tgt= my_strdup(*(char **) save, MYF(0));
+  num_delay_cmds = string_to_array(save, delay_cmds_array, SQLCOM_END + 2, MAX_COMMAND_CHAR_NUMBERS);
   sql_print_information("%s Set num_delay_cmds: %d", log_prefix, num_delay_cmds);
 }
 
-static void record_cmds_string_handler (THD *thd, struct st_mysql_sys_var *var,
+static void record_cmds_string_update (THD *thd, struct st_mysql_sys_var *var,
 				       void *tgt, const void *save)
 {
-  num_record_cmds = string_handler(thd, var, tgt, save, (char *) record_cmds_array, SQLCOM_END + 2, MAX_COMMAND_CHAR_NUMBERS);
+  // FIXME: This might leak memory for each update, but prevents a crash when original settings were in my.cnf
+  *(char **)tgt= my_strdup(*(char **) save, MYF(0));
+  num_record_cmds = string_to_array(save, record_cmds_array, SQLCOM_END + 2, MAX_COMMAND_CHAR_NUMBERS);
   sql_print_information("%s Set num_record_cmds: %d", log_prefix, num_record_cmds);
 }
 
-static void record_objs_string_handler (THD *thd, struct st_mysql_sys_var *var,
+static void record_objs_string_update (THD *thd, struct st_mysql_sys_var *var,
 				       void *tgt, const void *save)
 {
-  num_record_objs = string_handler(thd, var, tgt, save, (char *) record_objs_array, MAX_NUM_OBJECT_ELEM + 2, MAX_OBJECT_CHAR_NUMBERS);
+  // FIXME: This might leak memory for each update, but prevents a crash when original settings were in my.cnf
+  *(char **)tgt= my_strdup(*(char **) save, MYF(0));
+  num_record_objs = string_to_array(save, record_objs_array, MAX_NUM_OBJECT_ELEM + 2, MAX_OBJECT_CHAR_NUMBERS);
   sql_print_information("%s Set num_record_objs: %d", log_prefix, num_record_objs);
 }
 
@@ -1540,7 +1554,7 @@ static MYSQL_SYSVAR_UINT(json_file_sync, json_file_handler.m_sync_period,
 			 NULL, NULL, 0, 0, UINT_MAX32, 0);
 
 static MYSQL_SYSVAR_BOOL(json_file, json_file_handler_enable,
-			 PLUGIN_VAR_OPCMDARG,
+			 PLUGIN_VAR_RQCMDARG,
 			 "AUDIT plugin json log file Enable|Disable", NULL, json_log_file_enable, 0);
 
 
@@ -1564,7 +1578,7 @@ static MYSQL_SYSVAR_BOOL(validate_checksum, validate_checksum_enable,
 			 "AUDIT plugin binary checksum validation Enable|Disable", NULL, NULL, 1);
 
 static MYSQL_SYSVAR_BOOL(json_socket, json_socket_handler_enable,
-			 PLUGIN_VAR_OPCMDARG,
+			 PLUGIN_VAR_RQCMDARG,
 			 "AUDIT plugin json log unix socket Enable|Disable", NULL, json_log_socket_enable, 0);
 
 static MYSQL_SYSVAR_INT(delay_ms, delay_ms_val,
@@ -1575,17 +1589,17 @@ static MYSQL_SYSVAR_INT(delay_ms, delay_ms_val,
 static MYSQL_SYSVAR_STR(delay_cmds, delay_cmds_string,
 			PLUGIN_VAR_RQCMDARG,
 			"AUDIT plugin delay commands to match against comma separated. If empty then delay is disabled.",
-			NULL, delay_cmds_string_handler, NULL);
+			NULL, delay_cmds_string_update, NULL);
 
 static MYSQL_SYSVAR_STR(record_cmds, record_cmds_string,
 			PLUGIN_VAR_RQCMDARG,
 			"AUDIT plugin commands to record, comma separated",
-			NULL, record_cmds_string_handler, NULL);
+			NULL, record_cmds_string_update, NULL);
 
 static MYSQL_SYSVAR_STR(record_objs, record_objs_string,
 			PLUGIN_VAR_RQCMDARG,
 			"AUDIT plugin objects to record, comma separated",
-			NULL, record_objs_string_handler, NULL);
+			NULL, record_objs_string_update, NULL);
 
 /*
  * Plugin system vars
