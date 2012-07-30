@@ -517,15 +517,18 @@ THDPRINTED * GetThdPrintedList (THD *thd)
   return NULL;
 }
 
-static int check_array(const char *cmd, char *array, int length) {
-  for (int k=0; array[k * length + 0] !='\0';k++) {   
-    int j=0;
-    while (array[k * length + j] !='\0' && cmd[j] !='\0'
-	   && array[k * length + j] == tolower (cmd[j])) {
-      j++;
-    }
-    if (array[k * length + j] == '\0' && j !=0) {
-      return 1;
+static int check_array(const char *cmds[], char *array, int length) {
+  for (int k=0; array[k * length + 0] !='\0';k++) {
+    for (int q = 0; cmds[q] != NULL; q++) {
+      const char *cmd = cmds[q];
+      int j = 0;
+      while (array[k * length + j] != '\0' && cmd[j] != '\0'
+              && array[k * length + j] == tolower(cmd[j])) {
+        j++;
+      }
+      if (array[k * length + j] == '\0' && j != 0) {
+        return 1;
+      }
     }
   }
   return 0;
@@ -536,7 +539,10 @@ static void audit(ThdSesData *pThdData)
   THDPRINTED *pThdPrintedList = GetThdPrintedList (pThdData->getTHD());
   if (num_record_cmds > 0) {
       const char * cmd = pThdData->getCmdName();
-      if (!check_array(cmd, (char *) record_cmds_array, MAX_COMMAND_CHAR_NUMBERS)) {
+      const char *cmds[2];
+      cmds[0] = cmd;
+      cmds[1] = NULL;
+      if (!check_array(cmds, (char *) record_cmds_array, MAX_COMMAND_CHAR_NUMBERS)) {
 	return;
       }
   }
@@ -548,11 +554,28 @@ static void audit(ThdSesData *pThdData)
     while (table && !matched)  {
       char *name = table->get_table_name();
       char *db = table->get_db_name();
-      char obj[MAX_OBJECT_CHAR_NUMBERS];
-      strcpy(obj, db);
-      strcat(obj, ":");
-      strcat(obj, name);
-      matched = check_array(obj, (char *) record_objs_array, MAX_OBJECT_CHAR_NUMBERS);
+
+      char db_obj[MAX_OBJECT_CHAR_NUMBERS];
+      char wildcard_obj[MAX_OBJECT_CHAR_NUMBERS];
+      char db_wildcard[MAX_OBJECT_CHAR_NUMBERS];
+
+      strcpy(db_obj, db);
+      strcat(db_obj, ".");
+      strcat(db_obj, name);
+
+      strcpy(wildcard_obj, "*.");
+      strcat(wildcard_obj, name);
+
+      strcpy(db_wildcard, db);
+      strcat(db_wildcard, ".*");
+
+      const char *objects[4];
+      objects[0] = db_obj;
+      objects[1] = wildcard_obj;
+      objects[2] = db_wildcard;
+      objects[3] = NULL;
+
+      matched = check_array(objects, (char *) record_objs_array, MAX_OBJECT_CHAR_NUMBERS);
       table = table->next_global;
     }
     if (!matched) {
@@ -579,7 +602,10 @@ static void audit(ThdSesData *pThdData)
   if (delay_ms_val > 0) 
     {
       const char * cmd = pThdData->getCmdName();
-      int delay = check_array(cmd, (char *) delay_cmds_array, MAX_COMMAND_CHAR_NUMBERS);
+      const char *cmds[2];
+      cmds[0] = cmd;
+      cmds[1] = NULL;
+      int delay = check_array(cmds, (char *) delay_cmds_array, MAX_COMMAND_CHAR_NUMBERS);
       if (delay)
 	{
 	  //Audit_file_handler::print_sleep(thd,delay_ms_val);
