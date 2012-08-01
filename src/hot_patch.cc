@@ -182,6 +182,11 @@ int hot_patch_function (void* targetFunction, void* newFunction, void * trampoli
  */
 void remove_hot_patch_function (void* targetFunction, void * trampolineFunction, unsigned int trampolinesize, bool info_print, const char * log_prefix)
 {
+	if(trampolinesize == 0)
+	{
+		//nothing todo. As hot patch was not set.
+		return;
+	}
 	cond_info_print(info_print, "%s removing hot patching function: 0x%x",log_prefix, targetFunction);
 	DATATYPE_ADDRESS targetPage = get_page_address(targetFunction);
 	cond_info_print(info_print, "%s targetPage: 0x%x targetFunction: 0x%x",log_prefix, targetPage, targetFunction);
