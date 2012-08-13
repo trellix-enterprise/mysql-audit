@@ -123,6 +123,22 @@ void Audit_handler::set_enable(bool val)
     unlock();
 }
 
+void Audit_handler::flush()
+{
+	lock_exclusive();
+    if (!m_enabled) //if not running we don't flush
+    {
+        unlock();
+        return;
+    }
+    //call the cleanup of the handler
+    handler_stop();
+    //call the startup of the handler
+    handler_start();          
+	sql_print_information("%s Log flush complete.", AUDIT_LOG_PREFIX);
+    unlock();
+}
+
 void Audit_handler::log_audit(ThdSesData *pThdData)
 {
     lock_shared();

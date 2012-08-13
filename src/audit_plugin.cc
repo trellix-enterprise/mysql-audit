@@ -501,6 +501,7 @@ static Audit_json_formatter json_formatter;
 
 //flags to hold if audit handlers are enabled
 static my_bool json_file_handler_enable = FALSE;
+static my_bool json_file_handler_flush = FALSE;
 static my_bool json_socket_handler_enable = FALSE;
 static my_bool uninstall_plugin_enable = FALSE;
 static my_bool validate_checksum_enable = FALSE;
@@ -1403,9 +1404,9 @@ static int audit_plugin_init(void *p)
     //enable according to what we have in *file_handler_enable (this is set accordingly by sysvar functionality)
     json_file_handler.set_enable(json_file_handler_enable);
     json_socket_handler.set_enable(json_socket_handler_enable);
-    Audit_handler::m_audit_handler_list[Audit_handler::BSON_FILE_HANDLER]
+    Audit_handler::m_audit_handler_list[Audit_handler::JSON_FILE_HANDLER]
             = &json_file_handler;
-    Audit_handler::m_audit_handler_list[Audit_handler::BSON_SOCKET_HANDLER]
+    Audit_handler::m_audit_handler_list[Audit_handler::JSON_SOCKET_HANDLER]
             = &json_socket_handler;
 
     //hot patch functions 
@@ -1600,6 +1601,20 @@ static void json_log_file_enable(THD *thd, struct st_mysql_sys_var *var,
     }
 }
 
+static void json_log_file_flush(THD *thd, struct st_mysql_sys_var *var,
+        void *tgt, const void *save)
+{
+	//always set to false. as we just flush if set to true and leave at 0
+    json_file_handler_flush = FALSE;
+	my_bool val = *(my_bool *) save ? TRUE : FALSE;
+    if(val && json_file_handler.is_init())
+    {
+        json_file_handler.flush();
+    }
+}
+
+
+
 
 static void json_log_socket_enable(THD *thd, struct st_mysql_sys_var *var,
         void *tgt, const void *save)
@@ -1651,6 +1666,10 @@ static MYSQL_SYSVAR_UINT(json_file_sync, json_file_handler.m_sync_period,
 static MYSQL_SYSVAR_BOOL(json_file, json_file_handler_enable,
 			 PLUGIN_VAR_RQCMDARG,
         "AUDIT plugin json log file Enable|Disable", NULL, json_log_file_enable, 0);
+		
+static MYSQL_SYSVAR_BOOL(json_file_flush, json_file_handler_flush,
+			 PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_NOCMDOPT,
+        "AUDIT plugin json log file flush. Set to ON to perform a flush of the log.", NULL, json_log_file_flush, 0);
 
 
 static MYSQL_SYSVAR_STR(json_socket_name, json_socket_handler.m_sockname,
@@ -1706,6 +1725,7 @@ static struct st_mysql_sys_var* audit_system_variables[] =
         MYSQL_SYSVAR(json_log_file),
         MYSQL_SYSVAR(json_file_sync),
         MYSQL_SYSVAR(json_file),
+		MYSQL_SYSVAR(json_file_flush),
 		MYSQL_SYSVAR(uninstall_plugin),
 		MYSQL_SYSVAR(validate_checksum),
 		MYSQL_SYSVAR(json_socket_name),

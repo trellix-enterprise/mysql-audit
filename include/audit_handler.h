@@ -213,8 +213,8 @@ public:
 
 
     static const size_t MAX_AUDIT_HANDLERS_NUM = 4;
-    static const size_t BSON_FILE_HANDLER = 1;
-    static const size_t BSON_SOCKET_HANDLER = 3;
+    static const size_t JSON_FILE_HANDLER = 1;
+    static const size_t JSON_SOCKET_HANDLER = 3;
 
     static Audit_handler * m_audit_handler_list[];
 
@@ -277,6 +277,11 @@ public:
     }
 
     void set_enable(bool val);
+	
+	/**
+	 * will close and start the handler
+	 */
+	void flush();
 
     /**
      * Will get relevant shared lock and call internal method of handler
