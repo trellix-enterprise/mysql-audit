@@ -236,7 +236,7 @@ void Audit_file_handler::handler_log_audit(ThdSesData *pThdData)
 
 ssize_t Audit_socket_handler::write(const char * data, size_t size)
 {
-    return vio_write(m_vio, (const uchar *) data, size);
+    return vio_write((Vio*)m_vio, (const uchar *) data, size);
 }
 
 void Audit_socket_handler::handler_start()

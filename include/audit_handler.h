@@ -432,13 +432,14 @@ protected:
      */
     virtual void handler_log_audit(ThdSesData *pThdData);
     //Vio we write to
-    Vio * m_vio;
+	//define as void* so we don't access members directly
+    void * m_vio;
     void close_vio()
     {
         if (m_vio)
         {
-            vio_close(m_vio);
-            vio_delete(m_vio);
+            vio_close((Vio*)m_vio);
+            vio_delete((Vio*)m_vio);
         }
         m_vio = NULL;
     }

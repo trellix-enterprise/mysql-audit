@@ -91,6 +91,8 @@ static const ThdOffsets thd_offsets_arr[] =
 		{"5.1.55-community","e5d0694364a5e14dd227cb3c28ea0928", 6336, 6400, 3688, 3960, 88, 2048},
 		//offsets for: mysqlrpm/5.1.56/usr/sbin/mysqld (5.1.56-community)
 		{"5.1.56-community","fd16157ab06cc0cfb3eba40e9936792c", 6336, 6400, 3688, 3960, 88, 2048},
+		//offsets for: /usr/sbin/mysqld (5.1.56-ndb-7.1.18-cluster-gpl)
+		{"5.1.56-ndb-7.1.18-cluster-gpl","ee9cc4dd2f0e9db04dce32867fcf599e", 6304, 6368, 3640, 3912, 88, 2048},
 		//offsets for: mysqlrpm/5.1.57/usr/sbin/mysqld (5.1.57-community)
 		{"5.1.57-community","4c6d32f80c20657983f7ac316c6a6e10", 6336, 6400, 3688, 3960, 88, 2048},
 		//offsets for: mysqlrpm/5.1.58/usr/sbin/mysqld (5.1.58-community)
