@@ -517,6 +517,7 @@ static char *record_objs_string = NULL;
 static char delay_cmds_array [SQLCOM_END + 2][MAX_COMMAND_CHAR_NUMBERS] = {0};
 static char record_cmds_array [SQLCOM_END + 2][MAX_COMMAND_CHAR_NUMBERS] = {0};
 static char record_objs_array [MAX_NUM_OBJECT_ELEM + 2][MAX_OBJECT_CHAR_NUMBERS] = {0};
+static bool record_empty_objs_set = true;
 static int num_delay_cmds = 0;
 static int num_record_cmds = 0;
 static int num_record_objs = 0;
@@ -602,27 +603,34 @@ static void audit(ThdSesData *pThdData)
     LEX *pLex = Audit_formatter::thd_lex(pThdData->getTHD());
     TABLE_LIST * table = pLex->query_tables;
     int matched = 0;
-    while (table && !matched)  {
-      char *name = table->get_table_name();
-      char *db = table->get_db_name();
-      char db_obj[MAX_OBJECT_CHAR_NUMBERS];
-      char wildcard_obj[MAX_OBJECT_CHAR_NUMBERS];
-      char db_wildcard[MAX_OBJECT_CHAR_NUMBERS];
-      strcpy(db_obj, db);
-      strcat(db_obj, ".");
-      strcat(db_obj, name);
-      strcpy(wildcard_obj, "*.");
-      strcat(wildcard_obj, name);
-      strcpy(db_wildcard, db);
-      strcat(db_wildcard, ".*");
-      const char *objects[4];
-      objects[0] = db_obj;
-      objects[1] = wildcard_obj;
-      objects[2] = db_wildcard;
-      objects[3] = NULL;
-      matched = check_array(objects, (char *) record_objs_array, MAX_OBJECT_CHAR_NUMBERS);
-      table = table->next_global;
-    }
+	if(!table) //empty list of objects
+	{
+		matched = record_empty_objs_set;
+	}
+	else
+	{
+		while (table && !matched)  {
+		  char *name = table->get_table_name();
+		  char *db = table->get_db_name();
+		  char db_obj[MAX_OBJECT_CHAR_NUMBERS];
+		  char wildcard_obj[MAX_OBJECT_CHAR_NUMBERS];
+		  char db_wildcard[MAX_OBJECT_CHAR_NUMBERS];
+		  strcpy(db_obj, db);
+		  strcat(db_obj, ".");
+		  strcat(db_obj, name);
+		  strcpy(wildcard_obj, "*.");
+		  strcat(wildcard_obj, name);
+		  strcpy(db_wildcard, db);
+		  strcat(db_wildcard, ".*");
+		  const char *objects[4];
+		  objects[0] = db_obj;
+		  objects[1] = wildcard_obj;
+		  objects[2] = db_wildcard;
+		  objects[3] = NULL;
+		  matched = check_array(objects, (char *) record_objs_array, MAX_OBJECT_CHAR_NUMBERS);
+		  table = table->next_global;
+		}
+	}
     if (!matched) {
       return;
     }
@@ -1341,8 +1349,28 @@ static int string_to_array(const void *save, void *array,
     }
     return r;
 }
+
 /*
- Initialize the daemon plugin installation.
+ * Utility function to setup record_objs_array.
+ * Will use record_objs_string to setup.
+ */
+static void setup_record_objs_array()
+{
+	num_record_objs = string_to_array(&record_objs_string, record_objs_array, MAX_NUM_OBJECT_ELEM + 2, MAX_OBJECT_CHAR_NUMBERS);	
+	if(num_record_objs > 0) //check if to record also the empty set of objects
+	{ 
+	  const char *objects[] = {"{}", NULL};
+      record_empty_objs_set = check_array(objects, (const char *) record_objs_array, MAX_OBJECT_CHAR_NUMBERS);		 
+	}
+	else
+	{
+		record_empty_objs_set = true;
+	}
+	sql_print_information("%s Set num_record_objs: %d record objs: %s", log_prefix, num_record_objs, record_objs_array);
+}
+
+/*
+ Initialize the plugin installation.
 
  SYNOPSIS
  audit_plugin_init()
@@ -1382,8 +1410,7 @@ static int audit_plugin_init(void *p)
     sql_print_information("%s Set num_record_cmds: %d", log_prefix, num_record_cmds);
   }
   if (record_objs_string != NULL) {
-    num_record_objs = string_to_array(&record_objs_string, record_objs_array, MAX_NUM_OBJECT_ELEM + 2, MAX_OBJECT_CHAR_NUMBERS);
-    sql_print_information("%s Set num_record_objs: %d", log_prefix, num_record_objs);
+	setup_record_objs_array();    
   }
    
     //setup audit handlers (initially disabled)
@@ -1633,7 +1660,8 @@ static void delay_cmds_string_update(THD *thd,
         const void *save)
 {
     num_delay_cmds = string_to_array(save, delay_cmds_array, SQLCOM_END + 2, MAX_COMMAND_CHAR_NUMBERS);
-    sql_print_information("%s Set num_delay_cmds: %d", log_prefix, num_delay_cmds);
+	delay_cmds_string = *static_cast<char* const *> (save);
+    sql_print_information("%s Set num_delay_cmds: %d, delay cmds: %s", log_prefix, num_delay_cmds, delay_cmds_string);
 }
 
 static void record_cmds_string_update(THD *thd,
@@ -1641,15 +1669,16 @@ static void record_cmds_string_update(THD *thd,
         const void *save)
 {
     num_record_cmds = string_to_array(save, record_cmds_array, SQLCOM_END + 2, MAX_COMMAND_CHAR_NUMBERS);
-    sql_print_information("%s Set num_record_cmds: %d", log_prefix, num_record_cmds);
+	record_cmds_string = *static_cast<char* const *> (save);
+    sql_print_information("%s Set num_record_cmds: %d record cmds: %s", log_prefix, num_record_cmds, record_cmds_string);
 }
 
 static void record_objs_string_update(THD *thd,
         struct st_mysql_sys_var *var, void *tgt,
         const void *save)
 {
-    num_record_objs = string_to_array(save, record_objs_array, MAX_NUM_OBJECT_ELEM + 2, MAX_OBJECT_CHAR_NUMBERS);
-    sql_print_information("%s Set num_record_objs: %d", log_prefix, num_record_objs);
+	record_objs_string = *static_cast<char* const *> (save);
+	setup_record_objs_array();	
 }
 
 //setup sysvars which update directly the relevant plugins
