@@ -4,7 +4,7 @@
 		_mysql_plugin_interface_version_;
 		_mysql_sizeof_struct_st_plugin_;
 		audit_plugin_so_init;
-		thd_alloc_service;
+		thd_alloc_service;		
 
 	local: *;
 };

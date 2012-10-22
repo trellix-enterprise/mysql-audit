@@ -10,13 +10,43 @@
 #define ULONG_PTR uint32_t
 #endif
 
+static const char * log_prefix = "Audit Plugin:";
 
 
-#define unprotect(addr,len)  (mprotect(addr,len,PROT_READ|PROT_WRITE|PROT_EXEC))
 #define protect(addr,len)  (mprotect(addr,len,PROT_READ|PROT_EXEC))
-#define GETPAGESIZE()         sysconf (_SC_PAGE_SIZE)
 
 static const unsigned long PAGE_SIZE = GETPAGESIZE() ;
+
+//will try to unprotect with PROT_READ|PROT_WRITE|PROT_EXEC. If fails (might happen under SELinux) 
+//will use PROT_READ|PROT_WRITE
+static int unprotect(void *addr, size_t len)
+{
+	static bool use_exec_prot = true;
+	int res;
+	if(use_exec_prot)
+	{
+		res = mprotect(addr,len,PROT_READ|PROT_WRITE|PROT_EXEC);
+		if(0 != res)
+		{
+			sql_print_information(
+                "%s unable to unprotect. Page: 0x%lx, Size: %d, errno: %d. Using NO EXEC mode.",
+                log_prefix, addr, len, errno);
+			use_exec_prot = false;
+		}
+		else //all is good
+		{
+			return res;
+		}
+	}
+	res = mprotect(addr,len,PROT_READ|PROT_WRITE);
+	if(res != 0) //log the failure
+	{
+		sql_print_error(
+			"%s unable to unprotect. Page: 0x%lx, Size: %d, errno: %d. Error.",
+			log_prefix, addr, len, errno);
+	}
+	return res;		
+}
 
 //macro to log via sql_print_information only if cond test is enabled
 #define cond_info_print(cond_test, ...) do{if(cond_test) sql_print_information(__VA_ARGS__);}while(0)
@@ -36,7 +66,7 @@ static DATATYPE_ADDRESS get_page_address(void * pointer)
 // This function  retrieves the necessary size for the jump
 //
 
-static UINT GetJumpSize(ULONG_PTR PosA, ULONG_PTR PosB)
+unsigned int jump_size()
 {
 #ifndef __x86_64__
     return 5;
@@ -82,7 +112,8 @@ static void WriteJump(void *pAddress, ULONG_PTR JumpTo)
 //
 // Hooks a function
 //
-static bool  HookFunction(ULONG_PTR targetFunction, ULONG_PTR newFunction, ULONG_PTR trampolineFunction, unsigned int *trampolinesize)
+static bool  HookFunction(ULONG_PTR targetFunction, ULONG_PTR newFunction, ULONG_PTR trampolineFunction, 
+	unsigned int *trampolinesize)
 {
     #define MAX_INSTRUCTIONS 100
     uint8_t raw[MAX_INSTRUCTIONS];
@@ -103,10 +134,16 @@ static bool  HookFunction(ULONG_PTR targetFunction, ULONG_PTR newFunction, ULONG
 
     DWORD InstrSize = 0;
     DATATYPE_ADDRESS trampolineFunctionPage = get_page_address((void*)trampolineFunction);
-    unprotect((void*)trampolineFunctionPage, PAGE_SIZE);
+    if(unprotect((void*)trampolineFunctionPage, PAGE_SIZE) != 0)
+	{
+		sql_print_error(
+                "%s unable to unprotect trampoline function page: 0x%lx. Aborting.",
+                log_prefix, trampolineFunctionPage);
+		return false;
+	}
     while (ud_disassemble(&ud_obj) && (strncmp (ud_insn_asm(&ud_obj),"invalid",7)!=0))
     {
-        if (InstrSize >= GetJumpSize(targetFunction, newFunction))
+        if (InstrSize >= jump_size())
             break;
 
         BYTE *pCurInstr = (BYTE *) (InstrSize + (ULONG_PTR) targetFunction);
@@ -133,7 +170,13 @@ static bool  HookFunction(ULONG_PTR targetFunction, ULONG_PTR newFunction, ULONG
 static void UnhookFunction(ULONG_PTR Function,ULONG_PTR trampolineFunction , unsigned int trampolinesize)
 {
     DATATYPE_ADDRESS FunctionPage = get_page_address((void*)Function);
-    unprotect((void*)FunctionPage, PAGE_SIZE);
+    if(unprotect((void*)FunctionPage, PAGE_SIZE) != 0)
+	{
+		sql_print_error(
+                "%s Unhook not able to unprotect function page: 0x%lx. Aborting.",
+                log_prefix, FunctionPage);
+		return;
+	}
     memcpy((void *) Function, (void*)trampolineFunction,trampolinesize);
     protect((void*)FunctionPage, PAGE_SIZE);
 }
@@ -150,16 +193,15 @@ static void UnhookFunction(ULONG_PTR Function,ULONG_PTR trampolineFunction , uns
  * @param newFunction the new function to be called instead of the targetFunction
  * @param trampolineFunction a function which will contain a jump back to the targetFunction. Function need to have
  * 			enough space of TRAMPOLINE_COPY_LENGTH + MIN_REQUIRED_FOR_DETOUR. Recommended to use a static function
- * 			which contains a bunch of nops. Use macro: TRAMPOLINE_NOP_DEF
- * @param log_file if not null will log about progress of installing the plugin
+ * 			which contains a bunch of nops. 
+ * @param info_print if true will print info as progressing
  * @Return 0 on success otherwise failure
  * @See MS Detours paper: http://research.microsoft.com/pubs/68568/huntusenixnt99.pdf for some background info.
  */
-int hot_patch_function (void* targetFunction, void* newFunction, void * trampolineFunction, unsigned int *trampolinesize, bool info_print, const char * log_prefix)
+int hot_patch_function (void* targetFunction, void* newFunction, void * trampolineFunction, unsigned int *trampolinesize, bool info_print)
 {
-	cond_info_print(info_print, "%s hot patching function: 0x%x", log_prefix, targetFunction);
-    DATATYPE_ADDRESS trampolinePage = get_page_address(trampolineFunction);
-    cond_info_print(info_print, "%s trampolineFunction: 0x%x trampolinePage: 0x%x",log_prefix, trampolineFunction, trampolinePage);
+	DATATYPE_ADDRESS trampolinePage = get_page_address(trampolineFunction);
+	cond_info_print(info_print, "%s hot patching function: 0x%lx, trampolineFunction: 0x%lx trampolinePage: 0x%lx",log_prefix, targetFunction, trampolineFunction, trampolinePage);
     if (HookFunction((ULONG_PTR) targetFunction, (ULONG_PTR) newFunction,
             (ULONG_PTR) trampolineFunction, trampolinesize))
     {
@@ -180,17 +222,15 @@ int hot_patch_function (void* targetFunction, void* newFunction, void * trampoli
  * @param trampolineFunction a function which contains a jump back to the targetFunction.
  * @param log_file if not null will log about progress of installing the plugin
  */
-void remove_hot_patch_function (void* targetFunction, void * trampolineFunction, unsigned int trampolinesize, bool info_print, const char * log_prefix)
+void remove_hot_patch_function (void* targetFunction, void * trampolineFunction, unsigned int trampolinesize, bool info_print)
 {
 	if(trampolinesize == 0)
 	{
 		//nothing todo. As hot patch was not set.
 		return;
 	}
-	cond_info_print(info_print, "%s removing hot patching function: 0x%x",log_prefix, targetFunction);
 	DATATYPE_ADDRESS targetPage = get_page_address(targetFunction);
-	cond_info_print(info_print, "%s targetPage: 0x%x targetFunction: 0x%x",log_prefix, targetPage, targetFunction);
-
+	cond_info_print(info_print, "%s removing hot patching function: 0x%lx targetPage: 0x%lx trampolineFunction: 0x%lx",log_prefix, targetFunction, targetPage, trampolineFunction);
 	UnhookFunction ((ULONG_PTR) targetFunction, (ULONG_PTR)trampolineFunction,trampolinesize);
 	return;	
 }

@@ -19,6 +19,7 @@
 
 #include "audit_handler.h"
 #include <string.h>
+ #include <sys/mman.h>
 
 /*
  Disable __attribute__() on non-gcc compilers.
@@ -27,8 +28,6 @@
  #define __attribute__(A)
  #endif
  */
-
-
 
 //see offset-extract/readme.txt for explanation on how this was generated
 #ifdef __x86_64__
@@ -110,6 +109,9 @@ static const ThdOffsets thd_offsets_arr[] =
 		{"5.1.62-community","a4e8de89e0d9a353d09687d3b4560cb3", 6328, 6392, 3688, 3960, 88, 2048},
 		//offsets for: /mysqlrpm/5.1.63/usr/sbin/mysqld (5.1.63-community)
 		{"5.1.63-community","0f4d7e3b17eb36f17aafe4360993a769", 6328, 6392, 3688, 3960, 88, 2048},
+		//offsets for: /mysqlrpm/5.1.65/usr/sbin/mysqld (5.1.65-community)
+		{"5.1.65-community","4df4c0dfe11913bd1ef2bb3a6bc7a40e", 6376, 6440, 3736, 4008, 88, 2056},
+		
         //offsets for: mysqlrpm/5.5.8/usr/sbin/mysqld (5.5.8)
         {"5.5.8","70a882693d54df8ab7c7d9f256e317bb", 6032, 6080, 3776, 4200, 88, 2560},
         //offsets for: mysqlrpm/5.5.9/usr/sbin/mysqld (5.5.9)
@@ -140,6 +142,8 @@ static const ThdOffsets thd_offsets_arr[] =
         {"5.5.20","9f6122576930c5d09ca9244094c83f24", 6048, 6096, 3800, 4224, 88, 2560},
         //offsets for: mysqlrpm/5.5.21/usr/sbin/mysqld (5.5.21)
         {"5.5.21","4a03ad064ed393dabdde175f3ea05ff2", 6048, 6096, 3800, 4224, 88, 2560},
+		//offsets for percons: /usr/sbin/mysqld (5.5.21-55)
+		{"5.5.21-55","e4f1b39e9dca4edc51b8eb6aa09e2fa4", 6464, 6512, 4072, 4512, 88, 2576},
 		//offsets for: mysqlrpm/5.5.22/usr/sbin/mysqld (5.5.22)
 		{"5.5.22","f3592147108e65d92cb18fb4d900c4ab", 6048, 6096, 3800, 4224, 88, 2560},
 		//offsets for: mysqlrpm/5.5.23/usr/sbin/mysqld (5.5.23)
@@ -150,6 +154,10 @@ static const ThdOffsets thd_offsets_arr[] =
 		{"5.5.25","6043eff2cfa493d4e020cae65c41b030", 6056, 6104, 3808, 4232, 88, 2568},
 		//offsets for: mysqlrpm/5.5.25a/usr/sbin/mysqld (5.5.25a)
 		{"5.5.25a","b59c03244daf51d4327409288d8c889f", 6056, 6104, 3808, 4232, 88, 2568},
+		//offsets for: /mysqlrpm/5.5.27/usr/sbin/mysqld (5.5.27)
+		{"5.5.27","8a3bd2ea1db328f4443fc25a79450ff3", 6056, 6104, 3808, 4232, 88, 2568},
+		
+		
 
 				//DISTRIBUTION: tar.gz
 		//offsets for: /mysql/5.1.30/bin/mysqld (5.1.30)
@@ -223,6 +231,10 @@ static const ThdOffsets thd_offsets_arr[] =
 		{"5.1.63","ea56cc85859f146c42957177524492c3", 6336, 6400, 3696, 3968, 88, 2048},
 		//offsets set by https://github.com/creechy
 		{"5.1.63","2a6d7c81179baf6bc6bbb807b8b54967", 6336, 6400, 3696, 3968, 88, 2048},
+		//offsets for: /mysql/5.1.65/bin/mysqld (5.1.65)
+		{"5.1.65","65d905e173c06316b736ee4e9be15baf", 6392, 6456, 3752, 4024, 88, 2056},
+		//offsets for: /mysql/5.1.66/bin/mysqld (5.1.66)
+		{"5.1.66","2cd9a97779d436d1d5d045eb12620ef0", 6392, 6456, 3752, 4024, 88, 2056},
         //offsets for: mysql/5.5.8/bin/mysqld (5.5.8)
         {"5.5.8","a32b163f08ca8bfd7486cd77200d9df3", 6032, 6080, 3776, 4200, 88, 2560},
         //offsets for: mysql/5.5.9/bin/mysqld (5.5.9)
@@ -254,6 +266,8 @@ static const ThdOffsets thd_offsets_arr[] =
         {"5.5.20","8b68e84332b442d58a46ae4299380a99", 6048, 6096, 3800, 4224, 88, 2560},
         //offsets for: mysql/5.5.21/bin/mysqld (5.5.21)
         {"5.5.21","66d23cb577e2bcfe29da08833f5e7d8b", 6048, 6096, 3800, 4224, 88, 2560},
+		//offsets for percona: Percona-Server-5.5.21-rel25.0-227.Linux.x86_64/bin/mysqld (5.5.21-rel25.0)
+		{"5.5.21-rel25.0","346a87d97dbf5d7aad3a9f7f707f9477", 6464, 6512, 4072, 4512, 88, 2576},
 		//offsets for: /mysql/5.5.22/bin/mysqld (5.5.22)
 		{"5.5.22","9152de65a0de0594f46e1db0d0c9a182", 6048, 6096, 3800, 4224, 88, 2560},
 		//offsets for: /mysql/5.5.23/bin/mysqld (5.5.23)
@@ -261,7 +275,11 @@ static const ThdOffsets thd_offsets_arr[] =
 		//offsets for: /mysql/5.5.24/bin/mysqld (5.5.24)
 		{"5.5.24","5cb90eb8d4080f50fd7a432ad9eb75e0", 6048, 6096, 3800, 4224, 88, 2568},
 		//offsets for: /mysql/5.5.25/bin/mysqld (5.5.25)
-		{"5.5.25","3c19465f6b6f2daecb7a2d7ac1592824", 6056, 6104, 3808, 4232, 88, 2568}
+		{"5.5.25","3c19465f6b6f2daecb7a2d7ac1592824", 6056, 6104, 3808, 4232, 88, 2568},
+		//offsets for: /mysql/5.5.27/bin/mysqld (5.5.27)
+		{"5.5.27","0c6d305da14143ac17bf8964243234a4", 6056, 6104, 3808, 4232, 88, 2568},
+		//offsets for: /mysql/5.5.28/bin/mysqld (5.5.28)
+		{"5.5.28","8fbd19126907af43440baa4584dc7d28", 6056, 6104, 3808, 4232, 88, 2568}
 };
 
 #else
@@ -340,6 +358,11 @@ static const ThdOffsets thd_offsets_arr[] =
 		{"5.1.62-community","f410638e7414c6cc709b7d5cda24669c", 4096, 4136, 2240, 2420, 44, 1176},
 		//offsets for: /mysqlrpm/5.1.63/usr/sbin/mysqld (5.1.63-community)
 		{"5.1.63-community","2b39264a67466c6f1dfa37c37a8a6bd0", 4096, 4136, 2240, 2420, 44, 1176},
+		//offsets for: /mysqlrpm/5.1.65/usr/sbin/mysqld (5.1.65-community)
+		{"5.1.65-community","0e96922fe95be696f7f91fc5a94c5d46", 4124, 4164, 2268, 2448, 44, 1180},
+		//offsets for: /mysqlrpm/5.1.66/usr/sbin/mysqld (5.1.66-community)
+		{"5.1.66-community","60049b5c82e3479323001ffb28447820", 4124, 4164, 2268, 2448, 44, 1180},
+		
         //offsets for: mysqlrpm/5.5.8/usr/sbin/mysqld (5.5.8)
         {"5.5.8","3132e8c883f72caf4c8eddb24fd005b4", 3792, 3820, 2336, 2668, 44, 1640},
         //offsets for: mysqlrpm/5.5.9/usr/sbin/mysqld (5.5.9)
@@ -376,6 +399,10 @@ static const ThdOffsets thd_offsets_arr[] =
 		{"5.5.24","10e0ced8d28daf6a9c16d2b57be7c6af", 3808, 3836, 2360, 2692, 44, 1644},
 		//offsets for: /mysqlrpm/5.5.25/usr/sbin/mysqld (5.5.25)
 		{"5.5.25","bd20af37978967a145724098e913eeda", 3812, 3840, 2364, 2696, 44, 1644},
+		//offsets for: /mysqlrpm/5.5.27/usr/sbin/mysqld (5.5.27)
+		{"5.5.27","e6a9760303ea8fdd4face5a88d925059", 3812, 3840, 2364, 2696, 44, 1644},
+		//offsets for: /mysqlrpm/5.5.28/usr/sbin/mysqld (5.5.28)
+		{"5.5.28","8f435a5b9308fd2c4d20860fb3b38ec7", 3812, 3840, 2364, 2696, 44, 1644},
 
         //DISTRIBUTION: tar.gz
 		//offsets for: mysql/5.1.30/bin/mysqld (5.1.30)
@@ -447,6 +474,11 @@ static const ThdOffsets thd_offsets_arr[] =
 		{"5.1.62","4c5fd81faa9fe407c8a7fbd11b29351a", 4104, 4144, 2248, 2428, 44, 1176},
 		//offsets for: /mysql/5.1.63/bin/mysqld (5.1.63)
 		{"5.1.63","576124febe6310985e432f6346031ff4", 4104, 4144, 2248, 2428, 44, 1176},
+		//offsets for: /mysql/5.1.65/bin/mysqld (5.1.65)
+		{"5.1.65","96c750de824898f8af435bd7b73a5e88", 4140, 4180, 2284, 2464, 44, 1180},
+		//offsets for: /mysql/5.1.66/bin/mysqld (5.1.66)
+		{"5.1.66","db5aea9077c989e079980960405807bc", 4140, 4180, 2284, 2464, 44, 1180},
+		
 		//offsets for: /mysqlrpm/5.5.8/usr/sbin/mysqld (5.5.8)
 		{"5.5.8","3132e8c883f72caf4c8eddb24fd005b4", 3792, 3820, 2336, 2668, 44, 1640},
         {"5.5.8","ad8a16d9bbfb783dab53f38cef757900", 3792, 3820, 2336, 2668, 44, 1640},
@@ -487,7 +519,11 @@ static const ThdOffsets thd_offsets_arr[] =
 		//offsets for: /mysql/5.5.24/bin/mysqld (5.5.24)
 		{"5.5.24","a3916dca234905bd49b3fefe5d6ad738", 3808, 3836, 2360, 2692, 44, 1644},
 		//offsets for: /mysql/5.5.25/bin/mysqld (5.5.25)
-		{"5.5.25","f16c3fa53f77e5f25fd25694b5a27c48", 3812, 3840, 2364, 2696, 44, 1644}
+		{"5.5.25","f16c3fa53f77e5f25fd25694b5a27c48", 3812, 3840, 2364, 2696, 44, 1644},
+		//offsets for: /mysql/5.5.27/bin/mysqld (5.5.27)
+		{"5.5.27","b4d8ccf9348ecfe52fcf1d34b37a394d", 3812, 3840, 2364, 2696, 44, 1644},
+		//offsets for: /mysql/5.5.28/bin/mysqld (5.5.28)
+		{"5.5.28","f8922e4289a17acf0347e478f6f30705", 3812, 3840, 2364, 2696, 44, 1644},
 };
 
 #endif
@@ -523,32 +559,18 @@ static int num_record_cmds = 0;
 static int num_record_objs = 0;
 static SHOW_VAR com_status_vars_array [MAX_COM_STATUS_VARS_RECORDS] = {0};
 /**
- * The trampoline function we use. Define it via a macro which simply fills it with nops.
+ * The trampoline functions we use. Will be set to point to allocated mem.
  */
-__attribute__ ((noinline)) static int trampoline_mysql_execute_command(THD *thd)
-{
-    TRAMPOLINE_NOP_DEF;
-    return 0; //dummy return as this does a jump.
-}
+static int (*trampoline_mysql_execute_command)(THD *thd) = NULL;
 static unsigned int trampoline_mysql_execute_size =0;
 
-__attribute__ ((noinline)) static void trampoline_log_slow_statement(THD *thd)
-{
-    TRAMPOLINE_NOP_DEF
-}
+static void (*trampoline_log_slow_statement)(THD *thd) = NULL;
 static unsigned int trampoline_log_slow_statement_size =0;
 
-__attribute__ ((noinline)) static int trampoline_check_user(THD *thd, enum enum_server_command command, const char *passwd, uint passwd_len, const char *db, bool check_count)
-{
-    TRAMPOLINE_NOP_DEF;
-    return 0; //dummy return as this does a jump.
-}
+static int (*trampoline_check_user)(THD *thd, enum enum_server_command command, const char *passwd, uint passwd_len, const char *db, bool check_count) = NULL;
 static unsigned int trampoline_check_user_size =0;
 
-__attribute__ ((noinline)) static bool trampoline_acl_authenticate(THD *thd, uint connect_errors, uint com_change_user_pkt_len){
-    TRAMPOLINE_NOP_DEF;
-    return 0; //dummy return as this does a jump.
-}
+static bool (*trampoline_acl_authenticate)(THD *thd, uint connect_errors, uint com_change_user_pkt_len) = NULL;
 static unsigned int trampoline_acl_authenticate_size =0;
 
 static MYSQL_THDVAR_ULONG(is_thd_printed_list,
@@ -667,27 +689,13 @@ static void audit(ThdSesData *pThdData)
 }
 
 
-__attribute__ ((noinline)) static int  trampoline_send_result_to_client(Query_cache *pthis, THD *thd, char *sql, uint query_length)
-{
-	TRAMPOLINE_NOP_DEF;
-	return 0 ; //dummy return as this does a jump.
-}
+static int  (*trampoline_send_result_to_client)(Query_cache *pthis, THD *thd, char *sql, uint query_length) = NULL;
 
 #if MYSQL_VERSION_ID > 50505
-__attribute__ ((noinline)) static bool trampoline_open_tables(THD *thd, TABLE_LIST **start, uint *counter, uint flags,
-                Prelocking_strategy *prelocking_strategy)
-{
-	TRAMPOLINE_NOP_DEF;
-    TRAMPOLINE_NOP_DEF;
-	return true ; //dummy return as this does a jump.
-}
+static bool (*trampoline_open_tables)(THD *thd, TABLE_LIST **start, uint *counter, uint flags,
+                Prelocking_strategy *prelocking_strategy) = NULL;
 #else
-__attribute__ ((noinline)) static int trampoline_open_tables(THD *thd, TABLE_LIST **start, uint *counter, uint flags)
-{
-	TRAMPOLINE_NOP_DEF;
-    TRAMPOLINE_NOP_DEF;
-	return true ; //dummy return as this does a jump.
-}
+static int (*trampoline_open_tables)(THD *thd, TABLE_LIST **start, uint *counter, uint flags) = NULL;
 #endif
 
 static MYSQL_THDVAR_ULONG(query_cache_table_list,
@@ -708,11 +716,8 @@ NULL, NULL,0,0,
 	return (QueryTableInf*)	THDVAR(thd, query_cache_table_list);
 }
 
-__attribute__ ((noinline)) static bool trampoline_check_table_access(THD *thd, ulong want_access,TABLE_LIST *tables,  uint number, bool no_errors)
-{
-	TRAMPOLINE_NOP_DEF
-		return true;
-}
+static bool (*trampoline_check_table_access)(THD *thd, ulong want_access,TABLE_LIST *tables,  uint number, bool no_errors) = NULL;
+
 static bool audit_check_table_access(THD *thd, ulong want_access,TABLE_LIST *tables,
 	uint number, bool no_errors)
 {
@@ -826,49 +831,49 @@ extern struct st_mysql_plugin *mysqld_builtins[];
 
 void remove_hot_functions ()
 {
-	static bool patches_removed =false;
-	if (patches_removed) return;
-
-    void * target_function = (void *) log_slow_statement;
+	void * target_function = (void *) log_slow_statement;
 	remove_hot_patch_function(target_function,
-	(void*) trampoline_log_slow_statement, trampoline_log_slow_statement_size, true, log_prefix);
+	(void*) trampoline_log_slow_statement, trampoline_log_slow_statement_size, true);
+	trampoline_log_slow_statement_size=0;
 #if MYSQL_VERSION_ID < 50505
 	target_function = (void *) check_user;
 	remove_hot_patch_function(target_function,
-	(void*) trampoline_check_user, trampoline_check_user_size, true, log_prefix);
+	(void*) trampoline_check_user, trampoline_check_user_size, true);
+	trampoline_check_user_size=0;
 #else
     target_function = (void *) acl_authenticate;
 	remove_hot_patch_function(target_function,
-	(void*) trampoline_acl_authenticate, trampoline_acl_authenticate_size, true, log_prefix);
+	(void*) trampoline_acl_authenticate, trampoline_acl_authenticate_size, true);
+	trampoline_acl_authenticate_size=0;
 #endif	
 
 #if MYSQL_VERSION_ID > 50505
 	target_function = (void *)*(bool (*)(THD *thd, TABLE_LIST **start, uint *counter, uint flags,
                 Prelocking_strategy *prelocking_strategy)) &open_tables;
 	remove_hot_patch_function(target_function,
-	(void*) trampoline_open_tables, trampoline_open_tables_size, true, log_prefix);
+	(void*) trampoline_open_tables, trampoline_open_tables_size, true);
+	trampoline_open_tables_size=0;
 #else
 	target_function = (void *)*(int (*)(THD *thd, TABLE_LIST **start, uint *counter, uint flags)) &open_tables;
 	remove_hot_patch_function(target_function,
-	(void*) trampoline_open_tables, trampoline_open_tables_size, true, log_prefix);
-
+	(void*) trampoline_open_tables, trampoline_open_tables_size, true);
+	trampoline_open_tables_size=0;
 #endif
 
 	int (Query_cache::*pf_send_result_to_client)(THD *,char *, uint) = &Query_cache::send_result_to_client;		
 	target_function = *(void **) &pf_send_result_to_client;
 	remove_hot_patch_function(target_function,
-	(void*) trampoline_send_result_to_client, trampoline_send_result_to_client_size, true, log_prefix);		
-
+	(void*) trampoline_send_result_to_client, trampoline_send_result_to_client_size, true);		
+	trampoline_send_result_to_client_size=0;
 
 	remove_hot_patch_function((void*) check_table_access,
 		(void*) trampoline_check_table_access,
-		trampoline_check_table_access_size, true, log_prefix);	
+		trampoline_check_table_access_size, true);	
+	trampoline_check_table_access_size=0;
 	remove_hot_patch_function((void*)mysql_execute_command,
 		(void*) trampoline_mysql_execute_command, 
-		trampoline_mysql_execute_size, true, log_prefix);
-
-
-
+		trampoline_mysql_execute_size, true);
+	trampoline_mysql_execute_size=0;
 }
 
 int is_remove_patches (ThdSesData *pThdData)
@@ -1369,6 +1374,42 @@ static void setup_record_objs_array()
 	sql_print_information("%s Set num_record_objs: %d record objs: %s", log_prefix, num_record_objs, record_objs_array);
 }
 
+__attribute__ ((noinline)) static void trampoline_dummy_func_for_mem()
+{
+    TRAMPOLINE_NOP_DEF
+}
+//holds memory used for trampoline
+static void * trampoline_mem = NULL;
+//pointer to current free mem
+static void * trampoline_mem_free = NULL;
+
+/**
+ * Utility method for hot patching 
+ */
+static int do_hot_patch(void ** trampoline_func_pp, unsigned int * trampoline_size,  
+	void* target_function, void* audit_function,  const char * func_name)
+{
+	//16 byte align the pointer
+	DATATYPE_ADDRESS addrs = (DATATYPE_ADDRESS)trampoline_mem_free + 15;
+	*trampoline_func_pp = (void*)(addrs & ~0x0F);		
+    //hot patch functions 
+    
+    int res = hot_patch_function(target_function, audit_function,
+            *trampoline_func_pp, trampoline_size, true);
+    if (res != 0)
+    {
+        //hot patch failed.
+        sql_print_error("%s unable to hot patch %s (0x%lx). res: %d. Aborting.",
+                log_prefix, func_name, res);
+        return 1;
+    }
+    sql_print_information(
+            "%s hot patch for: %s (0x%lx) complete. Audit func: 0x%lx, Trampoline address: 0x%lx size: %u.",
+            log_prefix, func_name, target_function, audit_function, *trampoline_func_pp, *trampoline_size);
+	trampoline_mem_free = (void *)(((DATATYPE_ADDRESS)*trampoline_func_pp) + *trampoline_size + jump_size());
+	return 0;
+}
+
 /*
  Initialize the plugin installation.
 
@@ -1379,8 +1420,7 @@ static void setup_record_objs_array()
  0                    success
  1                    failure
  */
-
-static int audit_plugin_init(void *p)
+ static int audit_plugin_init(void *p)
 {
 
     DBUG_ENTER("audit_plugin_init");
@@ -1437,141 +1477,92 @@ static int audit_plugin_init(void *p)
             = &json_file_handler;
     Audit_handler::m_audit_handler_list[Audit_handler::JSON_SOCKET_HANDLER]
             = &json_socket_handler;
-
-    //hot patch functions 
-    void * target_function = (void *) log_slow_statement;
-    res = hot_patch_function(target_function, (void*) audit_log_slow_statement,
-            (void*) trampoline_log_slow_statement, &trampoline_log_slow_statement_size, true, log_prefix);
-    if (res != 0)
-    {
-        //hot patch failed.
-        sql_print_error("%s unable to patch log slow. res: %d. Aborting.",
-                log_prefix, res);
-        DBUG_RETURN(1);
-    }
-    sql_print_information(
-            "%s hot patch log slow complete. Trampoline size: %u.",
-            log_prefix, trampoline_log_slow_statement_size);
-    target_function = (void *) mysql_execute_command;
-    res = hot_patch_function(target_function,
-            (void*) audit_mysql_execute_command,
-            (void*) trampoline_mysql_execute_command, &trampoline_mysql_execute_size, true, log_prefix);
-    if (res != 0)
-    {
-        //hot patch failed.
-        sql_print_error(
-                "%s unable to patch mysql execute. res: %d. Aborting.\n",
-                log_prefix, res);
-        DBUG_RETURN(1);
-    }
-
-      sql_print_information(
-                "%s hot patch mysql execute. Trampoline size: %u.",
-                log_prefix, trampoline_mysql_execute_size);
-
+	
+	//align our trampoline mem on its own page
+	const unsigned long page_size = GETPAGESIZE();
+	const unsigned long std_page_size = 4096;
+	if(page_size <= std_page_size)
+	{
+		//use static executable memory we alocated via trampoline_dummy_func_for_mem
+		DATATYPE_ADDRESS addrs = (DATATYPE_ADDRESS)trampoline_dummy_func_for_mem + (page_size - 1);	
+		trampoline_mem = (void*)(addrs & ~(page_size - 1));
+		sql_print_information(
+				"%s mem func addr: 0x%lx mem start addr: 0x%lx page size: %ld",
+				log_prefix, trampoline_dummy_func_for_mem, trampoline_mem, page_size);
+	}
+	else //big pages for some reason. allocate mem using mmap
+	{	
+		trampoline_mem = mmap(NULL, page_size, PROT_READ|PROT_EXEC,  MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+		if(MAP_FAILED == trampoline_mem)
+		{
+			sql_print_error("%s unable to mmap memory size: %d, errno: %d. Aborting.",
+					log_prefix, page_size, errno);
+			DBUG_RETURN(1);
+		}
+		else
+		{
+			sql_print_information(
+				"%s mem via mmap: 0x%lx page size: %ld", log_prefix, trampoline_mem, page_size);
+		}
+	}
+	trampoline_mem_free = trampoline_mem;
+	//hot patch stuff
+	void * target_function = NULL;
+	if(do_hot_patch((void **)&trampoline_log_slow_statement, &trampoline_log_slow_statement_size,  
+		(void *)log_slow_statement, (void *)audit_log_slow_statement,  "log_slow_statement"))
+	{
+		DBUG_RETURN(1);
+	}
+	
+	if(do_hot_patch((void **)&trampoline_mysql_execute_command, &trampoline_mysql_execute_size,  
+		(void *)mysql_execute_command, (void *)audit_mysql_execute_command,  "mysql_execute_command"))
+	{
+		DBUG_RETURN(1);
+	}
+	    
  
 #if MYSQL_VERSION_ID < 50505				
-	target_function = (void *) check_user;
-    res = hot_patch_function(target_function,
-            (void*) audit_check_user,
-            (void*) trampoline_check_user, &trampoline_check_user_size, true, log_prefix);
-    if (res != 0)
-    {
-        //hot patch failed.
-        sql_print_error(
-                "%s unable to patch check_user. res: %d. Aborting.\n",
-                log_prefix, res);
-        DBUG_RETURN(1);
-    }
-    sql_print_information(
-                "%s hot patch check_user. Trampoline size: %u.",
-                log_prefix, trampoline_check_user_size);	
-#else
-	target_function = (void *) acl_authenticate;
-    res = hot_patch_function(target_function,
-            (void*) audit_acl_authenticate,
-            (void*) trampoline_acl_authenticate, &trampoline_acl_authenticate_size, true, log_prefix);
-    if (res != 0)
-    {
-        //hot patch failed.
-        sql_print_error(
-                "%s unable to patch acl_authenticate. res: %d. Aborting.\n",
-                log_prefix, res);
-        DBUG_RETURN(1);
-    }
-    sql_print_information(
-                "%s hot patch acl_authenticate. Trampoline size: %u.",
-                log_prefix, trampoline_acl_authenticate_size);	
-
-	
-#endif	
-	int (Query_cache::*pf_send_result_to_client)(THD *,char *, uint) = &Query_cache::send_result_to_client;
-	target_function = *(void **)  &pf_send_result_to_client;
-	
-    res = hot_patch_function(target_function,
-			(void*)audit_send_result_to_client,
-            (void*)trampoline_send_result_to_client, &trampoline_send_result_to_client_size, true, log_prefix);
-    if (res != 0)
-    {
-        //hot patch failed.
-        sql_print_error(
-                "%s unable to patch send_result_to_client. res: %d. Aborting.\n",
-                log_prefix, res);
-        DBUG_RETURN(1);
-    }
-    sql_print_information(
-                "%s hot patch send_result_to_client. Trampoline size: %u.",
-                log_prefix, trampoline_send_result_to_client_size);	
-	target_function = (void*) check_table_access;
-	res = hot_patch_function (target_function, (void*) audit_check_table_access, (void *) trampoline_check_table_access, &trampoline_check_table_access_size,true, log_prefix); 
-	if (res !=0)
+	if(do_hot_patch((void **)&trampoline_check_user, &trampoline_check_user_size,  
+		(void *)check_user, (void *)audit_check_user,  "check_user"))
 	{
-        //hot patch failed.
-        sql_print_error(
-                "%s unable to patch check_table_access. res: %d. Aborting.\n",
-                log_prefix, res);
-        DBUG_RETURN(1);
-    }
-	sql_print_information(
-                "%s hot patch check_table_access. Trampoline size: %u.",
-                log_prefix, trampoline_check_table_access_size);	
- 
+		DBUG_RETURN(1);
+	}	
+#else
+	if(do_hot_patch((void **)&trampoline_acl_authenticate, &trampoline_acl_authenticate_size,  
+		(void *)acl_authenticate, (void *)audit_acl_authenticate,  "acl_authenticate"))
+	{
+		DBUG_RETURN(1);
+	}
+#endif	
+	int (Query_cache::*pf_send_result_to_client)(THD *,char *, uint) = &Query_cache::send_result_to_client;	
+	target_function = *(void **)  &pf_send_result_to_client;
+	if(do_hot_patch((void **)&trampoline_send_result_to_client, &trampoline_send_result_to_client_size,  
+		(void *)target_function, (void *)audit_send_result_to_client,  "send_result_to_client"))
+	{
+		DBUG_RETURN(1);
+	}
+	
+    if(do_hot_patch((void **)&trampoline_check_table_access, &trampoline_check_table_access_size,  
+		(void *)check_table_access, (void *)audit_check_table_access,  "check_table_access"))
+	{
+		DBUG_RETURN(1);
+	}
+		
 #if MYSQL_VERSION_ID > 50505				
 	target_function = (void *)*(bool (*)(THD *thd, TABLE_LIST **start, uint *counter, uint flags,
                 Prelocking_strategy *prelocking_strategy)) &open_tables;
-    res = hot_patch_function(target_function,
-            (void*) audit_open_tables,
-            (void*) trampoline_open_tables, &trampoline_open_tables_size, true, log_prefix);
-    if (res != 0)
-    {
-        //hot patch failed.
-        sql_print_error(
-                "%s unable to patch open_tables. res: %d. Aborting.\n",
-                log_prefix, res);
-        DBUG_RETURN(1);
-    }
-    sql_print_information(
-                "%s hot patch open_tables address %p. Trampoline size: %u.",
-                log_prefix, *(bool (*)(THD *thd, TABLE_LIST **start, uint *counter, uint flags,
-                Prelocking_strategy *prelocking_strategy)) &open_tables, 
-                trampoline_open_tables_size);	
+	if(do_hot_patch((void **)&trampoline_open_tables, &trampoline_open_tables_size,  
+		(void *)target_function, (void *)audit_open_tables,  "open_tables"))
+	{
+		DBUG_RETURN(1);
+	}		    
 #else
     target_function = (void *)*(int (*)(THD *thd, TABLE_LIST **start, uint *counter, uint flags)) &open_tables;
-    res = hot_patch_function(target_function,
-            (void*) audit_open_tables,
-            (void*) trampoline_open_tables, &trampoline_open_tables_size, true, log_prefix);
-    if (res != 0)
-    {
-        //hot patch failed.
-        sql_print_error(
-                "%s unable to patch open_tables. res: %d. Aborting.\n",
-                log_prefix, res);
-        DBUG_RETURN(1);
-    }
-    sql_print_information(
-                "%s hot patch open_tables address %p. Trampoline size: %ud.",
-                log_prefix, *(bool (*)(THD *thd, TABLE_LIST **start, uint *counter, uint flags)) &open_tables, 
-                trampoline_open_tables_size);	
+	if(do_hot_patch((void **)&trampoline_open_tables, &trampoline_open_tables_size,  
+		(void *)target_function, (void *)audit_open_tables,  "open_tables"))
+	{
+		DBUG_RETURN(1);
+	}    
 #endif
     if (set_com_status_vars_array () !=0)
     {
@@ -1582,7 +1573,7 @@ static int audit_plugin_init(void *p)
 }
 
 /*
- Terminate the daemon example at server shutdown or plugin deinstallation.
+ plugin deinstallation.
 
  SYNOPSIS
  audit_plugin_deinit()
@@ -1824,3 +1815,16 @@ extern "C"  void __attribute__ ((constructor)) audit_plugin_so_init(void)
 
 }
 #endif
+
+/*
+ Pure virtual handler. Needed when running in mysql compiled with a newer version of gcc.
+ Versions of mysql for RH 6 and Percona this function is defined local in mysqld. 
+ So we define our own implementation.
+*/
+extern "C" int __cxa_pure_virtual (void)
+{
+	sql_print_error(
+		"%s __cxa_pure_virtual called. Fatal condition. ",
+		log_prefix);
+	return 0;
+}
