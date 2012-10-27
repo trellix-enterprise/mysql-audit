@@ -158,8 +158,8 @@ public:
         return NULL;
 
 #else
-        *len = thd->query_length;
-        return thd->query;
+        *len = thd->query_length();
+        return thd->query();
 #endif
     }
 

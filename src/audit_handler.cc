@@ -200,7 +200,7 @@ void Audit_file_handler::handler_start()
         {
             sql_print_error(
                     "%s unable to write to %s: %s. Disabling audit handler.",
-                    AUDIT_LOG_PREFIX, m_log_file, strerror(errno));
+                    AUDIT_LOG_PREFIX, m_filename, strerror(errno));
             close_file();
             m_enabled = false;
         }
