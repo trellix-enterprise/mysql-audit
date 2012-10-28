@@ -1371,7 +1371,7 @@ static void setup_record_objs_array()
 	{
 		record_empty_objs_set = true;
 	}
-	sql_print_information("%s Set num_record_objs: %d record objs: %s", log_prefix, num_record_objs, record_objs_array);
+	sql_print_information("%s Set num_record_objs: %d record objs: %s", log_prefix, num_record_objs, *record_objs_array);
 }
 
 __attribute__ ((noinline)) static void trampoline_dummy_func_for_mem()
@@ -1400,12 +1400,12 @@ static int do_hot_patch(void ** trampoline_func_pp, unsigned int * trampoline_si
     {
         //hot patch failed.
         sql_print_error("%s unable to hot patch %s (0x%lx). res: %d. Aborting.",
-                log_prefix, func_name, res);
+                log_prefix, func_name, (unsigned long)target_function, res);
         return 1;
     }
     sql_print_information(
             "%s hot patch for: %s (0x%lx) complete. Audit func: 0x%lx, Trampoline address: 0x%lx size: %u.",
-            log_prefix, func_name, target_function, audit_function, *trampoline_func_pp, *trampoline_size);
+            log_prefix, func_name, (unsigned long)target_function, (unsigned long)audit_function, (unsigned long)*trampoline_func_pp, *trampoline_size);
 	trampoline_mem_free = (void *)(((DATATYPE_ADDRESS)*trampoline_func_pp) + *trampoline_size + jump_size());
 	return 0;
 }
@@ -1488,21 +1488,21 @@ static int do_hot_patch(void ** trampoline_func_pp, unsigned int * trampoline_si
 		trampoline_mem = (void*)(addrs & ~(page_size - 1));
 		sql_print_information(
 				"%s mem func addr: 0x%lx mem start addr: 0x%lx page size: %ld",
-				log_prefix, trampoline_dummy_func_for_mem, trampoline_mem, page_size);
+				log_prefix, (unsigned long)trampoline_dummy_func_for_mem, (unsigned long)trampoline_mem, page_size);
 	}
 	else //big pages for some reason. allocate mem using mmap
 	{	
 		trampoline_mem = mmap(NULL, page_size, PROT_READ|PROT_EXEC,  MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
 		if(MAP_FAILED == trampoline_mem)
 		{
-			sql_print_error("%s unable to mmap memory size: %d, errno: %d. Aborting.",
+			sql_print_error("%s unable to mmap memory size: %lu, errno: %d. Aborting.",
 					log_prefix, page_size, errno);
 			DBUG_RETURN(1);
 		}
 		else
 		{
 			sql_print_information(
-				"%s mem via mmap: 0x%lx page size: %ld", log_prefix, trampoline_mem, page_size);
+				"%s mem via mmap: 0x%lx page size: %ld", log_prefix, (unsigned long)trampoline_mem, page_size);
 		}
 	}
 	trampoline_mem_free = trampoline_mem;
