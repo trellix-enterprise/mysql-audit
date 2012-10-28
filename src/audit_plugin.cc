@@ -1371,7 +1371,7 @@ static void setup_record_objs_array()
 	{
 		record_empty_objs_set = true;
 	}
-	sql_print_information("%s Set num_record_objs: %d record objs: %s", log_prefix, num_record_objs, *record_objs_array);
+	sql_print_information("%s Set num_record_objs: %d record objs: %s", log_prefix, num_record_objs, record_objs_string);
 }
 
 __attribute__ ((noinline)) static void trampoline_dummy_func_for_mem()
