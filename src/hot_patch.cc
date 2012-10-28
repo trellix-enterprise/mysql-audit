@@ -30,7 +30,7 @@ static int unprotect(void *addr, size_t len)
 		{
 			sql_print_information(
                 "%s unable to unprotect. Page: 0x%lx, Size: %d, errno: %d. Using NO EXEC mode.",
-                log_prefix, addr, len, errno);
+                log_prefix, (unsigned long)addr, len, errno);
 			use_exec_prot = false;
 		}
 		else //all is good
@@ -43,7 +43,7 @@ static int unprotect(void *addr, size_t len)
 	{
 		sql_print_error(
 			"%s unable to unprotect. Page: 0x%lx, Size: %d, errno: %d. Error.",
-			log_prefix, addr, len, errno);
+			log_prefix, (unsigned long)addr, len, errno);
 	}
 	return res;		
 }
@@ -201,7 +201,7 @@ static void UnhookFunction(ULONG_PTR Function,ULONG_PTR trampolineFunction , uns
 int hot_patch_function (void* targetFunction, void* newFunction, void * trampolineFunction, unsigned int *trampolinesize, bool info_print)
 {
 	DATATYPE_ADDRESS trampolinePage = get_page_address(trampolineFunction);
-	cond_info_print(info_print, "%s hot patching function: 0x%lx, trampolineFunction: 0x%lx trampolinePage: 0x%lx",log_prefix, targetFunction, trampolineFunction, trampolinePage);
+	cond_info_print(info_print, "%s hot patching function: 0x%lx, trampolineFunction: 0x%lx trampolinePage: 0x%lx",log_prefix, (unsigned long)targetFunction, (unsigned long)trampolineFunction, (unsigned long)trampolinePage);
     if (HookFunction((ULONG_PTR) targetFunction, (ULONG_PTR) newFunction,
             (ULONG_PTR) trampolineFunction, trampolinesize))
     {
@@ -230,7 +230,7 @@ void remove_hot_patch_function (void* targetFunction, void * trampolineFunction,
 		return;
 	}
 	DATATYPE_ADDRESS targetPage = get_page_address(targetFunction);
-	cond_info_print(info_print, "%s removing hot patching function: 0x%lx targetPage: 0x%lx trampolineFunction: 0x%lx",log_prefix, targetFunction, targetPage, trampolineFunction);
+	cond_info_print(info_print, "%s removing hot patching function: 0x%lx targetPage: 0x%lx trampolineFunction: 0x%lx",log_prefix, (unsigned long)targetFunction, (unsigned long)targetPage, (unsigned long)trampolineFunction);
 	UnhookFunction ((ULONG_PTR) targetFunction, (ULONG_PTR)trampolineFunction,trampolinesize);
 	return;	
 }
