@@ -343,25 +343,49 @@ static inline void yajl_add_obj( yajl_gen gen,  const char *db,const char* ptype
     yajl_add_string_val(gen, "obj_type",ptype);
 }
 
-//void Audit_file_handler::print_sleep (THD *thd, int delay_ms)
-//{
-//
-//    unsigned long thdid = thd_get_thread_id(thd);
-//    yajl_gen gen = yajl_gen_alloc(&config, NULL);
-//    yajl_gen_array_open(gen);
-//    yajl_gen_map_open(gen);
-//    yajl_add_string_val(gen, "msg-type", "activity");
-//    uint64 ts = my_getsystime() / (10000);
-//    yajl_add_uint64(gen, "date", ts);
-//    yajl_add_uint64(gen, "thread-id", thdid);
-//    yajl_add_uint64(gen, "audit is going to sleep for ", delay_ms);
-//    yajl_gen_map_close(gen);
-//    yajl_gen_array_close(gen);
-//    fflush(m_log_file);
-//    int fd = fileno(m_log_file);
-//    my_sync(fd, MYF(MY_WME));
-//
-//}
+//will return a pointer to the query and set len with the length of the query
+//starting with MySQL version 5.1.41 thd_query_string is added
+#if MYSQL_VERSION_ID > 50140
+static const char * thd_query_str(THD * thd, size_t * len)
+{
+    MYSQL_LEX_STRING * str = thd_query_string(thd);
+    if(str)
+    {
+        *len = str->length;
+        return str->str;
+    }
+    *len = 0;
+    return NULL;
+}
+#else
+//we are being compiled against mysql version 5.1.40 or lower (our default compilation env)
+//we still want to support thd_query_string if we are run on a version higher than 5.1.40, so we try to lookup the symbol
+static LEX_STRING * (*thd_query_string_func)(THD *thd) = (LEX_STRING*(*)(THD*))dlsym(RTLD_DEFAULT, "thd_query_string");
+static bool print_thd_query_string_func = true; //debug info print only once
+static const char * thd_query_str(THD * thd, size_t * len)
+{
+    if(print_thd_query_string_func)
+    {
+        sql_print_information("%s thd_query_string_func: 0x%lx", AUDIT_LOG_PREFIX, (unsigned long)thd_query_string_func);
+        print_thd_query_string_func = false;
+    }
+    if(thd_query_string_func)
+    {
+        MYSQL_LEX_STRING * str = thd_query_string_func(thd);
+        if(str)
+        {
+            *len = str->length;
+            return str->str;
+        }
+        *len = 0;
+        return NULL;
+    }
+    *len = thd->query_length;
+    return thd->query;
+}
+#endif
+
+
 ssize_t Audit_json_formatter::event_format(ThdSesData* pThdData, IWriter * writer)
 {
     unsigned long thdid = thd_get_thread_id(pThdData->getTHD());
@@ -452,7 +476,7 @@ ssize_t Audit_json_formatter::event_format(ThdSesData* pThdData, IWriter * write
 
     size_t qlen = 0;
 
-    const char * query = thd_query(pThdData->getTHD(), &qlen);
+    const char * query = thd_query_str(pThdData->getTHD(), &qlen);
     if (query && qlen > 0)
     {
 		CHARSET_INFO *col_connection = Item::default_charset();

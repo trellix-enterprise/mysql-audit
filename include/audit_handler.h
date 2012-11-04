@@ -144,24 +144,6 @@ public:
     {
 		return *(LEX**) (((unsigned char *) thd) + Audit_formatter::thd_offsets.lex);
     }
-    //will return a pointer to the query and set len with the length of the query
-    static inline const char * thd_query(THD * thd, size_t * len)
-    {
-#if MYSQL_VERSION_ID >= 50505
-        MYSQL_LEX_STRING * str = thd_query_string(thd);
-        if(str)
-        {
-            *len = str->length;
-            return str->str;
-        }
-        *len = 0;
-        return NULL;
-
-#else
-        *len = thd->query_length();
-        return thd->query();
-#endif
-    }
 
 };
 

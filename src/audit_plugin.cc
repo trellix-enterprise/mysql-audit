@@ -111,6 +111,8 @@ static const ThdOffsets thd_offsets_arr[] =
 		{"5.1.63-community","0f4d7e3b17eb36f17aafe4360993a769", 6328, 6392, 3688, 3960, 88, 2048},
 		//offsets for: /mysqlrpm/5.1.65/usr/sbin/mysqld (5.1.65-community)
 		{"5.1.65-community","4df4c0dfe11913bd1ef2bb3a6bc7a40e", 6376, 6440, 3736, 4008, 88, 2056},
+		//offsets for: /mysqlrpm/5.1.66/usr/sbin/mysqld (5.1.66-community)
+		{"5.1.66-community","544ed94102b82425e7592e7d7474fce4", 6376, 6440, 3736, 4008, 88, 2056},
 		
         //offsets for: mysqlrpm/5.5.8/usr/sbin/mysqld (5.5.8)
         {"5.5.8","70a882693d54df8ab7c7d9f256e317bb", 6032, 6080, 3776, 4200, 88, 2560},
@@ -142,7 +144,7 @@ static const ThdOffsets thd_offsets_arr[] =
         {"5.5.20","9f6122576930c5d09ca9244094c83f24", 6048, 6096, 3800, 4224, 88, 2560},
         //offsets for: mysqlrpm/5.5.21/usr/sbin/mysqld (5.5.21)
         {"5.5.21","4a03ad064ed393dabdde175f3ea05ff2", 6048, 6096, 3800, 4224, 88, 2560},
-		//offsets for percons: /usr/sbin/mysqld (5.5.21-55)
+		//offsets for percona rpm (redhat 6): /usr/sbin/mysqld (5.5.21-55)
 		{"5.5.21-55","e4f1b39e9dca4edc51b8eb6aa09e2fa4", 6464, 6512, 4072, 4512, 88, 2576},
 		//offsets for: mysqlrpm/5.5.22/usr/sbin/mysqld (5.5.22)
 		{"5.5.22","f3592147108e65d92cb18fb4d900c4ab", 6048, 6096, 3800, 4224, 88, 2560},
@@ -156,6 +158,8 @@ static const ThdOffsets thd_offsets_arr[] =
 		{"5.5.25a","b59c03244daf51d4327409288d8c889f", 6056, 6104, 3808, 4232, 88, 2568},
 		//offsets for: /mysqlrpm/5.5.27/usr/sbin/mysqld (5.5.27)
 		{"5.5.27","8a3bd2ea1db328f4443fc25a79450ff3", 6056, 6104, 3808, 4232, 88, 2568},
+		//offsets for: /mysqlrpm/5.5.28/usr/sbin/mysqld (5.5.28)
+		{"5.5.28","588a710a1aec3043203261af72a13219", 6056, 6104, 3808, 4232, 88, 2568},
 		
 		
 
@@ -543,6 +547,8 @@ static my_bool json_file_handler_flush = FALSE;
 static my_bool json_socket_handler_enable = FALSE;
 static my_bool uninstall_plugin_enable = FALSE;
 static my_bool validate_checksum_enable = FALSE;
+static my_bool offsets_by_version_enable = FALSE;
+static my_bool validate_offsets_extended_enable = FALSE;
 static char * offsets_string = NULL;
 static char * checksum_string = NULL;
 static int delay_ms_val =0;
@@ -1060,23 +1066,41 @@ static bool validate_offsets(const ThdOffsets * offset)
 	char buf[32*1024] = {0};
 	THD * thd = (THD *)buf;
 	//sanity check that offsets match
-	//we can also consider using secutiry context function to do some sanity checks
-	//  char buffer[2048];
-	//  thd_security_context(thd, buffer, 2048, 2000);
-	//  fprintf(log_file, "info from security context: %s\n", buffer);
 	
 	//we set the thread id to a value using the offset and then check that the value matches what thd_get_thread_id returns	
-	const my_thread_id test_val = 123456;
-	(*(my_thread_id *) (((char *) thd)+ offset->thread_id)) = test_val;
+	const my_thread_id thread_id_test_val = 123456;
+	(*(my_thread_id *) (((char *) thd)+ offset->thread_id)) = thread_id_test_val;
 	my_thread_id res= thd_get_thread_id(thd);
-	bool retval = res == test_val;
-	if (!retval)
+	if (res != thread_id_test_val)
 	{
 		sql_print_error(
-			"%s Offsets version: %s match thread validation check fails with value: %lu. Skipping offest.",
-			log_prefix, offset->version, res);
+			"%s Offsets: %s (%s) match thread validation check fails with value: %lu. Skipping offest.",
+			log_prefix, offset->version, offset->md5digest, res);
+		return false;
 	}
-	return retval;	
+	//extended validation via security_context method
+	//can be disabled via: validate_offests_extended
+	if(validate_offsets_extended_enable)
+	{
+	    const query_id_t query_id_test_val = 789;
+	    (*(query_id_t *) (((char *) thd)+ offset->query_id)) = query_id_test_val;
+	    Security_context * sctx = (Security_context *) (((unsigned char *) thd) + offset->main_security_ctx);
+	    char user_test_val[] = "aud_tusr";
+	    sctx->user = user_test_val;
+	    char buffer[2048] = {0};
+	    thd_security_context(thd, buffer, 2048, 1000);
+	    //verfiy our buffer contains query id
+	    if(strstr(buffer, " 789") == NULL || strstr(buffer, user_test_val) == NULL)
+	    {
+	        sql_print_error(
+                "%s Offsets: %s (%s) sec context validation check fails with value: %s. Skipping offest.",
+                log_prefix, offset->version, offset->md5digest, buffer);
+	        return false;
+	    }
+        sql_print_information(
+            "%s extended offsets validate res: %s", log_prefix, buffer);
+	}
+	return true;
 }
 
 /**
@@ -1087,56 +1111,59 @@ static bool validate_offsets(const ThdOffsets * offset)
 static int setup_offsets()
 {
     DBUG_ENTER("setup_offsets");
-	sql_print_information ("%s setup_offsets audit_offsets: %s",log_prefix, offsets_string);
+	sql_print_information ("%s setup_offsets audit_offsets: %s validate_checksum: %d offsets_by_version: %d",
+	        log_prefix, offsets_string, validate_checksum_enable, offsets_by_version_enable);
 	
     unsigned char digest[16] = {0};
 	char digest_str [128] = {0};
 	const ThdOffsets * offset;
 
-	//if present in my.cnf
-    //[mysqld]
-    //audit_validate_checksum=1
-	// or if
-	//audit_checksum=0f4d7e3b17eb36f17aafe4360993a769
-    //need to calculate digest
-    if (validate_checksum_enable || (checksum_string != NULL && strlen(checksum_string) > 0))
+    //setup digest_str to contain the md5sum in hex
+
+    my_MD5Context context;
+    my_MD5Init(&context);
+    const size_t buff_size = 16384;
+    unsigned char file_buff[buff_size] = {0};
+    MY_STAT stat_arg;
+    File fd;
+    if ((fd = my_open(my_progname, O_RDONLY, MYF(MY_WME))) > 0)
     {
-        //setup digest_str to contain the md5sum in hex
-        sql_print_information(
-                "%s Validate checksum enabled. Mysqld %s ",
-                log_prefix, my_progname);
-        my_MD5Context context;
-        my_MD5Init(&context);
-        unsigned char * file_buff;
-        MY_STAT stat_arg;
-        File fd;
-        if (my_stat(my_progname, &stat_arg, MYF(MY_WME)))
+        ssize_t res;
+        do
         {
-            if ((fd = my_open(my_progname, O_RDONLY,
-                    MYF(MY_WME))) > 0)
+            res = read(fd, file_buff, buff_size);
+            if(res > 0)
             {
-                file_buff = (unsigned char*) my_malloc(
-                        (uint) stat_arg.st_size, MYF (MY_WME));
-                if (read(fd, (char*) file_buff,
-                        (uint) stat_arg.st_size) >= 0L)
-                {
-                    my_MD5Update(&context, file_buff,
-                            stat_arg.st_size);
-                    my_MD5Final(digest, &context);
-                }
-                (void) my_close(fd, MYF(0));
-                #if MYSQL_VERSION_ID > 50505
-                    my_free(file_buff);
-                #else
-                    my_free(file_buff, MYF(0));
-                #endif
+                my_MD5Update(&context, file_buff, res);
             }
         }
-        for (int j = 0; j < 16; j++)
+        while(res > 0);
+        if(res == 0) //reached end of file
         {
-            sprintf(&(digest_str[j * 2]), "%02x", digest[j]);
+            my_MD5Final(digest, &context);
+            for (int j = 0; j < 16; j++)
+            {
+                sprintf(&(digest_str[j * 2]), "%02x", digest[j]);
+            }
         }
+        else
+        {
+            sql_print_error("%s Failed program read. res: %d, errno: %d.",
+                    log_prefix, res, errno);
+        }
+        (void) my_close(fd, MYF(0));
     }
+
+    sql_print_information(
+        "%s mysql: %s (%s) ", log_prefix, my_progname, digest_str);
+
+    //if present in my.cnf
+    //[mysqld]
+    //audit_validate_checksum=1
+    // or if
+    //audit_checksum=0f4d7e3b17eb36f17aafe4360993a769
+    //if (validate_checksum_enable || (checksum_string != NULL && strlen(checksum_string) > 0))
+    //{
 
     //if present the offset_string specified in my.cnf 
     //[mysqld]
@@ -1181,62 +1208,71 @@ static int setup_offsets()
 	}
 	
     size_t arr_size = (sizeof(thd_offsets_arr) / sizeof(thd_offsets_arr[0]));
-    //iterate and search for the first offset which matches the version
-    for(int i=0; i < arr_size; i++)
+    //iterate and search for the first offset which matches our checksum
+    if(validate_checksum_enable && strlen(digest_str) > 0)
     {
-        offset = thd_offsets_arr + i;
-        //if present in my.cnf
-        //[mysqld]
-        //audit_validate_checksum=1
-        //plugin-load=AUDIT=libaudit_plugin.so
-		if (validate_checksum_enable && strlen (offset->md5digest) >0)
-		{
-			int kd=0;
-			if (!strncasecmp(digest_str, offset->md5digest, 32))
-			{
-				sql_print_information ("%s Checksum is %s verified", log_prefix, digest_str);
-                sql_print_information("%s Using offsets from offset version: %s", log_prefix, offset->version);
-                Audit_formatter::thd_offsets = *offset;
-                DBUG_RETURN(0);
-                //return 
-			}
-		}
+        for(int i=0; i < arr_size; i++)
+        {
+            offset = thd_offsets_arr + i;
+            if (strlen(offset->md5digest) >0)
+            {
+                if (!strncasecmp(digest_str, offset->md5digest, 32))
+                {
+                    sql_print_information("%s Checksum verified. Using offsets from offset version: %s (%s)", log_prefix, offset->version, digest_str);
+                    Audit_formatter::thd_offsets = *offset;
+                    DBUG_RETURN(0);
+                    //return
+                }
+            }
+        }
+    }
+    if(offsets_by_version_enable)
+    {
+        for(int i=0; i < arr_size; i++)
+        {
+            offset = thd_offsets_arr + i;
+            const char * version = offset->version;
+            const char * dash = strchr(version, '-');
+            char version_stripped[16] = {0};
+            if(dash) //we use the version string up to the '-'
+            {
+                size_t tocopy = dash - version;
+                if(tocopy > 15) tocopy = 15; //sanity
+                strncpy(version_stripped, version, tocopy);
+                version = version_stripped;
+            }
+            if(strstr(server_version, version))
+            {
+                if (validate_offsets(offset))
+                {
+                    sql_print_information("%s Using offsets from offset version: %s (%s)", log_prefix, offset->version, offset->md5digest);
+                    Audit_formatter::thd_offsets = *offset;
+                    DBUG_RETURN(0);
+                }
+                else
+                {
+                    //try doing 24 byte decrement on THD offsets. Seen that on Ubuntu/Debian this is valid.
+                    OFFSET dec = 24;
+                    ThdOffsets decoffsets = *offset;
+                    decoffsets.query_id -= dec;
+                    decoffsets.thread_id -= dec;
+                    decoffsets.main_security_ctx -= dec;
+                    decoffsets.command -= dec;
+                    if (validate_offsets(&decoffsets))
+                    {
+                        Audit_formatter::thd_offsets = decoffsets;
+                        sql_print_information("%s Using decrement (%d) offsets from offset version: %s (%s) values: %d %d %d %d %d %d", log_prefix, dec, offset->version, offset->md5digest,
+                            Audit_formatter::thd_offsets.query_id,
+                            Audit_formatter::thd_offsets.thread_id,
+                            Audit_formatter::thd_offsets.main_security_ctx,
+                            Audit_formatter::thd_offsets.command,
+                            Audit_formatter::thd_offsets.lex,
+                            Audit_formatter::thd_offsets.lex_comment);
 
-        //if present in my.cnf
-        //[mysqld]
-        //audit_validate_checksum=0
-        //plugin-load=AUDIT=libaudit_plugin.so
-        if(!validate_checksum_enable  && (strstr(server_version, offset->version)))
-        {            
-            if (validate_offsets(offset))
-            {
-                sql_print_information("%s Using offsets from offset version: %s, digest: %s", log_prefix, offset->version, offset->md5digest);
-                Audit_formatter::thd_offsets = *offset;
-                DBUG_RETURN(0);
-            }			
-            else
-            {
-                //try doing 24 byte decrement on THD offsets. Seen that on Ubuntu/Debian this is valid.
-				OFFSET dec = 24;
-				ThdOffsets decoffsets = *offset;
-				decoffsets.query_id -= dec;
-				decoffsets.thread_id -= dec;
-				decoffsets.main_security_ctx -= dec;
-				decoffsets.command -= dec;				
-				if (validate_offsets(&decoffsets))
-				{
-					Audit_formatter::thd_offsets = decoffsets;
-					sql_print_information("%s Using decrement (%d) offsets from offset version: %s, digest: %s values: %d %d %d %d %d %d", log_prefix, dec, offset->version, offset->md5digest,
-						Audit_formatter::thd_offsets.query_id,
-						Audit_formatter::thd_offsets.thread_id,
-						Audit_formatter::thd_offsets.main_security_ctx, 
-						Audit_formatter::thd_offsets.command,
-						Audit_formatter::thd_offsets.lex,
-						Audit_formatter::thd_offsets.lex_comment);
-					
-					DBUG_RETURN(0);
-				}
-            }			
+                        DBUG_RETURN(0);
+                    }
+                }
+            }
         }
     }
 	
@@ -1713,9 +1749,18 @@ static MYSQL_SYSVAR_BOOL(uninstall_plugin, uninstall_plugin_enable,
         "AUDIT uninstall plugin Enable|Disable. Default disabled. If disabled attempts to uninstall the AUDIT plugin via the sql UNINSTALL command will fail.", NULL, NULL, 0);
 
 
+static MYSQL_SYSVAR_BOOL(offsets_by_version, offsets_by_version_enable,
+        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY ,
+        "AUDIT plugin search offsets by version. If checksum validation doesn't pass will attempt to load and validate offsets according to version. Enable|Disable", NULL, NULL, 1);
+
 static MYSQL_SYSVAR_BOOL(validate_checksum, validate_checksum_enable,
         PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY ,
         "AUDIT plugin binary checksum validation Enable|Disable", NULL, NULL, 1);
+
+
+static MYSQL_SYSVAR_BOOL(validate_offsets_extended, validate_offsets_extended_enable,
+        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY ,
+        "AUDIT plugin offset extended validation Enable|Disable", NULL, NULL, 1);
 
 static MYSQL_SYSVAR_BOOL(json_socket, json_socket_handler_enable,
 			 PLUGIN_VAR_RQCMDARG,
@@ -1750,6 +1795,8 @@ static struct st_mysql_sys_var* audit_system_variables[] =
 		MYSQL_SYSVAR(json_file_flush),
 		MYSQL_SYSVAR(uninstall_plugin),
 		MYSQL_SYSVAR(validate_checksum),
+		MYSQL_SYSVAR(offsets_by_version),
+		MYSQL_SYSVAR(validate_offsets_extended),
 		MYSQL_SYSVAR(json_socket_name),
 		MYSQL_SYSVAR(offsets),
         MYSQL_SYSVAR(json_socket),
