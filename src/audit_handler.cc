@@ -346,6 +346,9 @@ static inline void yajl_add_obj( yajl_gen gen,  const char *db,const char* ptype
 //will return a pointer to the query and set len with the length of the query
 //starting with MySQL version 5.1.41 thd_query_string is added
 #if MYSQL_VERSION_ID > 50140
+extern "C" {
+    MYSQL_LEX_STRING *thd_query_string(MYSQL_THD thd);
+}
 static const char * thd_query_str(THD * thd, size_t * len)
 {
     MYSQL_LEX_STRING * str = thd_query_string(thd);
