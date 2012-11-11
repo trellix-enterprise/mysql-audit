@@ -532,10 +532,7 @@ static const ThdOffsets thd_offsets_arr[] =
 
 #endif
 
-//See here: http://bugs.mysql.com/bug.php?id=56652
-#if (MYSQL_VERSION_ID < 50519) || (50600 <= MYSQL_VERSION_ID && MYSQL_VERSION_ID < 50604)
-#  define AUDIT_NEED_FREE_STRING_MEMALLOC_PLUGIN_VAR
-#endif
+static my_bool need_free_memalloc_plugin_var = FALSE;
 
 static const char * log_prefix = AUDIT_LOG_PREFIX;
 
@@ -1160,7 +1157,7 @@ static int setup_offsets()
     }
 
     sql_print_information(
-        "%s mysql: %s (%s) ", log_prefix, my_progname, digest_str);
+        "%s mysqld: %s (%s) ", log_prefix, my_progname, digest_str);
 
     //if present in my.cnf
     //[mysqld]
@@ -1472,12 +1469,17 @@ static int do_hot_patch(void ** trampoline_func_pp, unsigned int * trampoline_si
 		const char * arch = "32bit";
 	#endif
 
+	//See here: http://bugs.mysql.com/bug.php?id=56652
+	int ver = audit_plugin.interface_version >> 8;
+	need_free_memalloc_plugin_var = ((ver < 50519) || (50600 <= ver && ver < 50604));
+
     sql_print_information(
             "%s starting up. Version: %s , Revision: %s (%s). AUDIT plugin interface version: %d. MySQL Server version: %s.",
             log_prefix, MYSQL_AUDIT_PLUGIN_VERSION,
-            MYSQL_AUDIT_PLUGIN_REVISION, arch, audit_plugin.interface_version >> 8,
+            MYSQL_AUDIT_PLUGIN_REVISION, arch, ver,
             server_version);
     //setup our offsets.
+
     if(setup_offsets() != 0)
     {
         DBUG_RETURN(1);
@@ -1693,12 +1695,15 @@ static void delay_cmds_string_update(THD *thd,
 {
     num_delay_cmds = string_to_array(save, delay_cmds_array, SQLCOM_END + 2, MAX_COMMAND_CHAR_NUMBERS);
 
-#ifdef AUDIT_NEED_FREE_STRING_MEMALLOC_PLUGIN_VAR
-    my_free(delay_cmds_string, MYF(0));
-    delay_cmds_string = my_strdup(*static_cast<char*const*>(save), MYF(MY_WME));
-#else
-    delay_cmds_string = *static_cast<char* const *> (save);
-#endif
+    if (need_free_memalloc_plugin_var)
+    {
+        x_free(delay_cmds_string);
+        delay_cmds_string = my_strdup(*static_cast<char*const*>(save), MYF(MY_WME));
+    }
+    else
+    {
+        delay_cmds_string = *static_cast<char* const *> (save);
+    }
 
     sql_print_information("%s Set num_delay_cmds: %d, delay cmds: %s", log_prefix, num_delay_cmds, delay_cmds_string);
 }
@@ -1709,12 +1714,15 @@ static void record_cmds_string_update(THD *thd,
 {
     num_record_cmds = string_to_array(save, record_cmds_array, SQLCOM_END + 2, MAX_COMMAND_CHAR_NUMBERS);
 
-#ifdef AUDIT_NEED_FREE_STRING_MEMALLOC_PLUGIN_VAR
-    my_free(record_cmds_string, MYF(0));
-    record_cmds_string = my_strdup(*static_cast<char*const*>(save), MYF(MY_WME));
-#else
-    record_cmds_string = *static_cast<char* const *> (save);
-#endif
+    if (need_free_memalloc_plugin_var)
+    {
+        x_free(record_cmds_string);
+        record_cmds_string = my_strdup(*static_cast<char*const*>(save), MYF(MY_WME));
+    }
+    else
+    {
+        record_cmds_string = *static_cast<char* const *> (save);
+    }
 
     sql_print_information("%s Set num_record_cmds: %d record cmds: %s", log_prefix, num_record_cmds, record_cmds_string);
 }
@@ -1723,12 +1731,16 @@ static void record_objs_string_update(THD *thd,
         struct st_mysql_sys_var *var, void *tgt,
         const void *save)
 {
-#ifdef AUDIT_NEED_FREE_STRING_MEMALLOC_PLUGIN_VAR
-    my_free(record_objs_string, MYF(0));
-    record_objs_string = my_strdup(*static_cast<char*const*>(save), MYF(MY_WME));
-#else
-    record_objs_string = *static_cast<char* const *> (save);
-#endif
+    if (need_free_memalloc_plugin_var)
+    {
+        x_free(record_objs_string);
+        record_objs_string = my_strdup(*static_cast<char*const*>(save), MYF(MY_WME));
+    }
+    else
+    {
+        record_objs_string = *static_cast<char* const *> (save);
+    }
+
     setup_record_objs_array();
 }
 

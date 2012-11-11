@@ -48,6 +48,15 @@
 #include <my_dir.h>
 #include <my_sys.h>
 
+//5.5 use my_free with a single param. 5.1 use with 2 params
+//based on: http://bazaar.launchpad.net/~mysql/myodbc/5.1/view/head:/util/stringutil.h
+#ifndef x_free
+# if MYSQL_VERSION_ID >= 50500
+#  define x_free(A) { void *tmp= (A); if (tmp) my_free((char *) tmp); }
+# else
+#  define x_free(A) { void *tmp= (A); if (tmp) my_free((char *) tmp,MYF(0)); }
+# endif
+#endif
 
 
 #endif //MYSQL_INCL_H
