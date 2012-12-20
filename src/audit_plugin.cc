@@ -557,14 +557,17 @@ static int delay_ms_val =0;
 static char *delay_cmds_string = NULL;
 static char *record_cmds_string = NULL;
 static char *record_objs_string = NULL;
+static char *whitelist_users_string = NULL;
 
 static char delay_cmds_array [SQLCOM_END + 2][MAX_COMMAND_CHAR_NUMBERS] = {0};
 static char record_cmds_array [SQLCOM_END + 2][MAX_COMMAND_CHAR_NUMBERS] = {0};
 static char record_objs_array [MAX_NUM_OBJECT_ELEM + 2][MAX_OBJECT_CHAR_NUMBERS] = {0};
+static char whitelist_users_array [SQLCOM_END + 2][MAX_USER_CHAR_NUMBERS] = {0};
 static bool record_empty_objs_set = true;
 static int num_delay_cmds = 0;
 static int num_record_cmds = 0;
 static int num_record_objs = 0;
+static int num_whitelist_users = 0;
 static SHOW_VAR com_status_vars_array [MAX_COM_STATUS_VARS_RECORDS] = {0};
 /**
  * The trampoline functions we use. Will be set to point to allocated mem.
@@ -626,6 +629,15 @@ static void audit(ThdSesData *pThdData)
       cmds[0] = cmd;
       cmds[1] = NULL;
       if (!check_array(cmds, (char *) record_cmds_array, MAX_COMMAND_CHAR_NUMBERS)) {
+	return;
+      }
+  }
+ if (num_whitelist_users > 0) {
+      const char * user = pThdData->getUserName(); //If name is present, then no need to log the query
+      const char *users[2];
+      users[0] = user;
+      users[1] = NULL;
+      if (check_array(users, (char *) whitelist_users_array, MAX_USER_CHAR_NUMBERS)) {
 	return;
       }
   }
@@ -1309,6 +1321,20 @@ const char * retrieve_command (THD * thd)
     return cmd;
 }
 
+
+const char * retrieve_user (THD * thd)
+{
+    const char *user = NULL;
+
+    Security_context * sctx = Audit_formatter::thd_inst_main_security_ctx(thd);
+    if (sctx->priv_user != NULL || *sctx->priv_user != 0x0)
+    {
+        user = sctx->priv_user;
+    }
+    return user;
+}
+
+
 static int set_com_status_vars_array ()
 {
     DBUG_ENTER("set_com_status_vars_array");
@@ -1492,6 +1518,12 @@ static int do_hot_patch(void ** trampoline_func_pp, unsigned int * trampoline_si
     num_record_cmds = string_to_array(&record_cmds_string, record_cmds_array, SQLCOM_END + 2, MAX_COMMAND_CHAR_NUMBERS);
     sql_print_information("%s Set num_record_cmds: %d", log_prefix, num_record_cmds);
   }
+ if (whitelist_users_string != NULL) {
+    num_whitelist_users = string_to_array(&whitelist_users_string, whitelist_users_array, SQLCOM_END + 2, MAX_USER_CHAR_NUMBERS);
+    sql_print_information("%s Set num_whitelist_users: %d", log_prefix, num_whitelist_users);
+  }
+
+
   if (record_objs_string != NULL) {
 	setup_record_objs_array();    
   }
@@ -1726,6 +1758,16 @@ static void record_cmds_string_update(THD *thd,
 
     sql_print_information("%s Set num_record_cmds: %d record cmds: %s", log_prefix, num_record_cmds, record_cmds_string);
 }
+static void whitelist_users_string_update(THD *thd,
+        struct st_mysql_sys_var *var, void *tgt,
+        const void *save)
+{
+    num_whitelist_users = string_to_array(save, whitelist_users_array, SQLCOM_END + 2, MAX_USER_CHAR_NUMBERS);
+	whitelist_users_string = *static_cast<char* const *> (save);
+    sql_print_information("%s Set num_whitelist_users: %d whitelist users: %s", log_prefix, num_whitelist_users, whitelist_users_string);
+}
+
+
 
 static void record_objs_string_update(THD *thd,
         struct st_mysql_sys_var *var, void *tgt,
@@ -1815,6 +1857,11 @@ static MYSQL_SYSVAR_STR(record_cmds, record_cmds_string,
 			PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
 			"AUDIT plugin commands to record, comma separated",
 			NULL, record_cmds_string_update, NULL);
+static MYSQL_SYSVAR_STR(whitelist_users, whitelist_users_string,
+			PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
+			"AUDIT plugin whitelisted users whose queries not to be recorded, comma separated",
+			NULL, whitelist_users_string_update, NULL);
+
 static MYSQL_SYSVAR_STR(record_objs, record_objs_string,
 			PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
 			"AUDIT plugin objects to record, comma separated",
@@ -1841,6 +1888,7 @@ static struct st_mysql_sys_var* audit_system_variables[] =
         MYSQL_SYSVAR(delay_ms),
         MYSQL_SYSVAR(delay_cmds),
     MYSQL_SYSVAR(record_cmds),
+    MYSQL_SYSVAR(whitelist_users),
     MYSQL_SYSVAR(record_objs),
     MYSQL_SYSVAR(checksum),
         NULL };
