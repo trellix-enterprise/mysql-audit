@@ -36,6 +36,8 @@ typedef size_t OFFSET;
 #define MAX_COM_STATUS_VARS_RECORDS 512
 
 #define MAX_OBJECT_CHAR_NUMBERS 130
+#define MAX_USER_CHAR_NUMBERS 20
+const char * retrieve_user (THD * thd);
 #define MAX_NUM_OBJECT_ELEM 256
 
 /**
@@ -78,9 +80,11 @@ public:
     ThdSesData(THD *pTHD);
     THD* getTHD () { return m_pThd;}
     const char * getCmdName () { return m_CmdName; }
+    const char * getUserName () { return m_UserName; }
 private:
     THD *m_pThd;
     const char *m_CmdName;
+    const char *m_UserName;
 protected:
     ThdSesData (const ThdSesData& );
     ThdSesData &operator =(const ThdSesData& );
