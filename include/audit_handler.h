@@ -39,6 +39,7 @@ typedef size_t OFFSET;
 #define MAX_USER_CHAR_NUMBERS 20
 const char * retrieve_user (THD * thd);
 #define MAX_NUM_OBJECT_ELEM 256
+#define MAX_NUM_USER_ELEM 256
 
 /**
  * The struct usd to hold offsets. We should have one per version.

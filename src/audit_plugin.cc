@@ -562,7 +562,7 @@ static char *whitelist_users_string = NULL;
 static char delay_cmds_array [SQLCOM_END + 2][MAX_COMMAND_CHAR_NUMBERS] = {0};
 static char record_cmds_array [SQLCOM_END + 2][MAX_COMMAND_CHAR_NUMBERS] = {0};
 static char record_objs_array [MAX_NUM_OBJECT_ELEM + 2][MAX_OBJECT_CHAR_NUMBERS] = {0};
-static char whitelist_users_array [SQLCOM_END + 2][MAX_USER_CHAR_NUMBERS] = {0};
+static char whitelist_users_array [MAX_NUM_USER_ELEM + 2][MAX_USER_CHAR_NUMBERS] = {0};
 static bool record_empty_objs_set = true;
 static int num_delay_cmds = 0;
 static int num_record_cmds = 0;
@@ -1327,7 +1327,7 @@ const char * retrieve_user (THD * thd)
     const char *user = NULL;
 
     Security_context * sctx = Audit_formatter::thd_inst_main_security_ctx(thd);
-    if (sctx->priv_user != NULL || *sctx->priv_user != 0x0)
+    if (sctx->priv_user != NULL && *sctx->priv_user != 0x0)
     {
         user = sctx->priv_user;
     }
@@ -1519,7 +1519,7 @@ static int do_hot_patch(void ** trampoline_func_pp, unsigned int * trampoline_si
     sql_print_information("%s Set num_record_cmds: %d", log_prefix, num_record_cmds);
   }
  if (whitelist_users_string != NULL) {
-    num_whitelist_users = string_to_array(&whitelist_users_string, whitelist_users_array, SQLCOM_END + 2, MAX_USER_CHAR_NUMBERS);
+    num_whitelist_users = string_to_array(&whitelist_users_string, whitelist_users_array, MAX_NUM_USER_ELEM + 2, MAX_USER_CHAR_NUMBERS);
     sql_print_information("%s Set num_whitelist_users: %d", log_prefix, num_whitelist_users);
   }
 
@@ -1762,8 +1762,16 @@ static void whitelist_users_string_update(THD *thd,
         struct st_mysql_sys_var *var, void *tgt,
         const void *save)
 {
-    num_whitelist_users = string_to_array(save, whitelist_users_array, SQLCOM_END + 2, MAX_USER_CHAR_NUMBERS);
-	whitelist_users_string = *static_cast<char* const *> (save);
+    num_whitelist_users = string_to_array(save, whitelist_users_array, MAX_NUM_USER_ELEM + 2, MAX_USER_CHAR_NUMBERS);
+    if (need_free_memalloc_plugin_var)
+    {
+        x_free(whitelist_users_array);
+        whitelist_users_string = my_strdup(*static_cast<char*const*>(save), MYF(MY_WME));
+    }
+    else
+    {
+        whitelist_users_string = *static_cast<char* const *> (save);
+    }	
     sql_print_information("%s Set num_whitelist_users: %d whitelist users: %s", log_prefix, num_whitelist_users, whitelist_users_string);
 }
 
@@ -1859,7 +1867,7 @@ static MYSQL_SYSVAR_STR(record_cmds, record_cmds_string,
 			NULL, record_cmds_string_update, NULL);
 static MYSQL_SYSVAR_STR(whitelist_users, whitelist_users_string,
 			PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
-			"AUDIT plugin whitelisted users whose queries not to be recorded, comma separated",
+			"AUDIT plugin whitelisted users whose queries are not to recorded, comma separated",
 			NULL, whitelist_users_string_update, NULL);
 
 static MYSQL_SYSVAR_STR(record_objs, record_objs_string,
