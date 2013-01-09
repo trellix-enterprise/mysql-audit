@@ -1765,7 +1765,7 @@ static void whitelist_users_string_update(THD *thd,
     num_whitelist_users = string_to_array(save, whitelist_users_array, MAX_NUM_USER_ELEM + 2, MAX_USER_CHAR_NUMBERS);
     if (need_free_memalloc_plugin_var)
     {
-        x_free(whitelist_users_array);
+        x_free(whitelist_users_string);
         whitelist_users_string = my_strdup(*static_cast<char*const*>(save), MYF(MY_WME));
     }
     else
