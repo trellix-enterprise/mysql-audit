@@ -654,23 +654,27 @@ static void audit(ThdSesData *pThdData)
 		while (table && !matched)  {
 		  char *name = table->get_table_name();
 		  char *db = table->get_db_name();
-		  char db_obj[MAX_OBJECT_CHAR_NUMBERS];
-		  char wildcard_obj[MAX_OBJECT_CHAR_NUMBERS];
-		  char db_wildcard[MAX_OBJECT_CHAR_NUMBERS];
-		  strcpy(db_obj, db);
-		  strcat(db_obj, ".");
-		  strcat(db_obj, name);
-		  strcpy(wildcard_obj, "*.");
-		  strcat(wildcard_obj, name);
-		  strcpy(db_wildcard, db);
-		  strcat(db_wildcard, ".*");
-		  const char *objects[4];
-		  objects[0] = db_obj;
-		  objects[1] = wildcard_obj;
-		  objects[2] = db_wildcard;
-		  objects[3] = NULL;
-		  matched = check_array(objects, (char *) record_objs_array, MAX_OBJECT_CHAR_NUMBERS);
-		  table = table->next_global;
+		  char db_obj[MAX_OBJECT_CHAR_NUMBERS] = {0};
+		  char wildcard_obj[MAX_OBJECT_CHAR_NUMBERS] = {0};
+		  char db_wildcard[MAX_OBJECT_CHAR_NUMBERS] = {0};
+		  if(db && name && 
+			((strlen(db) + strlen(name)) < MAX_OBJECT_CHAR_NUMBERS - 2)) 
+		  {
+			  strcpy(db_obj, db);
+			  strcat(db_obj, ".");
+			  strcat(db_obj, name);
+			  strcpy(wildcard_obj, "*.");
+			  strcat(wildcard_obj, name);
+			  strcpy(db_wildcard, db);
+			  strcat(db_wildcard, ".*");
+			  const char *objects[4];
+			  objects[0] = db_obj;
+			  objects[1] = wildcard_obj;
+			  objects[2] = db_wildcard;
+			  objects[3] = NULL;
+			  matched = check_array(objects, (char *) record_objs_array, MAX_OBJECT_CHAR_NUMBERS);
+			  table = table->next_global;
+		  }
 		}
 	}
     if (!matched) {

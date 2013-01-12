@@ -35,7 +35,8 @@ typedef size_t OFFSET;
 
 #define MAX_COM_STATUS_VARS_RECORDS 512
 
-#define MAX_OBJECT_CHAR_NUMBERS 130
+//mysql max identifier is 64 so 2*64 + . and null
+#define MAX_OBJECT_CHAR_NUMBERS 131
 #define MAX_USER_CHAR_NUMBERS 20
 const char * retrieve_user (THD * thd);
 #define MAX_NUM_OBJECT_ELEM 256
