@@ -645,7 +645,7 @@ static void audit(ThdSesData *pThdData)
     LEX *pLex = Audit_formatter::thd_lex(pThdData->getTHD());
     TABLE_LIST * table = pLex->query_tables;
     int matched = 0;
-	if(!table) //empty list of objects
+	if(strcmp(pThdData->getCmdName(),"Quit") == 0 || !table) //empty list of objects
 	{
 		matched = record_empty_objs_set;
 	}
