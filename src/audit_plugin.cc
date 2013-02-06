@@ -593,6 +593,17 @@ NULL, NULL,0,0,
 0xffffffff,
 #endif 
 1);
+
+static MYSQL_THDVAR_ULONG(query_cache_table_list,
+    PLUGIN_VAR_READONLY | PLUGIN_VAR_NOSYSVAR | PLUGIN_VAR_NOCMDOPT,    "Pointer to query cache table list.",
+NULL, NULL,0,0,
+#ifdef __x86_64__
+0xffffffffffffff,
+#else
+0xffffffff,
+#endif
+1);
+
 THDPRINTED * GetThdPrintedList (THD *thd)
 {
     THDPRINTED * pThdPrintedList= (THDPRINTED*)THDVAR(thd,is_thd_printed_list);
@@ -620,6 +631,33 @@ static int check_array(const char *cmds[],const char *array, int length) {
   }
   return 0;
 }
+
+//utility method checks if the passed db object is part of record_objs_array
+static bool check_db_obj(const char * db, const char * name)
+{
+    char db_obj[MAX_OBJECT_CHAR_NUMBERS] = {0};
+    char wildcard_obj[MAX_OBJECT_CHAR_NUMBERS] = {0};
+    char db_wildcard[MAX_OBJECT_CHAR_NUMBERS] = {0};
+    if(db && name &&
+      ((strlen(db) + strlen(name)) < MAX_OBJECT_CHAR_NUMBERS - 2))
+    {
+        strcpy(db_obj, db);
+        strcat(db_obj, ".");
+        strcat(db_obj, name);
+        strcpy(wildcard_obj, "*.");
+        strcat(wildcard_obj, name);
+        strcpy(db_wildcard, db);
+        strcat(db_wildcard, ".*");
+        const char *objects[4];
+        objects[0] = db_obj;
+        objects[1] = wildcard_obj;
+        objects[2] = db_wildcard;
+        objects[3] = NULL;
+        return check_array(objects, (char *) record_objs_array, MAX_OBJECT_CHAR_NUMBERS);
+    }
+    return false;
+}
+
 static void audit(ThdSesData *pThdData)
 {
     THDPRINTED *pThdPrintedList = GetThdPrintedList (pThdData->getTHD());
@@ -644,39 +682,31 @@ static void audit(ThdSesData *pThdData)
   if (num_record_objs > 0) {
     LEX *pLex = Audit_formatter::thd_lex(pThdData->getTHD());
     TABLE_LIST * table = pLex->query_tables;
+    //when statement is returned from query cache, objects will be included in pQueryTableInf
+    QueryTableInf * pQueryTableInf = (QueryTableInf*)THDVAR(pThdData->getTHD(), query_cache_table_list);
     int matched = 0;
-	if(strcmp(pThdData->getCmdName(),"Quit") == 0 || !table) //empty list of objects
-	{
-		matched = record_empty_objs_set;
-	}
-	else
-	{
-		while (table && !matched)  {
-		  char *name = table->get_table_name();
-		  char *db = table->get_db_name();
-		  char db_obj[MAX_OBJECT_CHAR_NUMBERS] = {0};
-		  char wildcard_obj[MAX_OBJECT_CHAR_NUMBERS] = {0};
-		  char db_wildcard[MAX_OBJECT_CHAR_NUMBERS] = {0};
-		  if(db && name && 
-			((strlen(db) + strlen(name)) < MAX_OBJECT_CHAR_NUMBERS - 2)) 
-		  {
-			  strcpy(db_obj, db);
-			  strcat(db_obj, ".");
-			  strcat(db_obj, name);
-			  strcpy(wildcard_obj, "*.");
-			  strcat(wildcard_obj, name);
-			  strcpy(db_wildcard, db);
-			  strcat(db_wildcard, ".*");
-			  const char *objects[4];
-			  objects[0] = db_obj;
-			  objects[1] = wildcard_obj;
-			  objects[2] = db_wildcard;
-			  objects[3] = NULL;
-			  matched = check_array(objects, (char *) record_objs_array, MAX_OBJECT_CHAR_NUMBERS);
-			  table = table->next_global;
-		  }
-		}
-	}
+    if(strcmp(pThdData->getCmdName(),"Quit") == 0 || (!table && (!pQueryTableInf || pQueryTableInf->num_of_elem <= 0))) //empty list of objects
+    {
+        matched = record_empty_objs_set;
+    }
+    else
+    {
+        if(pQueryTableInf) //query cache case
+        {
+            for (int i=0; i < pQueryTableInf->num_of_elem && i < MAX_NUM_QUERY_TABLE_ELEM && !matched ; i++)
+            {
+                matched = check_db_obj(pQueryTableInf->db[i], pQueryTableInf->table_name[i]);
+            }
+        }
+        else
+        {
+            while (table && !matched)
+            {
+                matched = check_db_obj(table->get_db_name(), table->get_table_name());
+                table = table->next_global;
+            }
+        }
+    }
     if (!matched) {
       return;
     }
@@ -722,19 +752,8 @@ static bool (*trampoline_open_tables)(THD *thd, TABLE_LIST **start, uint *counte
 static int (*trampoline_open_tables)(THD *thd, TABLE_LIST **start, uint *counter, uint flags) = NULL;
 #endif
 
-static MYSQL_THDVAR_ULONG(query_cache_table_list,
-	PLUGIN_VAR_READONLY | PLUGIN_VAR_NOSYSVAR | PLUGIN_VAR_NOCMDOPT, 	"Pointer to query cache table list.",
-NULL, NULL,0,0,
-#ifdef __x86_64__
-0xffffffffffffff,
-#else
-0xffffffff,
-#endif 
-1);
- 
 
-
- QueryTableInf * Audit_formatter::getQueryCacheTableList1 (THD *thd)
+QueryTableInf * Audit_formatter::getQueryCacheTableList1 (THD *thd)
 {
 
 	return (QueryTableInf*)	THDVAR(thd, query_cache_table_list);
