@@ -79,14 +79,35 @@ public:
 
 class ThdSesData {
 public:
+
+    //enum indicating from where the object list came from
+    enum ObjectIterType {OBJ_NONE, OBJ_DB, OBJ_QUERY_CACHE, OBJ_TABLE_LIST};
     ThdSesData(THD *pTHD);
     THD* getTHD () { return m_pThd;}
     const char * getCmdName () { return m_CmdName; }
     const char * getUserName () { return m_UserName; }
+    /**
+     * Start fetching objects. Return true if there are objects available.
+     */
+    bool startGetObjects();
+    /**
+     * Get next object. Return true if populated. False if there isn't an object available.
+     * Will point the passed pointers to point to db, name and type.
+     * obj_type is optional and may be null.
+     */
+    bool getNextObject(const char ** db_name, const char ** obj_name, const char ** obj_type);
 private:
     THD *m_pThd;
     const char *m_CmdName;
     const char *m_UserName;
+    enum ObjectIterType m_objIterType;
+    //pointer for iterating tables
+    TABLE_LIST * m_tables;
+    //indicator if we are at the first table
+    bool m_firstTable;
+    //used for query cache iter
+    QueryTableInf * m_tableInf;
+    int m_index;
 protected:
     ThdSesData (const ThdSesData& );
     ThdSesData &operator =(const ThdSesData& );

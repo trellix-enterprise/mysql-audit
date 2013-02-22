@@ -680,35 +680,22 @@ static void audit(ThdSesData *pThdData)
       }
   }
   if (num_record_objs > 0) {
-    LEX *pLex = Audit_formatter::thd_lex(pThdData->getTHD());
-    TABLE_LIST * table = pLex->query_tables;
-    //when statement is returned from query cache, objects will be included in pQueryTableInf
-    QueryTableInf * pQueryTableInf = (QueryTableInf*)THDVAR(pThdData->getTHD(), query_cache_table_list);
-    int matched = 0;
-    if(strcmp(pThdData->getCmdName(),"Quit") == 0 || (!table && (!pQueryTableInf || pQueryTableInf->num_of_elem <= 0))) //empty list of objects
+	bool matched = false;
+	if(pThdData->startGetObjects())
     {
-        matched = record_empty_objs_set;
-    }
-    else
-    {
-        if(pQueryTableInf) //query cache case
+        const char * db_name = NULL;
+        const char * obj_name = NULL;        
+        while(!matched && pThdData->getNextObject(&db_name, &obj_name, NULL))
         {
-            for (int i=0; i < pQueryTableInf->num_of_elem && i < MAX_NUM_QUERY_TABLE_ELEM && !matched ; i++)
-            {
-                matched = check_db_obj(pQueryTableInf->db[i], pQueryTableInf->table_name[i]);
-            }
-        }
-        else
-        {
-            while (table && !matched)
-            {
-                matched = check_db_obj(table->get_db_name(), table->get_table_name());
-                table = table->next_global;
-            }
-        }
+            matched = check_db_obj(db_name, obj_name);
+        }        
     }
+	else //no objects
+	{
+		matched = record_empty_objs_set;
+	}    
     if (!matched) {
-      return;
+		return;
     }
   }
     if (pThdPrintedList && pThdPrintedList->cur_index  < MAX_NUM_QUEUE_ELEM)
@@ -1327,6 +1314,11 @@ const char * retrieve_command (THD * thd)
     {
         command = COM_END;
     }
+    //check if from query cache. If so set to select and return
+    if(THDVAR(thd, query_cache_table_list) != 0)
+    {
+        return "select";
+    }
     const int sql_command = thd_sql_command(thd);
     if (sql_command >=0 && sql_command <= (MAX_COM_STATUS_VARS_RECORDS -1) )
     {
@@ -1337,9 +1329,9 @@ const char * retrieve_command (THD * thd)
         cmd = command_name[command].str;
     }
     Security_context * sctx = Audit_formatter::thd_inst_main_security_ctx(thd);
-    if (strcmp (cmd, "Connect") ==0 && (sctx->priv_user == NULL || *sctx->priv_user == 0x0))
+    if (strcmp (cmd, "Connect") ==0 && ((sctx->user && strcmp(sctx->user, "event_scheduler") != 0) && (sctx->priv_user == NULL || *sctx->priv_user == 0x0)))
     {
-        cmd = "Failed Login";				
+        cmd = "Failed Login";
     }
     return cmd;
 }

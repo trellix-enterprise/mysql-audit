@@ -414,71 +414,25 @@ ssize_t Audit_json_formatter::event_format(ThdSesData* pThdData, IWriter * write
 	yajl_add_string_val(gen, "host", sctx->host);
     yajl_add_string_val(gen, "ip", sctx->ip);    
     const char *cmd = pThdData->getCmdName();
-    //only print tables if  lex is not null and it is not a quit command
-    LEX * pLex = Audit_formatter::thd_lex(pThdData->getTHD());
-    QueryTableInf *pQuery_cache_table_list =  getQueryCacheTableList1 (pThdData->getTHD());
-    if (pLex && command != COM_QUIT && pLex->query_tables == NULL && pQuery_cache_table_list)
-    {
-        yajl_add_string_val(gen, "cmd", "select");
-        yajl_add_string(gen, "objects");
-        yajl_gen_array_open(gen);
-        for (int i=0;i<pQuery_cache_table_list->num_of_elem && i < MAX_NUM_QUERY_TABLE_ELEM && pQuery_cache_table_list->num_of_elem >=0;i++)
-        {
-            yajl_gen_map_open(gen);
-            yajl_add_obj (gen, pQuery_cache_table_list->db[i],pQuery_cache_table_list->object_type[i],pQuery_cache_table_list->table_name[i] );
-            yajl_gen_map_close(gen);
-
-        }
-        yajl_gen_array_close(gen);
-
-    }
-    else 
-    {
-
-        yajl_add_string_val(gen, "cmd", cmd);
-    }
-    
-	
-	if (strcmp (cmd,"Init DB") ==0 || strcmp (cmd, "SHOW TABLES")== 0 || strcmp (cmd,  "SHOW TABLE")==0)
-	{
-		if ((pThdData->getTHD())->db !=0)
-		{
-		     yajl_add_string(gen, "objects");
-			 yajl_gen_array_open(gen);
-             yajl_add_obj (gen,(pThdData->getTHD())->db,"database", NULL);
-			 yajl_gen_array_close(gen);
-		}
-	}
-
-
-    if (pLex && command != COM_QUIT && pLex->query_tables)
+    yajl_add_string_val(gen, "cmd", cmd);
+    //get objects
+    if(pThdData->startGetObjects())
     {
         yajl_add_string(gen, "objects");
         yajl_gen_array_open(gen);
-        TABLE_LIST * table = pLex->query_tables;
-        bool isFirstElementInView = true;
-
-        while (table)
+        const char * db_name = NULL;
+        const char * obj_name = NULL;
+        const char * obj_type = NULL;
+        while(pThdData->getNextObject(&db_name, &obj_name, &obj_type))
         {
             yajl_gen_map_open(gen);
-            if (isFirstElementInView  && strstr (cmd,"_view")!=NULL )
-            {
-                yajl_add_obj (gen,table->get_db_name(), "view",table->get_table_name());
-                isFirstElementInView = false;
-            }
-            else 
-            {
-                yajl_add_obj (gen,table->get_db_name(), retrive_object_type(table),table->get_table_name());
-			}
+            yajl_add_obj (gen, db_name, obj_type, obj_name );
             yajl_gen_map_close(gen);
-            table = table->next_global;
         }
         yajl_gen_array_close(gen);
     }
-
 
     size_t qlen = 0;
-
     const char * query = thd_query_str(pThdData->getTHD(), &qlen);
     if (query && qlen > 0)
     {
@@ -527,9 +481,116 @@ ssize_t Audit_json_formatter::event_format(ThdSesData* pThdData, IWriter * write
 
 
 
-
-ThdSesData::ThdSesData (THD *pTHD) : m_pThd (pTHD), m_CmdName(NULL), m_UserName(NULL)
+ThdSesData::ThdSesData (THD *pTHD) :
+        m_pThd (pTHD), m_CmdName(NULL), m_UserName(NULL),
+        m_objIterType(OBJ_NONE), m_tables(NULL), m_firstTable(true),
+        m_tableInf(NULL), m_index(0)
 {
     m_CmdName = retrieve_command (m_pThd);    
     m_UserName = retrieve_user (m_pThd);
+}
+
+bool ThdSesData::startGetObjects()
+{
+    //reset vars as this may be called multiple times
+    m_objIterType = OBJ_NONE;
+    m_tables = NULL;
+    m_firstTable = true;
+    m_index = 0;
+    m_tableInf =  Audit_formatter::getQueryCacheTableList1(getTHD());
+    int command = Audit_formatter::thd_inst_command(getTHD());
+    LEX * pLex = Audit_formatter::thd_lex(getTHD());
+    //query cache case
+    if(pLex && command == COM_QUERY && m_tableInf && m_tableInf->num_of_elem > 0)
+    {
+        m_objIterType = OBJ_QUERY_CACHE;
+        return true;
+    }
+    const char *cmd = getCmdName();
+    //commands which have single database object
+    if (strcmp (cmd,"Init DB") ==0 || strcmp (cmd, "SHOW TABLES")== 0 || strcmp (cmd,  "SHOW TABLE")==0)
+    {
+        if(getTHD()->db)
+        {
+            m_objIterType = OBJ_DB;
+            return true;
+        }
+        return false;
+    }
+    //only return query tabls if command is COM_QUERY
+    //TODO: check if other commands can also generate query tables such as "show fields"
+    if (pLex && command == COM_QUERY && pLex->query_tables)
+    {
+        m_tables = pLex->query_tables;
+        m_objIterType = OBJ_TABLE_LIST;
+        return true;
+    }
+    //no objects
+    return false;
+}
+
+bool ThdSesData::getNextObject(const char ** db_name, const char ** obj_name, const char ** obj_type)
+{
+    switch(m_objIterType)
+    {
+        case OBJ_DB:
+        {
+            if(m_firstTable)
+            {
+                *db_name = getTHD()->db;
+                *obj_name = NULL;
+                if(obj_type)
+                {
+                    *obj_type = "DATABASE";
+                }
+                m_firstTable = false;
+                return true;
+            }
+            return false;
+        }
+        case OBJ_QUERY_CACHE:
+        {
+            if(m_index < m_tableInf->num_of_elem &&
+                    m_index< MAX_NUM_QUERY_TABLE_ELEM)
+            {
+                *db_name = m_tableInf->db[m_index];
+                *obj_name = m_tableInf->table_name[m_index];
+                if(obj_type)
+                {
+                    *obj_type = m_tableInf->object_type[m_index];
+                }
+                m_index++;
+                return true;
+            }
+            return false;
+        }
+        case OBJ_TABLE_LIST:
+        {
+            if(m_tables)
+            {
+                *db_name = m_tables->get_db_name();
+                *obj_name = m_tables->get_table_name();
+                if(obj_type)
+                {
+                    //object is a view if it view command (alter_view, drop_view ..)
+                    //and first object or view field is populated
+                    if((m_firstTable && strstr(getCmdName(), "_view") != NULL) ||
+                            m_tables->view)
+                    {
+                        *obj_type = "VIEW";
+                        m_firstTable = false;
+                    }
+                    else
+                    {
+                        *obj_type = "TABLE";
+                    }
+                }
+                m_tables = m_tables->next_global;
+                return true;
+            }
+            return false;
+        }
+        default :
+            return false;
+    }
 }
