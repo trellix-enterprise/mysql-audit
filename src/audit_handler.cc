@@ -484,9 +484,9 @@ ssize_t Audit_json_formatter::event_format(ThdSesData* pThdData, IWriter * write
 ThdSesData::ThdSesData (THD *pTHD) :
         m_pThd (pTHD), m_CmdName(NULL), m_UserName(NULL),
         m_objIterType(OBJ_NONE), m_tables(NULL), m_firstTable(true),
-        m_tableInf(NULL), m_index(0)
+        m_tableInf(NULL), m_index(0), m_isSqlCmd(false)
 {
-    m_CmdName = retrieve_command (m_pThd);    
+    m_CmdName = retrieve_command (m_pThd, m_isSqlCmd);
     m_UserName = retrieve_user (m_pThd);
 }
 

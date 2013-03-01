@@ -30,7 +30,7 @@ typedef struct _THDPRINTED {
 } THDPRINTED;
 
 #define MAX_COMMAND_CHAR_NUMBERS 40
-const char * retrieve_command (THD * thd);
+const char * retrieve_command (THD * thd, bool & is_sql_cmd);
 typedef size_t OFFSET;
 
 #define MAX_COM_STATUS_VARS_RECORDS 512
@@ -100,6 +100,7 @@ private:
     THD *m_pThd;
     const char *m_CmdName;
     const char *m_UserName;
+    bool m_isSqlCmd;
     enum ObjectIterType m_objIterType;
     //pointer for iterating tables
     TABLE_LIST * m_tables;

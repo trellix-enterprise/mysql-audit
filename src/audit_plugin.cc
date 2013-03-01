@@ -113,6 +113,10 @@ static const ThdOffsets thd_offsets_arr[] =
 		{"5.1.65-community","4df4c0dfe11913bd1ef2bb3a6bc7a40e", 6376, 6440, 3736, 4008, 88, 2056},
 		//offsets for: /mysqlrpm/5.1.66/usr/sbin/mysqld (5.1.66-community)
 		{"5.1.66-community","544ed94102b82425e7592e7d7474fce4", 6376, 6440, 3736, 4008, 88, 2056},
+		//offsets for: /mysqlrpm/5.1.67/usr/sbin/mysqld (5.1.67-community)
+		{"5.1.67-community","f67df6f2416940dbabff460b83b63677", 6376, 6440, 3736, 4008, 88, 2056},
+		//offsets for: /mysqlrpm/5.1.68/usr/sbin/mysqld (5.1.68-community)
+		{"5.1.68-community","4042e9a2778090df6fd8481e03ed6737", 6376, 6440, 3736, 4008, 88, 2056},
 		
         //offsets for: mysqlrpm/5.5.8/usr/sbin/mysqld (5.5.8)
         {"5.5.8","70a882693d54df8ab7c7d9f256e317bb", 6032, 6080, 3776, 4200, 88, 2560},
@@ -160,6 +164,10 @@ static const ThdOffsets thd_offsets_arr[] =
 		{"5.5.27","8a3bd2ea1db328f4443fc25a79450ff3", 6056, 6104, 3808, 4232, 88, 2568},
 		//offsets for: /mysqlrpm/5.5.28/usr/sbin/mysqld (5.5.28)
 		{"5.5.28","588a710a1aec3043203261af72a13219", 6056, 6104, 3808, 4232, 88, 2568},
+		//offsets for: /mysqlrpm/5.5.29/usr/sbin/mysqld (5.5.29)
+		{"5.5.29","c1991059f9db3e4d5f23f34d9ff9c1d5", 6056, 6104, 3808, 4232, 88, 2568},
+		//offsets for: /mysqlrpm/5.5.30/usr/sbin/mysqld (5.5.30)
+		{"5.5.30","2c92adf1c8c4cef089bd487a56d72288", 6064, 6112, 3816, 4240, 88, 2568},
 		
 		
 
@@ -239,6 +247,11 @@ static const ThdOffsets thd_offsets_arr[] =
 		{"5.1.65","65d905e173c06316b736ee4e9be15baf", 6392, 6456, 3752, 4024, 88, 2056},
 		//offsets for: /mysql/5.1.66/bin/mysqld (5.1.66)
 		{"5.1.66","2cd9a97779d436d1d5d045eb12620ef0", 6392, 6456, 3752, 4024, 88, 2056},
+		//offsets for: /mysql/5.1.67/bin/mysqld (5.1.67)
+		{"5.1.67","a33947226f24f59d30e7c40c61d840ca", 6392, 6456, 3752, 4024, 88, 2056},
+		//offsets for: /mysql/5.1.68/bin/mysqld (5.1.68)
+		{"5.1.68","673dd031ea4ad3493b47d74662a49079", 6392, 6456, 3752, 4024, 88, 2056},
+
         //offsets for: mysql/5.5.8/bin/mysqld (5.5.8)
         {"5.5.8","a32b163f08ca8bfd7486cd77200d9df3", 6032, 6080, 3776, 4200, 88, 2560},
         //offsets for: mysql/5.5.9/bin/mysqld (5.5.9)
@@ -283,7 +296,11 @@ static const ThdOffsets thd_offsets_arr[] =
 		//offsets for: /mysql/5.5.27/bin/mysqld (5.5.27)
 		{"5.5.27","0c6d305da14143ac17bf8964243234a4", 6056, 6104, 3808, 4232, 88, 2568},
 		//offsets for: /mysql/5.5.28/bin/mysqld (5.5.28)
-		{"5.5.28","8fbd19126907af43440baa4584dc7d28", 6056, 6104, 3808, 4232, 88, 2568}
+		{"5.5.28","8fbd19126907af43440baa4584dc7d28", 6056, 6104, 3808, 4232, 88, 2568},
+		//offsets for: /mysql/5.5.29/bin/mysqld (5.5.29)
+		{"5.5.29","495fc2576127ab851baa1ebb39a8f6fe", 6056, 6104, 3808, 4232, 88, 2568},
+		//offsets for: /mysql/5.5.30/bin/mysqld (5.5.30)
+		{"5.5.30","a2a8aba9c124315c17634556a303f87a", 6064, 6112, 3816, 4240, 88, 2568}
 };
 
 #else
@@ -366,6 +383,10 @@ static const ThdOffsets thd_offsets_arr[] =
 		{"5.1.65-community","0e96922fe95be696f7f91fc5a94c5d46", 4124, 4164, 2268, 2448, 44, 1180},
 		//offsets for: /mysqlrpm/5.1.66/usr/sbin/mysqld (5.1.66-community)
 		{"5.1.66-community","60049b5c82e3479323001ffb28447820", 4124, 4164, 2268, 2448, 44, 1180},
+		//offsets for: /mysqlrpm/5.1.67/usr/sbin/mysqld (5.1.67-community)
+		{"5.1.67-community","2ca1d344c7054644a7e98c34b11bee64", 4124, 4164, 2268, 2448, 44, 1180},
+		//offsets for: /mysqlrpm/5.1.68/usr/sbin/mysqld (5.1.68-community)
+		{"5.1.68-community","df5dc268b36dbe853ed37d91fd4b6b3f", 4124, 4164, 2268, 2448, 44, 1180},
 		
         //offsets for: mysqlrpm/5.5.8/usr/sbin/mysqld (5.5.8)
         {"5.5.8","3132e8c883f72caf4c8eddb24fd005b4", 3792, 3820, 2336, 2668, 44, 1640},
@@ -407,6 +428,10 @@ static const ThdOffsets thd_offsets_arr[] =
 		{"5.5.27","e6a9760303ea8fdd4face5a88d925059", 3812, 3840, 2364, 2696, 44, 1644},
 		//offsets for: /mysqlrpm/5.5.28/usr/sbin/mysqld (5.5.28)
 		{"5.5.28","8f435a5b9308fd2c4d20860fb3b38ec7", 3812, 3840, 2364, 2696, 44, 1644},
+		//offsets for: /mysqlrpm/5.5.29/usr/sbin/mysqld (5.5.29)
+		{"5.5.29","89c4df6dcf941ccded0c08c73d976877", 3812, 3840, 2364, 2696, 44, 1644},
+		//offsets for: /mysqlrpm/5.5.30/usr/sbin/mysqld (5.5.30)
+		{"5.5.30","0186d1ef4725814924bfe968e3455138", 3816, 3844, 2368, 2700, 44, 1644},
 
         //DISTRIBUTION: tar.gz
 		//offsets for: mysql/5.1.30/bin/mysqld (5.1.30)
@@ -482,6 +507,10 @@ static const ThdOffsets thd_offsets_arr[] =
 		{"5.1.65","96c750de824898f8af435bd7b73a5e88", 4140, 4180, 2284, 2464, 44, 1180},
 		//offsets for: /mysql/5.1.66/bin/mysqld (5.1.66)
 		{"5.1.66","db5aea9077c989e079980960405807bc", 4140, 4180, 2284, 2464, 44, 1180},
+		//offsets for: /mysql/5.1.67/bin/mysqld (5.1.67)
+		{"5.1.67","9f2609f5925abe6f3c01a05a53569b35", 4140, 4180, 2284, 2464, 44, 1180},
+		//offsets for: /mysql/5.1.68/bin/mysqld (5.1.68)
+		{"5.1.68","d03c42d8a8946f11ace86a5e1189114d", 4140, 4180, 2284, 2464, 44, 1180},
 		
 		//offsets for: /mysqlrpm/5.5.8/usr/sbin/mysqld (5.5.8)
 		{"5.5.8","3132e8c883f72caf4c8eddb24fd005b4", 3792, 3820, 2336, 2668, 44, 1640},
@@ -528,6 +557,10 @@ static const ThdOffsets thd_offsets_arr[] =
 		{"5.5.27","b4d8ccf9348ecfe52fcf1d34b37a394d", 3812, 3840, 2364, 2696, 44, 1644},
 		//offsets for: /mysql/5.5.28/bin/mysqld (5.5.28)
 		{"5.5.28","f8922e4289a17acf0347e478f6f30705", 3812, 3840, 2364, 2696, 44, 1644},
+		//offsets for: /mysql/5.5.29/bin/mysqld (5.5.29)
+		{"5.5.29","e94a673a244449de87e6a489a7a08acb", 3812, 3840, 2364, 2696, 44, 1644},
+		//offsets for: /mysql/5.5.30/bin/mysqld (5.5.30)
+		{"5.5.30","c7b98be45d35b77da6679c354c23d1fa", 3816, 3844, 2368, 2700, 44, 1644}
 };
 
 #endif
@@ -1305,10 +1338,10 @@ static int setup_offsets()
 }
 
 
-const char * retrieve_command (THD * thd)
+const char * retrieve_command (THD * thd, bool & is_sql_cmd)
 {
     const char *cmd = NULL;
-
+	is_sql_cmd = false;
     int command = Audit_formatter::thd_inst_command(thd);
     if (command < 0 || command > COM_END)
     {
@@ -1322,6 +1355,7 @@ const char * retrieve_command (THD * thd)
     const int sql_command = thd_sql_command(thd);
     if (sql_command >=0 && sql_command <= (MAX_COM_STATUS_VARS_RECORDS -1) )
     {
+		is_sql_cmd = true;
         cmd = com_status_vars_array[sql_command + 1].name;
     }
     if(!cmd)
