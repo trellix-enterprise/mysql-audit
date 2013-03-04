@@ -404,6 +404,7 @@ protected:
 
 class Audit_socket_handler: public Audit_io_handler
 {
+int sock;
 public:
 
     Audit_socket_handler() :

@@ -236,60 +236,77 @@ void Audit_file_handler::handler_log_audit(ThdSesData *pThdData)
 
 ssize_t Audit_socket_handler::write(const char * data, size_t size)
 {
-    return vio_write((Vio*)m_vio, (const uchar *) data, size);
+    if (strncmp(m_sockname, "dgram:", 6) == 0) {
+        return send(sock, data, size, 0);
+    } else {
+        return vio_write((Vio*)m_vio, (const uchar *) data, size);
+    }
 }
 
 void Audit_socket_handler::handler_start()
 {
     pthread_mutex_lock(&LOCK_io);
-    //open the socket
-    int sock = socket(AF_UNIX,SOCK_STREAM,0);
-    if (sock < 0)
-    {
-        sql_print_error(
-                "%s unable to create socket: %s. audit socket handler disabled!!",
-                AUDIT_LOG_PREFIX, strerror(errno));
-        m_enabled = false;
-        pthread_mutex_unlock(&LOCK_io);
-        return;
-    }
 
-    //connect the socket
-    m_vio= vio_new(sock, VIO_TYPE_SOCKET, VIO_LOCALHOST);
-    struct sockaddr_un UNIXaddr;
-    UNIXaddr.sun_family = AF_UNIX;
-    strmake(UNIXaddr.sun_path, m_sockname, sizeof(UNIXaddr.sun_path)-1);
-    if (my_connect(sock,(struct sockaddr *) &UNIXaddr, sizeof(UNIXaddr),
-                   m_connect_timeout))
-    {
-      sql_print_error(
-                "%s unable to connect to socket: %s. err: %s. audit socket handler disabled!!",
-                AUDIT_LOG_PREFIX, m_sockname, strerror(errno));
-      close_vio();
-      m_enabled = false;
-      pthread_mutex_unlock(&LOCK_io);
-      return;
+    if (strncmp(m_sockname, "dgram:", 6) == 0) { //Datagram socket
+        sock = socket(AF_UNIX,SOCK_DGRAM,0);
+        if (sock < 0) {
+            sql_print_error("%s unable to create DGRAM socket %s. audit socket handler disabled!!", AUDIT_LOG_PREFIX, strerror(errno));
+            m_enabled = false;
+            pthread_mutex_unlock(&LOCK_io);
+            return;
+        }
+        struct sockaddr_un UNIXaddr;
+        UNIXaddr.sun_family = AF_UNIX;
+        strmake(UNIXaddr.sun_path, m_sockname+6, sizeof(UNIXaddr.sun_path)-1);
+        if (my_connect(sock,(struct sockaddr *) &UNIXaddr, sizeof(UNIXaddr), m_connect_timeout)) {
+            sql_print_error("%s unable to connect to DGRAM socket %s. err: %s. audit socket handler disabled!!", AUDIT_LOG_PREFIX, m_sockname, strerror(errno));
+            m_enabled = false;
+            pthread_mutex_unlock(&LOCK_io);
+            return;
+        }
+        ssize_t res = m_formatter->start_msg_format(this);
+        if (res < 0) { // sanity check of writing to the log. If we fail, print an error and disable this handler.
+            sql_print_error("%s unable to write to DGRAM socket %s: %s. Disabling audit handler.", AUDIT_LOG_PREFIX, m_sockname, strerror(errno));
+            m_enabled = false;
+        }
+    } else { //Stream socket
+        sock = socket(AF_UNIX,SOCK_STREAM,0);
+        if (sock < 0){
+            sql_print_error("%s unable to create STREAM socket %s. audit socket handler disabled!!", AUDIT_LOG_PREFIX, strerror(errno));
+            m_enabled = false;
+            pthread_mutex_unlock(&LOCK_io);
+            return;
+        }
 
-    }
-    ssize_t res = m_formatter->start_msg_format(this);
-    /*
-     sanity check of writing to the log. If we fail. We will print an erorr and disable this handler.
-     */
-    if (res < 0)
-    {
-        sql_print_error(
-                "%s unable to write to %s: %s. Disabling audit handler.",
-                AUDIT_LOG_PREFIX, m_sockname, strerror(errno));
-        close_vio();
-        m_enabled = false;
+        //connect the socket
+        m_vio= vio_new(sock, VIO_TYPE_SOCKET, VIO_LOCALHOST);
+        struct sockaddr_un UNIXaddr;
+        UNIXaddr.sun_family = AF_UNIX;
+        strmake(UNIXaddr.sun_path, m_sockname, sizeof(UNIXaddr.sun_path)-1);
+        if (my_connect(sock,(struct sockaddr *) &UNIXaddr, sizeof(UNIXaddr), m_connect_timeout)) {
+          sql_print_error("%s unable to connect to STREAM socket %s. err: %s. audit socket handler disabled!!", AUDIT_LOG_PREFIX, m_sockname, strerror(errno));
+          close_vio();
+          m_enabled = false;
+          pthread_mutex_unlock(&LOCK_io);
+          return;
+        }
+        ssize_t res = m_formatter->start_msg_format(this);
+        if (res < 0) { // sanity check of writing to the log. If we fail, print an error and disable this handler.
+            sql_print_error("%s unable to write to STREAM socket %s: %s. Disabling audit handler.", AUDIT_LOG_PREFIX, m_sockname, strerror(errno));
+            close_vio();
+            m_enabled = false;
+        }
     }
     pthread_mutex_unlock(&LOCK_io);
 }
+
 void Audit_socket_handler::handler_stop()
 {
     pthread_mutex_lock(&LOCK_io);
     m_formatter->stop_msg_format(this);
-    close_vio();
+    if (strncmp(m_sockname, "dgram:", 6) != 0) {
+        close_vio();
+    }
     pthread_mutex_unlock(&LOCK_io);
 }
 

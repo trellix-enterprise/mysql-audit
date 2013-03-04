@@ -528,6 +528,8 @@ static const ThdOffsets thd_offsets_arr[] =
 		{"5.5.27","b4d8ccf9348ecfe52fcf1d34b37a394d", 3812, 3840, 2364, 2696, 44, 1644},
 		//offsets for: /mysql/5.5.28/bin/mysqld (5.5.28)
 		{"5.5.28","f8922e4289a17acf0347e478f6f30705", 3812, 3840, 2364, 2696, 44, 1644},
+//offsets for datagram_socket development
+{"5.5.29","8e59768a63e8e4ece2e2acd41f375dac", 3788, 3816, 2340, 2672, 44, 1644}
 };
 
 #endif
