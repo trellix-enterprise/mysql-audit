@@ -942,7 +942,7 @@ void remove_hot_functions ()
 int is_remove_patches (ThdSesData *pThdData)
 	{	
 
-
+		static bool called_once = false;
 		const char *cmd = pThdData->getCmdName();
         const char *sUninstallPlugin = "uninstall_plugin";
 		LEX *pLex = Audit_formatter::thd_lex(pThdData->getTHD());
@@ -959,6 +959,12 @@ int is_remove_patches (ThdSesData *pThdData)
 				}
 				Audit_handler::stop_all();
 				remove_hot_functions ();
+				if(!called_once)
+				{
+					called_once = true;
+					my_message (WARN_PLUGIN_BUSY,"Uninstall AUDIT plugin must be called again to complete",MYF(0));
+					return 2;
+				}
 				return 1;
 			}
 		}
@@ -1711,11 +1717,10 @@ static int do_hot_patch(void ** trampoline_func_pp, unsigned int * trampoline_si
 
 static int audit_plugin_deinit(void *p)
 {	
-    DBUG_ENTER("audit_plugin_deinit");
+    DBUG_ENTER("audit_plugin_deinit");	
 	sql_print_information("%s deinit", log_prefix);
 	remove_hot_functions();
-    //disable handlers
-    DBUG_RETURN(0);
+	DBUG_RETURN(0);    
 }
 
 /*
