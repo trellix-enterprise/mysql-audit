@@ -208,8 +208,8 @@ public:
     
 protected:
 
-	Audit_json_formatter& operator =(const Audit_json_formatter& b) {};
-	Audit_json_formatter(const Audit_json_formatter& ) {};
+	Audit_json_formatter& operator =(const Audit_json_formatter& b);
+	Audit_json_formatter(const Audit_json_formatter& );
 
 };
 
@@ -319,8 +319,9 @@ protected:
     {
         rw_unlock(&LOCK_audit);
     }
-	Audit_handler & operator=(const Audit_handler&) {};
-	Audit_handler(const Audit_handler&) {};
+    //override default assignment and copy to protect against creating additional instances
+	Audit_handler & operator=(const Audit_handler&);
+	Audit_handler(const Audit_handler&);
 private:
     //bool indicating if to print offset errors to log or not
     bool m_print_offset_err;
@@ -354,7 +355,7 @@ class Audit_file_handler: public Audit_io_handler
 public:
 
     Audit_file_handler() :
-        m_log_file(NULL), m_sync_period(0), m_sync_counter(0), m_filename(NULL)
+        m_sync_period(0), m_filename(NULL), m_log_file(NULL), m_sync_counter(0)
     {
     }
 
@@ -380,8 +381,9 @@ public:
     ssize_t write(const char * data, size_t size);
     //static void print_sleep (THD *thd, int delay_ms);
 protected:
-	Audit_file_handler & operator=(const Audit_file_handler&) {};
-	Audit_file_handler(const Audit_file_handler&) {};
+    //override default assignment and copy to protect against creating additional instances
+	Audit_file_handler & operator=(const Audit_file_handler&);
+	Audit_file_handler(const Audit_file_handler&);
     virtual void handler_start();
     virtual void handler_stop();
 
@@ -432,8 +434,9 @@ public:
     ssize_t write(const char * data, size_t size);
 
 protected:
-	Audit_socket_handler & operator=(const Audit_socket_handler&) {};
-	Audit_socket_handler(const Audit_socket_handler&) {};
+    //override default assignment and copy to protect against creating additional instances
+	Audit_socket_handler & operator=(const Audit_socket_handler&);
+	Audit_socket_handler(const Audit_socket_handler&);
     virtual void handler_start();
     virtual void handler_stop();
 
@@ -448,7 +451,7 @@ protected:
     {
         if (m_vio)
         {
-            vio_close((Vio*)m_vio);
+            //no need for vio_close as is called by delete (additionally close changed its name to vio_shutdown in 5.6.11)
             vio_delete((Vio*)m_vio);
         }
         m_vio = NULL;

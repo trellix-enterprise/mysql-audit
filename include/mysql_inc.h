@@ -21,6 +21,10 @@
 #include <my_pthread.h>
 #include <sql_priv.h>
 #include <mysql/plugin.h>
+#if MYSQL_VERSION_ID >= 50600
+//in 5.6 we use the audit plugin interface
+#include <mysql/plugin_audit.h>
+#endif
 #include <sql_parse.h>
 #include <sql_class.h>
 #include <my_global.h>

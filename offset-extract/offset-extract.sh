@@ -22,8 +22,16 @@ if [ $? = 0 ]; then
 	MYVER=`echo "$MYVER" | grep -P  -o '.+(?=-log)'`
 fi
 
+COMMAND_MEMBER=command
+
+#in 5.6 command member is named m_command
+echo $MYVER | grep -P '^5.6' > /dev/null
+if [ $? = 0 ]; then
+	COMMAND_MEMBER=m_command
+fi
+
 echo "set logging on" > offsets.gdb
-echo 'printf "{\"'$MYVER'\",\"'$MYMD5'\", %d, %d, %d, %d, %d, %d}", ((size_t)&((THD *)log_slow_statement)->query_id) - (size_t)log_slow_statement, ((size_t)&((THD *)log_slow_statement)->thread_id) - (size_t)log_slow_statement, ((size_t)&((THD *)log_slow_statement)->main_security_ctx) - (size_t)log_slow_statement, ((size_t)&((THD *)log_slow_statement)->command) - (size_t)log_slow_statement, ((size_t)&((THD *)log_slow_statement)->lex) - (size_t)log_slow_statement, (size_t)&((LEX*)log_slow_statement)->comment - (size_t)  log_slow_statement' >> offsets.gdb
+echo 'printf "{\"'$MYVER'\",\"'$MYMD5'\", %d, %d, %d, %d, %d, %d}", ((size_t)&((THD *)log_slow_statement)->query_id) - (size_t)log_slow_statement, ((size_t)&((THD *)log_slow_statement)->thread_id) - (size_t)log_slow_statement, ((size_t)&((THD *)log_slow_statement)->main_security_ctx) - (size_t)log_slow_statement, ((size_t)&((THD *)log_slow_statement)->'$COMMAND_MEMBER') - (size_t)log_slow_statement, ((size_t)&((THD *)log_slow_statement)->lex) - (size_t)log_slow_statement, (size_t)&((LEX*)log_slow_statement)->comment - (size_t)  log_slow_statement' >> offsets.gdb
 
 SYMPARAM=""
 if [ -n "$2" ]; then

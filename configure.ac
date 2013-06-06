@@ -88,10 +88,10 @@ AC_PATH_PROG(DIFF, diff, diff)
 #CPPFLAGS="$CPPFLAGS -DMYSQL_DYNAMIC_PLUGIN -DMYSQL_SERVER"
 
 #we can add the following flags for better error catching: -Werror -Wimplicit
-CPPFLAGS="$CPPFLAGS -Werror"
+CPPFLAGS="$CPPFLAGS -Werror -Wall"
 CFLAGS="$CFLAGS -Wimplicit"
 # From MySQL: Disable exceptions as they seams to create problems with gcc and threads.
-CXXFLAGS="-fno-implicit-templates -fno-exceptions -fno-rtti "
+CXXFLAGS="-fno-implicit-templates -fno-exceptions -fno-rtti -Wno-reorder -Wno-strict-aliasing"
 
 #add pthread libs
 LIBS="$LIBS -lpthread"

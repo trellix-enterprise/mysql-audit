@@ -20,7 +20,7 @@ pkgplugindir =  $(MYSQL_PLUGIN_DIR)
 pkgplugin_LTLIBRARIES =	libaudit_plugin.la
 libaudit_plugin_la_LDFLAGS =	-module -Wl,--version-script=MySQLPlugin.map 
 
-libaudit_plugin_la_SOURCES =	hot_patch.cc audit_plugin.cc audit_handler.cc 
+libaudit_plugin_la_SOURCES =	hot_patch.cc audit_plugin.cc audit_handler.cc md5.cc
 
 libaudit_plugin_la_LIBADD = $(top_srcdir)/yajl/src/libyajl.la $(top_srcdir)/udis86/libudis86/libudis86.la $(MYSQL_LIBSERVICES)  
 

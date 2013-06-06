@@ -41,16 +41,16 @@ static int unprotect(void *addr, size_t len)
 		if(0 != res)
 		{
 			sql_print_information(
-                "%s unable to unprotect. Page: 0x%lx, Size: %d, errno: %d. Using NO EXEC mode.",
-                log_prefix, (unsigned long)addr, len, errno);
+                "%s unable to unprotect. Page: %p, Size: %zu, errno: %d. Using NO EXEC mode.",
+                log_prefix, (void *)addr, len, errno);
 			use_exec_prot = false;
 			//do a sanity test that we can actually unprotect/protect and that nx bit is off
 			res = unprotect(addr, len);
 			if(0 != res)
 			{
 			    sql_print_error(
-                    "%s unable to unprotect page. This may happen if you have SELinux enabled. Disable SELinux execmod protection for mysqld. Aborting. Page: 0x%lx, Size: %d, errno: %d.",
-                    log_prefix, (unsigned long)addr, len, errno);
+                    "%s unable to unprotect page. This may happen if you have SELinux enabled. Disable SELinux execmod protection for mysqld. Aborting. Page: %p, Size: %zu, errno: %d.",
+                    log_prefix, (void *)addr, len, errno);
 			    return res;
 			}
 			res = protect(addr, len);
@@ -61,8 +61,8 @@ static int unprotect(void *addr, size_t len)
 			    if(NULL == fp)
 			    {
 			        sql_print_error(
-                        "%s unable to verify nx bit. Failed checking /proc/cpuinfo. This may happen if you have SELinux enabled. Disable SELinux execmod protection for mysqld. Aborting. Page: 0x%lx, Size: %d, errno: %d.",
-                        log_prefix, (unsigned long)addr, len, errno);
+                        "%s unable to verify nx bit. Failed checking /proc/cpuinfo. This may happen if you have SELinux enabled. Disable SELinux execmod protection for mysqld. Aborting. Page: %p, Size: %zu, errno: %d.",
+                        log_prefix, (void *)addr, len, errno);
 			        return res;
 			    }
 			    char line[1024] = {0};
@@ -77,8 +77,8 @@ static int unprotect(void *addr, size_t len)
 			            if(strstr(line, " nx")) //nx enabled so fail
 			            {
 			                sql_print_error(
-                                "%s unable to protect page and nx bit enabled. This may happen if you have SELinux enabled. Disable SELinux execmod protection for mysqld. Aborting. Page: 0x%lx, Size: %d.",
-                                log_prefix, (unsigned long)addr, len);
+                                "%s unable to protect page and nx bit enabled. This may happen if you have SELinux enabled. Disable SELinux execmod protection for mysqld. Aborting. Page: %p, Size: %zu.",
+                                log_prefix, (void *)addr, len);
 			                fclose(fp);
 			                return res;
 			            }
@@ -89,8 +89,8 @@ static int unprotect(void *addr, size_t len)
 			    if(!nxchecked) //we didn't find flags string for some reason
 			    {
 			        sql_print_error(
-                        "%s unable to verify nx bit. Failed finding: %s in /proc/cpuinfo. This may happen if you have SELinux enabled. Disable SELinux execmod protection for mysqld. Aborting. Page: 0x%lx, Size: %d.",
-                        log_prefix, flags, (unsigned long)addr, len);
+                        "%s unable to verify nx bit. Failed finding: %s in /proc/cpuinfo. This may happen if you have SELinux enabled. Disable SELinux execmod protection for mysqld. Aborting. Page: %p, Size: %zu.",
+                        log_prefix, flags, (void *)addr, len);
 	                return res;
 			    }
             }
@@ -104,8 +104,8 @@ static int unprotect(void *addr, size_t len)
 	if(0 != res) //log the failure
 	{
 		sql_print_error(
-			"%s unable to unprotect. Page: 0x%lx, Size: %d, errno: %d. Error.",
-			log_prefix, (unsigned long)addr, len, errno);
+			"%s unable to unprotect. Page: %p, Size: %zu, errno: %d. Error.",
+			log_prefix, (void *)addr, len, errno);
 	}
 	return res;		
 }
@@ -144,7 +144,6 @@ unsigned int jump_size()
 
 static void WriteJump(void *pAddress, ULONG_PTR JumpTo)
 {
-    DWORD dwOldProtect = 0;
     DATATYPE_ADDRESS AddressPage = get_page_address(pAddress);
     unprotect((void*)AddressPage, PAGE_SIZE);
 
@@ -166,7 +165,7 @@ static void WriteJump(void *pAddress, ULONG_PTR JumpTo)
 #endif
     //}
 
-    DWORD dwBuf = 0;    // nessary othewrise the function fails
+    //DWORD dwBuf = 0;    // nessary othewrise the function fails
 
     protect((void*)AddressPage, PAGE_SIZE);
 }
@@ -192,32 +191,55 @@ static bool  HookFunction(ULONG_PTR targetFunction, ULONG_PTR newFunction, ULONG
     ud_set_input_buffer(&ud_obj, raw, MAX_INSTRUCTIONS);
     ud_set_mode(&ud_obj, ASM_MODE);
     ud_set_syntax(&ud_obj, UD_SYN_INTEL);
-
+    ud_set_pc(&ud_obj, targetFunction);
 
     DWORD InstrSize = 0;
     DATATYPE_ADDRESS trampolineFunctionPage = get_page_address((void*)trampolineFunction);
     if(unprotect((void*)trampolineFunctionPage, PAGE_SIZE) != 0)
 	{
 		sql_print_error(
-                "%s unable to unprotect trampoline function page: 0x%lx. Aborting.",
-                log_prefix, trampolineFunctionPage);
+                "%s unable to unprotect trampoline function page: %p. Aborting.",
+                log_prefix, (void *)trampolineFunctionPage);
 		return false;
 	}
-    while (ud_disassemble(&ud_obj) && (strncmp (ud_insn_asm(&ud_obj),"invalid",7)!=0))
+    bool disassemble_valid = false;
+    while (ud_disassemble(&ud_obj))
     {
-        if (InstrSize >= jump_size())
+        if(ud_obj.mnemonic == UD_Iinvalid)
+        {
+            sql_print_error(
+                "%s unable to disassemble at address: %p. Aborting.",
+                log_prefix, (void *)(InstrSize + targetFunction));
             break;
+        }
+        //make sure there isn't a jmp/call (or similar operand) as these use
+        //relative addressing and if we copy as is we will mess up the jmp/call target
+        if(ud_obj.mnemonic == UD_Ijmp || ud_obj.mnemonic == UD_Icall ||
+           ud_obj.operand[0].type == UD_OP_JIMM)
+        {
+            sql_print_error(
+                "%s unable to disassemble at address: 0x%p. Found relative addressing for instruction: [%s]. Aborting.",
+                log_prefix, (void *)(InstrSize + targetFunction), ud_insn_asm(&ud_obj));
+            break;
+        }
 
         BYTE *pCurInstr = (BYTE *) (InstrSize + (ULONG_PTR) targetFunction);
         memcpy((BYTE*)trampolineFunction + uCurrentSize,
                 (void *) pCurInstr, ud_insn_len (&ud_obj));
 
-            uCurrentSize += ud_insn_len (&ud_obj);
-
-
+        uCurrentSize += ud_insn_len (&ud_obj);
         InstrSize += ud_insn_len (&ud_obj);
+        if (InstrSize >= jump_size()) //we have enough space so break
+        {
+            disassemble_valid = true;
+            break;
+        }
     }
     protect((void*)trampolineFunctionPage, PAGE_SIZE);
+    if(!disassemble_valid) //something went wrong. log was written before so return false
+    {
+        return false;
+    }
     WriteJump( (BYTE*)trampolineFunction + uCurrentSize, targetFunction + InstrSize);
     WriteJump((void *) targetFunction, newFunction);
     *trampolinesize = uCurrentSize;
@@ -235,8 +257,8 @@ static void UnhookFunction(ULONG_PTR Function,ULONG_PTR trampolineFunction , uns
     if(unprotect((void*)FunctionPage, PAGE_SIZE) != 0)
 	{
 		sql_print_error(
-                "%s Unhook not able to unprotect function page: 0x%lx. Aborting.",
-                log_prefix, FunctionPage);
+                "%s Unhook not able to unprotect function page: %p. Aborting.",
+                log_prefix, (void * )FunctionPage);
 		return;
 	}
     memcpy((void *) Function, (void*)trampolineFunction,trampolinesize);
@@ -263,7 +285,7 @@ static void UnhookFunction(ULONG_PTR Function,ULONG_PTR trampolineFunction , uns
 int hot_patch_function (void* targetFunction, void* newFunction, void * trampolineFunction, unsigned int *trampolinesize, bool info_print)
 {
 	DATATYPE_ADDRESS trampolinePage = get_page_address(trampolineFunction);
-	cond_info_print(info_print, "%s hot patching function: 0x%lx, trampolineFunction: 0x%lx trampolinePage: 0x%lx",log_prefix, (unsigned long)targetFunction, (unsigned long)trampolineFunction, (unsigned long)trampolinePage);
+	cond_info_print(info_print, "%s hot patching function: %p, trampolineFunction: %p trampolinePage: %p",log_prefix, (void *)targetFunction, (void *)trampolineFunction, (void *)trampolinePage);
     if (HookFunction((ULONG_PTR) targetFunction, (ULONG_PTR) newFunction,
             (ULONG_PTR) trampolineFunction, trampolinesize))
     {
@@ -292,7 +314,7 @@ void remove_hot_patch_function (void* targetFunction, void * trampolineFunction,
 		return;
 	}
 	DATATYPE_ADDRESS targetPage = get_page_address(targetFunction);
-	cond_info_print(info_print, "%s removing hot patching function: 0x%lx targetPage: 0x%lx trampolineFunction: 0x%lx",log_prefix, (unsigned long)targetFunction, (unsigned long)targetPage, (unsigned long)trampolineFunction);
+	cond_info_print(info_print, "%s removing hot patching function: %p targetPage: %p trampolineFunction: %p",log_prefix, (void *)targetFunction, (void *)targetPage, (void *)trampolineFunction);
 	UnhookFunction ((ULONG_PTR) targetFunction, (ULONG_PTR)trampolineFunction,trampolinesize);
 	return;	
 }

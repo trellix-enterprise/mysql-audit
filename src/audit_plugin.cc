@@ -19,7 +19,11 @@
 
 #include "audit_handler.h"
 #include <string.h>
- #include <sys/mman.h>
+#include <sys/mman.h>
+#if MYSQL_VERSION_ID >= 50600
+//in 5.6 md5 implementation changed and we include our own
+#include "md5.h"
+#endif
 
 /*
  Disable __attribute__() on non-gcc compilers.
@@ -117,6 +121,8 @@ static const ThdOffsets thd_offsets_arr[] =
 		{"5.1.67-community","f67df6f2416940dbabff460b83b63677", 6376, 6440, 3736, 4008, 88, 2056},
 		//offsets for: /mysqlrpm/5.1.68/usr/sbin/mysqld (5.1.68-community)
 		{"5.1.68-community","4042e9a2778090df6fd8481e03ed6737", 6376, 6440, 3736, 4008, 88, 2056},
+		//offsets for: /mysqlrpm/5.1.69/usr/sbin/mysqld (5.1.69-community)
+		{"5.1.69-community","e9cb524b604419964f4dd55a8c87d618", 6376, 6440, 3736, 4008, 88, 2056},
 		
         //offsets for: mysqlrpm/5.5.8/usr/sbin/mysqld (5.5.8)
         {"5.5.8","70a882693d54df8ab7c7d9f256e317bb", 6032, 6080, 3776, 4200, 88, 2560},
@@ -166,10 +172,21 @@ static const ThdOffsets thd_offsets_arr[] =
 		{"5.5.28","588a710a1aec3043203261af72a13219", 6056, 6104, 3808, 4232, 88, 2568},
 		//offsets for: /mysqlrpm/5.5.29/usr/sbin/mysqld (5.5.29)
 		{"5.5.29","c1991059f9db3e4d5f23f34d9ff9c1d5", 6056, 6104, 3808, 4232, 88, 2568},
+		//offsets for: cluster-7.2.10-linux-rhel5-x86-64bit/cluster/bin/mysqld (5.5.29-ndb-7.2.10-cluster-commercial-advanced-log)
+		{"5.5.29-ndb-7.2.10-cluster-commercial-advanced","7fae09caa49af8bced6d250587cc2fcb", 6088, 6136, 3808, 4232, 88, 2568},
 		//offsets for: /mysqlrpm/5.5.30/usr/sbin/mysqld (5.5.30)
 		{"5.5.30","2c92adf1c8c4cef089bd487a56d72288", 6064, 6112, 3816, 4240, 88, 2568},
+		//offsets for: mysql-cluster-advanced-7.2.12-linux2.6-x86_64/bin/mysqld (5.5.30-ndb-7.2.12-cluster-commercial-advanced)
+		{"5.5.30-ndb-7.2.12-cluster-commercial-advanced","9f96bc38bf06a9b18a945227ff9e5c42", 6096, 6144, 3816, 4240, 88, 2568},
+		//offsets for: /mysqlrpm/5.5.31/usr/sbin/mysqld (5.5.31)
+		{"5.5.31","f6604e70b9592f484a7a04a0173f0b25", 6064, 6112, 3816, 4240, 88, 2568},
 		
-		
+		//offsets for: MySQL-server-5.6.10-1.el6.x86_64/usr/sbin/mysqld (5.6.10)
+		{"5.6.10","7016428728fe057d6825682d30e37b3d", 7808, 7856, 3960, 4400, 72, 2664},
+		//offsets for: /mysqlrpm/5.6.10/usr/sbin/mysqld (5.6.10)
+		{"5.6.10","3b34d181e1d9baa4534fe1146ceb0ce9", 7808, 7856, 3960, 4400, 72, 2664},
+		//offsets for: /mysqlrpm/5.6.11/usr/sbin/mysqld (5.6.11)
+		{"5.6.11","452f9bb49741bfc97d0266120016d77b", 7808, 7856, 3960, 4400, 72, 2672},
 
 				//DISTRIBUTION: tar.gz
 		//offsets for: /mysql/5.1.30/bin/mysqld (5.1.30)
@@ -251,6 +268,8 @@ static const ThdOffsets thd_offsets_arr[] =
 		{"5.1.67","a33947226f24f59d30e7c40c61d840ca", 6392, 6456, 3752, 4024, 88, 2056},
 		//offsets for: /mysql/5.1.68/bin/mysqld (5.1.68)
 		{"5.1.68","673dd031ea4ad3493b47d74662a49079", 6392, 6456, 3752, 4024, 88, 2056},
+		//offsets for: /mysql/5.1.69/bin/mysqld (5.1.69)
+		{"5.1.69","af2936f85db019bfd44c7e12a2138707", 6392, 6456, 3752, 4024, 88, 2056},
 
         //offsets for: mysql/5.5.8/bin/mysqld (5.5.8)
         {"5.5.8","a32b163f08ca8bfd7486cd77200d9df3", 6032, 6080, 3776, 4200, 88, 2560},
@@ -300,7 +319,16 @@ static const ThdOffsets thd_offsets_arr[] =
 		//offsets for: /mysql/5.5.29/bin/mysqld (5.5.29)
 		{"5.5.29","495fc2576127ab851baa1ebb39a8f6fe", 6056, 6104, 3808, 4232, 88, 2568},
 		//offsets for: /mysql/5.5.30/bin/mysqld (5.5.30)
-		{"5.5.30","a2a8aba9c124315c17634556a303f87a", 6064, 6112, 3816, 4240, 88, 2568}
+		{"5.5.30","a2a8aba9c124315c17634556a303f87a", 6064, 6112, 3816, 4240, 88, 2568},
+		//offsets for: MySQL-server-5.5.31-2.rhel5.x86_64/usr/sbin/mysqld (5.5.31)
+		{"5.5.31","858dc19ffc5d34e669ab85d32a8a0623", 6064, 6112, 3816, 4240, 88, 2568},
+		//offsets for: /mysql/5.5.31/bin/mysqld (5.5.31)
+		{"5.5.31","61e65a4cc9360e03f3810ef2928c916d", 6064, 6112, 3816, 4240, 88, 2568},
+
+		//offsets for: /mysql/5.6.10/bin/mysqld (5.6.10)
+		{"5.6.10","37f9c31dd092bb2d0da7eb6e2098732f", 7808, 7856, 3960, 4400, 72, 2664},
+		//offsets for: /mysql/5.6.11/bin/mysqld (5.6.11)
+		{"5.6.11","85fd884192cc5cd12fba52b7b140c819", 7808, 7856, 3960, 4400, 72, 2672}
 };
 
 #else
@@ -387,6 +415,8 @@ static const ThdOffsets thd_offsets_arr[] =
 		{"5.1.67-community","2ca1d344c7054644a7e98c34b11bee64", 4124, 4164, 2268, 2448, 44, 1180},
 		//offsets for: /mysqlrpm/5.1.68/usr/sbin/mysqld (5.1.68-community)
 		{"5.1.68-community","df5dc268b36dbe853ed37d91fd4b6b3f", 4124, 4164, 2268, 2448, 44, 1180},
+		//offsets for: /mysqlrpm/5.1.69/usr/sbin/mysqld (5.1.69-community)
+		{"5.1.69-community","4c8acbca31f3f4ba44d35db9f5c65bc0", 4124, 4164, 2268, 2448, 44, 1180},
 		
         //offsets for: mysqlrpm/5.5.8/usr/sbin/mysqld (5.5.8)
         {"5.5.8","3132e8c883f72caf4c8eddb24fd005b4", 3792, 3820, 2336, 2668, 44, 1640},
@@ -432,6 +462,13 @@ static const ThdOffsets thd_offsets_arr[] =
 		{"5.5.29","89c4df6dcf941ccded0c08c73d976877", 3812, 3840, 2364, 2696, 44, 1644},
 		//offsets for: /mysqlrpm/5.5.30/usr/sbin/mysqld (5.5.30)
 		{"5.5.30","0186d1ef4725814924bfe968e3455138", 3816, 3844, 2368, 2700, 44, 1644},
+		//offsets for: /mysqlrpm/5.5.31/usr/sbin/mysqld (5.5.31)
+		{"5.5.31","190e7556e226f8690ba8672869178e4c", 3816, 3844, 2368, 2700, 44, 1644},
+
+		//offsets for: /mysqlrpm/5.6.10/usr/sbin/mysqld (5.6.10)
+		{"5.6.10","dd3abddcfd0015de81b6a26b6190cefb", 5572, 5600, 2640, 2980, 36, 1712},
+		//offsets for: /mysqlrpm/5.6.11/usr/sbin/mysqld (5.6.11)
+		{"5.6.11","0f716b88d1c11c031dbb206a3e1b31a4", 5572, 5600, 2640, 2980, 36, 1724},
 
         //DISTRIBUTION: tar.gz
 		//offsets for: mysql/5.1.30/bin/mysqld (5.1.30)
@@ -511,6 +548,8 @@ static const ThdOffsets thd_offsets_arr[] =
 		{"5.1.67","9f2609f5925abe6f3c01a05a53569b35", 4140, 4180, 2284, 2464, 44, 1180},
 		//offsets for: /mysql/5.1.68/bin/mysqld (5.1.68)
 		{"5.1.68","d03c42d8a8946f11ace86a5e1189114d", 4140, 4180, 2284, 2464, 44, 1180},
+		//offsets for: /mysql/5.1.69/bin/mysqld (5.1.69)
+		{"5.1.69","5abf5a9f9f9c01be997595b066a40986", 4140, 4180, 2284, 2464, 44, 1180},
 		
 		//offsets for: /mysqlrpm/5.5.8/usr/sbin/mysqld (5.5.8)
 		{"5.5.8","3132e8c883f72caf4c8eddb24fd005b4", 3792, 3820, 2336, 2668, 44, 1640},
@@ -560,7 +599,15 @@ static const ThdOffsets thd_offsets_arr[] =
 		//offsets for: /mysql/5.5.29/bin/mysqld (5.5.29)
 		{"5.5.29","e94a673a244449de87e6a489a7a08acb", 3812, 3840, 2364, 2696, 44, 1644},
 		//offsets for: /mysql/5.5.30/bin/mysqld (5.5.30)
-		{"5.5.30","c7b98be45d35b77da6679c354c23d1fa", 3816, 3844, 2368, 2700, 44, 1644}
+		{"5.5.30","c7b98be45d35b77da6679c354c23d1fa", 3816, 3844, 2368, 2700, 44, 1644},
+		//offsets for: /mysql/5.5.31/bin/mysqld (5.5.31)
+		{"5.5.31","36631a7c748358598ba21cd4157545d9", 3816, 3844, 2368, 2700, 44, 1644},
+		
+		//offsets for: /mysql/5.6.10/bin/mysqld (5.6.10)
+		{"5.6.10","84600f18354f519e38302c04fe55ed9c", 5572, 5600, 2640, 2980, 36, 1712},
+		//offsets for: /mysql/5.6.11/bin/mysqld (5.6.11)
+		{"5.6.11","72e67111f3c1d1c1d4e7095e3a004fcf", 5572, 5600, 2640, 2980, 36, 1724}
+
 };
 
 #endif
@@ -592,30 +639,34 @@ static char *record_cmds_string = NULL;
 static char *record_objs_string = NULL;
 static char *whitelist_users_string = NULL;
 
-static char delay_cmds_array [SQLCOM_END + 2][MAX_COMMAND_CHAR_NUMBERS] = {0};
-static char record_cmds_array [SQLCOM_END + 2][MAX_COMMAND_CHAR_NUMBERS] = {0};
-static char record_objs_array [MAX_NUM_OBJECT_ELEM + 2][MAX_OBJECT_CHAR_NUMBERS] = {0};
-static char whitelist_users_array [MAX_NUM_USER_ELEM + 2][MAX_USER_CHAR_NUMBERS] = {0};
+static char delay_cmds_array [SQLCOM_END + 2][MAX_COMMAND_CHAR_NUMBERS] = {{0}};
+static char record_cmds_array [SQLCOM_END + 2][MAX_COMMAND_CHAR_NUMBERS] = {{0}};
+static char record_objs_array [MAX_NUM_OBJECT_ELEM + 2][MAX_OBJECT_CHAR_NUMBERS] = {{0}};
+static char whitelist_users_array [MAX_NUM_USER_ELEM + 2][MAX_USER_CHAR_NUMBERS] = {{0}};
 static bool record_empty_objs_set = true;
 static int num_delay_cmds = 0;
 static int num_record_cmds = 0;
 static int num_record_objs = 0;
 static int num_whitelist_users = 0;
-static SHOW_VAR com_status_vars_array [MAX_COM_STATUS_VARS_RECORDS] = {0};
+static SHOW_VAR com_status_vars_array [MAX_COM_STATUS_VARS_RECORDS] = {{0}};
 /**
  * The trampoline functions we use. Will be set to point to allocated mem.
  */
 static int (*trampoline_mysql_execute_command)(THD *thd) = NULL;
 static unsigned int trampoline_mysql_execute_size =0;
 
+#if MYSQL_VERSION_ID < 50600
 static void (*trampoline_log_slow_statement)(THD *thd) = NULL;
 static unsigned int trampoline_log_slow_statement_size =0;
+#endif
 
+#if MYSQL_VERSION_ID < 50505
 static int (*trampoline_check_user)(THD *thd, enum enum_server_command command, const char *passwd, uint passwd_len, const char *db, bool check_count) = NULL;
 static unsigned int trampoline_check_user_size =0;
-
+#elif MYSQL_VERSION_ID < 50600
 static bool (*trampoline_acl_authenticate)(THD *thd, uint connect_errors, uint com_change_user_pkt_len) = NULL;
 static unsigned int trampoline_acl_authenticate_size =0;
+#endif
 
 static MYSQL_THDVAR_ULONG(is_thd_printed_list,
 	PLUGIN_VAR_READONLY | PLUGIN_VAR_NOSYSVAR | PLUGIN_VAR_NOCMDOPT, 	"avoid duplicate printing",
@@ -861,25 +912,73 @@ static int audit_open_tables(THD *thd, TABLE_LIST **start, uint *counter, uint f
 static unsigned int trampoline_open_tables_size =0;
 #endif
 
-static void audit_notify(THD *thd , const struct mysql_event * event)
+
+//called by log_slow_statement and general audit event caught by audit interface
+static void audit_post_execute(THD * thd)
 {
-    sql_print_information(
-                "%s audit_notify called",
-                log_prefix, MYSQL_AUDIT_PLUGIN_VERSION);
+    //only audit non query events
+    //query events are audited by mysql execute command
+    if (Audit_formatter::thd_inst_command(thd) != COM_QUERY)
+    {
+        ThdSesData ThdData (thd);
+        if (strcasestr (ThdData.getCmdName(), "show_fields")==NULL)
+        {
+            audit(&ThdData);
+        }
+    }
 }
+
+
 
 /*
  Plugin descriptor
  */
-//in 5.5 we use the AUDIT plugin interface. In 5.1 we just use the general DAEMON plugin
+//in 5.6 we use the AUDIT plugin interface. In 5.1/5.5 we just use the general DAEMON plugin
 
-
+#if MYSQL_VERSION_ID < 50600
 
 static int plugin_type = MYSQL_DAEMON_PLUGIN;
 static struct st_mysql_daemon audit_plugin =
 { MYSQL_DAEMON_INTERFACE_VERSION };
 
+#else
 
+static void audit_notify(THD *thd, unsigned int event_class,
+        const void * event)
+{
+    if (MYSQL_AUDIT_GENERAL_CLASS == event_class)
+    {
+        const struct mysql_event_general *event_general =
+                (const struct mysql_event_general *) event;
+        if(MYSQL_AUDIT_GENERAL_STATUS == event_general->event_subclass)
+        {
+            audit_post_execute(thd);
+        }
+    }
+    else if (MYSQL_AUDIT_CONNECTION_CLASS == event_class)
+    {
+        const struct mysql_event_connection *event_connection =
+                (const struct mysql_event_connection *) event;
+        //only audit for connect and change_user. disconnect is caught by general event
+        if(event_connection->event_subclass != MYSQL_AUDIT_CONNECTION_DISCONNECT)
+        {
+            ThdSesData ThdData (thd);
+            audit (&ThdData);
+        }
+    }
+}
+
+static int plugin_type = MYSQL_AUDIT_PLUGIN;
+static struct st_mysql_audit audit_plugin=
+{
+  MYSQL_AUDIT_INTERFACE_VERSION,                    /* interface version    */
+  NULL,                                             /* release_thd function */
+  audit_notify,                                /* notify function      */
+  { (unsigned long) MYSQL_AUDIT_GENERAL_CLASSMASK |
+                    MYSQL_AUDIT_CONNECTION_CLASSMASK } /* class mask           */
+};
+
+#endif
 
 
 //some extern definitions which are not in include files
@@ -894,16 +993,19 @@ extern struct st_mysql_plugin *mysqld_builtins[];
 
 void remove_hot_functions ()
 {
-	void * target_function = (void *) log_slow_statement;
+    void * target_function = NULL;
+#if MYSQL_VERSION_ID < 50600
+	target_function = (void *) log_slow_statement;
 	remove_hot_patch_function(target_function,
 	(void*) trampoline_log_slow_statement, trampoline_log_slow_statement_size, true);
 	trampoline_log_slow_statement_size=0;
+#endif
 #if MYSQL_VERSION_ID < 50505
 	target_function = (void *) check_user;
 	remove_hot_patch_function(target_function,
 	(void*) trampoline_check_user, trampoline_check_user_size, true);
 	trampoline_check_user_size=0;
-#else
+#elif MYSQL_VERSION_ID < 50600
     target_function = (void *) acl_authenticate;
 	remove_hot_patch_function(target_function,
 	(void*) trampoline_acl_authenticate, trampoline_acl_authenticate_size, true);
@@ -923,7 +1025,7 @@ void remove_hot_functions ()
 	trampoline_open_tables_size=0;
 #endif
 
-	int (Query_cache::*pf_send_result_to_client)(THD *,char *, uint) = &Query_cache::send_result_to_client;		
+	int (Query_cache::*pf_send_result_to_client)(THD *,char *, uint) = &Query_cache::send_result_to_client;
 	target_function = *(void **) &pf_send_result_to_client;
 	remove_hot_patch_function(target_function,
 	(void*) trampoline_send_result_to_client, trampoline_send_result_to_client_size, true);		
@@ -1040,22 +1142,15 @@ static int audit_mysql_execute_command(THD *thd)
 }
 
 
-
+#if MYSQL_VERSION_ID < 50600
 static void audit_log_slow_statement(THD * thd)
 {
     trampoline_log_slow_statement(thd);
-    //only audit non query events
-    //query events are audited by mysql execute command
-    if (Audit_formatter::thd_inst_command(thd) != COM_QUERY)
-    {
-        ThdSesData ThdData (thd);
-        if (strcasestr (ThdData.getCmdName(), "show_fields")==NULL)
-        {
-            audit(&ThdData);
-        }
-    }
+    audit_post_execute(thd);
 }
+#endif
 
+#if MYSQL_VERSION_ID < 50505
 static int audit_check_user(THD *thd, enum enum_server_command command,
 	       const char *passwd, uint passwd_len, const char *db,
 	       bool check_count)
@@ -1066,7 +1161,9 @@ static int audit_check_user(THD *thd, enum enum_server_command command,
 
 	return (res);
 }
-
+#elif MYSQL_VERSION_ID < 50600
+//only for 5.5
+//in 5.6: we use audit plugin event to get the login event
 static bool audit_acl_authenticate(THD *thd, uint connect_errors, uint com_change_user_pkt_len)
 {
     bool res = trampoline_acl_authenticate (thd, connect_errors, com_change_user_pkt_len);
@@ -1074,7 +1171,7 @@ static bool audit_acl_authenticate(THD *thd, uint connect_errors, uint com_chang
     audit (&ThdData);
 	return (res);
 }
-
+#endif
 
 static bool parse_thd_offsets_string (char *poffsets_string)
 {
@@ -1083,11 +1180,11 @@ static bool parse_thd_offsets_string (char *poffsets_string)
 	char *poffset_str = offset_str;
 	strncpy (poffset_str,poffsets_string,2048);
 	char * comma_delimiter = strchr (poffset_str,',');
-	int i =0;
+	size_t i =0;
 	OFFSET *pOffset;
 	size_t len = strlen (poffset_str);
 
-	for (int j=0;j<len;j++)
+	for (size_t j=0;j<len;j++)
 	{
 		if (!((poffset_str[j] >= '0' && poffset_str[j] <='9') || poffset_str[j] == ' ' || poffset_str[j] == ','))
 			return false;
@@ -1098,7 +1195,7 @@ static bool parse_thd_offsets_string (char *poffsets_string)
 		pOffset = (OFFSET*)&Audit_formatter::thd_offsets.query_id + i;
 		if ((size_t)pOffset- (size_t)&Audit_formatter::thd_offsets < sizeof (Audit_formatter::thd_offsets))
 		{
-			sscanf (poffset_str, "%d", pOffset);
+			sscanf (poffset_str, "%zu", pOffset);
 		}
 		else 
 		{
@@ -1113,7 +1210,7 @@ static bool parse_thd_offsets_string (char *poffsets_string)
 		pOffset = &Audit_formatter::thd_offsets.query_id + i;
 		if ((size_t)pOffset- (size_t)&Audit_formatter::thd_offsets < sizeof (Audit_formatter::thd_offsets))
 		{
-			sscanf (poffset_str, "%d", pOffset);
+			sscanf (poffset_str, "%zu", pOffset);
 		}
 		else
 		{
@@ -1167,6 +1264,62 @@ static bool validate_offsets(const ThdOffsets * offset)
 }
 
 /**
+ * Calculate md5 sum of a file.
+ *
+ * @file_name: file to calc md5 for
+ * @digest_str: string to fill with digest result should be big enought to hold 32 chars
+ *
+ * @return true on success.
+ */
+static bool calc_file_md5(const char * file_name, char * digest_str)
+{
+    File fd;
+    unsigned char digest[16] = {0};
+    bool ret = false;
+    if ((fd = my_open(file_name, O_RDONLY, MYF(MY_WME))) < 0)
+    {
+        sql_print_error("%s Failed file open: [%s], errno: %d.",
+                            log_prefix, file_name, errno);
+        return false;
+    }
+
+    my_MD5Context context;
+    my_MD5Init(&context);
+    const size_t buff_size = 16384;
+    unsigned char file_buff[buff_size] = {0};
+
+    ssize_t res;
+    do
+    {
+        res = read(fd, file_buff, buff_size);
+        if(res > 0)
+        {
+            my_MD5Update(&context, file_buff, res);
+        }
+    }
+    while(res > 0);
+    if(res == 0) //reached end of file
+    {
+        my_MD5Final(digest, &context);
+        ret = true;
+    }
+    else
+    {
+        sql_print_error("%s Failed program read. res: %zd, errno: %d.",
+                log_prefix, res, errno);
+    }
+    (void) my_close(fd, MYF(0));
+    if(ret) //we got the digest
+    {
+        for (int j = 0; j < 16; j++)
+        {
+            sprintf(&(digest_str[j * 2]), "%02x", digest[j]);
+        }
+    }
+    return ret;
+}
+
+/**
  * Setup the offsets needs to extract data from THD.
  *
  * return 0 on success otherwise 1
@@ -1176,46 +1329,12 @@ static int setup_offsets()
     DBUG_ENTER("setup_offsets");
 	sql_print_information ("%s setup_offsets audit_offsets: %s validate_checksum: %d offsets_by_version: %d",
 	        log_prefix, offsets_string, validate_checksum_enable, offsets_by_version_enable);
-	
-    unsigned char digest[16] = {0};
+
 	char digest_str [128] = {0};
 	const ThdOffsets * offset;
 
     //setup digest_str to contain the md5sum in hex
-
-    my_MD5Context context;
-    my_MD5Init(&context);
-    const size_t buff_size = 16384;
-    unsigned char file_buff[buff_size] = {0};
-    MY_STAT stat_arg;
-    File fd;
-    if ((fd = my_open(my_progname, O_RDONLY, MYF(MY_WME))) > 0)
-    {
-        ssize_t res;
-        do
-        {
-            res = read(fd, file_buff, buff_size);
-            if(res > 0)
-            {
-                my_MD5Update(&context, file_buff, res);
-            }
-        }
-        while(res > 0);
-        if(res == 0) //reached end of file
-        {
-            my_MD5Final(digest, &context);
-            for (int j = 0; j < 16; j++)
-            {
-                sprintf(&(digest_str[j * 2]), "%02x", digest[j]);
-            }
-        }
-        else
-        {
-            sql_print_error("%s Failed program read. res: %d, errno: %d.",
-                    log_prefix, res, errno);
-        }
-        (void) my_close(fd, MYF(0));
-    }
+	calc_file_md5(my_progname, digest_str);
 
     sql_print_information(
         "%s mysqld: %s (%s) ", log_prefix, my_progname, digest_str);
@@ -1246,7 +1365,7 @@ static int setup_offsets()
         }
 		if (parse_thd_offsets_string (offsets_string)) 
 		{
-			sql_print_information ("%s setup_offsets Audit_formatter::thd_offsets values: %d %d %d %d %d %d ", log_prefix,
+			sql_print_information ("%s setup_offsets Audit_formatter::thd_offsets values: %zu %zu %zu %zu %zu %zu ", log_prefix,
 				Audit_formatter::thd_offsets.query_id,
 				Audit_formatter::thd_offsets.thread_id,
 				Audit_formatter::thd_offsets.main_security_ctx, 
@@ -1274,7 +1393,7 @@ static int setup_offsets()
     //iterate and search for the first offset which matches our checksum
     if(validate_checksum_enable && strlen(digest_str) > 0)
     {
-        for(int i=0; i < arr_size; i++)
+        for(size_t i=0; i < arr_size; i++)
         {
             offset = thd_offsets_arr + i;
             if (strlen(offset->md5digest) >0)
@@ -1291,10 +1410,12 @@ static int setup_offsets()
     }
     if(offsets_by_version_enable)
     {
-        for(int i=0; i < arr_size; i++)
+        bool server_is_ndb = strstr(server_version, "ndb") != NULL;
+        for(size_t i=0; i < arr_size; i++)
         {
             offset = thd_offsets_arr + i;
             const char * version = offset->version;
+            bool version_is_ndb = strstr(offset->version, "ndb") != NULL;
             const char * dash = strchr(version, '-');
             char version_stripped[16] = {0};
             if(dash) //we use the version string up to the '-'
@@ -1306,35 +1427,62 @@ static int setup_offsets()
             }
             if(strstr(server_version, version))
             {
-                if (validate_offsets(offset))
+                if(server_is_ndb == version_is_ndb)
                 {
-                    sql_print_information("%s Using offsets from offset version: %s (%s)", log_prefix, offset->version, offset->md5digest);
-                    Audit_formatter::thd_offsets = *offset;
-                    DBUG_RETURN(0);
-                }
-                else
-                {
-                    //try doing 24 byte decrement on THD offsets. Seen that on Ubuntu/Debian this is valid.
-                    OFFSET dec = 24;
-                    ThdOffsets decoffsets = *offset;
-                    decoffsets.query_id -= dec;
-                    decoffsets.thread_id -= dec;
-                    decoffsets.main_security_ctx -= dec;
-                    decoffsets.command -= dec;
-                    if (validate_offsets(&decoffsets))
+                    if (validate_offsets(offset))
                     {
-                        Audit_formatter::thd_offsets = decoffsets;
-                        sql_print_information("%s Using decrement (%d) offsets from offset version: %s (%s) values: %d %d %d %d %d %d", log_prefix, dec, offset->version, offset->md5digest,
+                        sql_print_information("%s Using offsets from offset version: %s (%s)", log_prefix, offset->version, offset->md5digest);
+                        Audit_formatter::thd_offsets = *offset;
+                        DBUG_RETURN(0);
+                    }
+                    else
+                    {
+                        //try doing 24 byte decrement on THD offsets. Seen that on Ubuntu/Debian this is valid.
+                        OFFSET dec = 24;
+                        ThdOffsets decoffsets = *offset;
+                        decoffsets.query_id -= dec;
+                        decoffsets.thread_id -= dec;
+                        decoffsets.main_security_ctx -= dec;
+                        decoffsets.command -= dec;
+                        if (validate_offsets(&decoffsets))
+                        {
+                            Audit_formatter::thd_offsets = decoffsets;
+                            sql_print_information("%s Using decrement (%zu) offsets from offset version: %s (%s) values: %zu %zu %zu %zu %zu %zu",
+                                log_prefix, dec, offset->version, offset->md5digest,
+                                Audit_formatter::thd_offsets.query_id,
+                                Audit_formatter::thd_offsets.thread_id,
+                                Audit_formatter::thd_offsets.main_security_ctx,
+                                Audit_formatter::thd_offsets.command,
+                                Audit_formatter::thd_offsets.lex,
+                                Audit_formatter::thd_offsets.lex_comment);
+
+                            DBUG_RETURN(0);
+                        }
+                    }
+                }//ndb check
+#if defined(__x86_64__) && MYSQL_VERSION_ID > 50505
+                else if(server_is_ndb)
+                {
+                    //in 64bit 5.5 we've seen ndb has an offset of 32 on first 2 values
+                    OFFSET inc = 32;
+                    ThdOffsets incoffsets = *offset;
+                    incoffsets.query_id += inc;
+                    incoffsets.thread_id += inc;
+                    if (validate_offsets(&incoffsets))
+                    {
+                        Audit_formatter::thd_offsets = incoffsets;
+                        sql_print_information("%s Using increment (%zu) offsets from offset version: %s (%s) values: %zu %zu %zu %zu %zu %zu",
+                            log_prefix, inc, offset->version, offset->md5digest,
                             Audit_formatter::thd_offsets.query_id,
                             Audit_formatter::thd_offsets.thread_id,
                             Audit_formatter::thd_offsets.main_security_ctx,
                             Audit_formatter::thd_offsets.command,
                             Audit_formatter::thd_offsets.lex,
                             Audit_formatter::thd_offsets.lex_comment);
-
                         DBUG_RETURN(0);
                     }
                 }
+#endif
             }
         }
     }
@@ -1359,10 +1507,10 @@ const char * retrieve_command (THD * thd, bool & is_sql_cmd)
         return "select";
     }
     const int sql_command = thd_sql_command(thd);
-    if (sql_command >=0 && sql_command <= (MAX_COM_STATUS_VARS_RECORDS -1) )
+    if (sql_command >=0 && sql_command < MAX_COM_STATUS_VARS_RECORDS )
     {
 		is_sql_cmd = true;
-        cmd = com_status_vars_array[sql_command + 1].name;
+        cmd = com_status_vars_array[sql_command].name;
     }
     if(!cmd)
     {
@@ -1401,9 +1549,22 @@ static int set_com_status_vars_array ()
     }
     if (strcmp (status_vars[sv_idx].name,"Com")==0)
     {
-        int status_vars_index =0;
         com_status_vars = (SHOW_VAR*)status_vars[sv_idx].value;
-        size_t initial_offset = (size_t) com_status_vars[0].value;
+        int status_vars_index =0;
+        //we use "select" as 0 offset (SQLCOM_SELECT=0)
+
+        while(strcmp(com_status_vars[status_vars_index].name,"select") !=0 && com_status_vars[status_vars_index].name != NullS)
+        {
+            status_vars_index ++;
+        }
+        if(strcmp(com_status_vars[status_vars_index].name,"select") !=0)
+        {
+            sql_print_error("%s Failed finding 'select' index in com_status_vars: [%p]. Plugin Init failed.",
+                                   log_prefix, com_status_vars);
+            DBUG_RETURN (1);
+        }
+        size_t initial_offset = (size_t) com_status_vars[status_vars_index].value;
+        status_vars_index =0;
         while  (com_status_vars[status_vars_index].name != NullS)
         {
             int sql_command_idx = (com_status_vars[status_vars_index].value - (char*) (initial_offset)) / sizeof (ulong);
@@ -1413,15 +1574,10 @@ static int set_com_status_vars_array ()
                 com_status_vars_array [sql_command_idx].type = com_status_vars[status_vars_index].type;
                 com_status_vars_array [sql_command_idx].value = com_status_vars[status_vars_index].value;
             }
-            else
-            {
-                sql_print_error("%s Failed sql_command_idx [%d] is out of bounds. Plugin Init failed.",
-                                       log_prefix, sql_command_idx);
-                DBUG_RETURN (1);
-            }
             status_vars_index ++;
         }
-
+        sql_print_information("%s Done initializing sql command names. status_vars_index: [%d], com_status_vars: [%p].",
+                                               log_prefix, status_vars_index, com_status_vars);
     }
     else
     {
@@ -1518,13 +1674,13 @@ static int do_hot_patch(void ** trampoline_func_pp, unsigned int * trampoline_si
     if (res != 0)
     {
         //hot patch failed.
-        sql_print_error("%s unable to hot patch %s (0x%lx). res: %d. Aborting.",
-                log_prefix, func_name, (unsigned long)target_function, res);
+        sql_print_error("%s unable to hot patch %s (%p). res: %d. Aborting.",
+                log_prefix, func_name, target_function, res);
         return 1;
     }
     sql_print_information(
-            "%s hot patch for: %s (0x%lx) complete. Audit func: 0x%lx, Trampoline address: 0x%lx size: %u.",
-            log_prefix, func_name, (unsigned long)target_function, (unsigned long)audit_function, (unsigned long)*trampoline_func_pp, *trampoline_size);
+            "%s hot patch for: %s (%p) complete. Audit func: %p, Trampoline address: %p size: %u.",
+            log_prefix, func_name, target_function, audit_function, *trampoline_func_pp, *trampoline_size);
 	trampoline_mem_free = (void *)(((DATATYPE_ADDRESS)*trampoline_func_pp) + *trampoline_size + jump_size());
 	return 0;
 }
@@ -1551,13 +1707,15 @@ static int do_hot_patch(void ** trampoline_func_pp, unsigned int * trampoline_si
 	#endif
 
 	//See here: http://bugs.mysql.com/bug.php?id=56652
-	int ver = audit_plugin.interface_version >> 8;
-	need_free_memalloc_plugin_var = ((ver < 50519) || (50600 <= ver && ver < 50604));
-
+	int interface_ver = audit_plugin.interface_version >> 8;
+#if MYSQL_VERSION_ID < 50600
+	//we ignore || (50600 <= interface_ver && interface_ver < 50604)) as GA was with 5.6.10
+	need_free_memalloc_plugin_var = (interface_ver < 50519);
+#endif
     sql_print_information(
             "%s starting up. Version: %s , Revision: %s (%s). AUDIT plugin interface version: %d. MySQL Server version: %s.",
             log_prefix, MYSQL_AUDIT_PLUGIN_VERSION,
-            MYSQL_AUDIT_PLUGIN_REVISION, arch, ver,
+            MYSQL_AUDIT_PLUGIN_REVISION, arch, interface_ver,
             server_version);
     //setup our offsets.
 
@@ -1617,8 +1775,8 @@ static int do_hot_patch(void ** trampoline_func_pp, unsigned int * trampoline_si
 		DATATYPE_ADDRESS addrs = (DATATYPE_ADDRESS)trampoline_dummy_func_for_mem + (page_size - 1);	
 		trampoline_mem = (void*)(addrs & ~(page_size - 1));
 		sql_print_information(
-				"%s mem func addr: 0x%lx mem start addr: 0x%lx page size: %ld",
-				log_prefix, (unsigned long)trampoline_dummy_func_for_mem, (unsigned long)trampoline_mem, page_size);
+				"%s mem func addr: %p mem start addr: %p page size: %ld",
+				log_prefix, trampoline_dummy_func_for_mem, trampoline_mem, page_size);
 	}
 	else //big pages for some reason. allocate mem using mmap
 	{	
@@ -1632,17 +1790,19 @@ static int do_hot_patch(void ** trampoline_func_pp, unsigned int * trampoline_si
 		else
 		{
 			sql_print_information(
-				"%s mem via mmap: 0x%lx page size: %ld", log_prefix, (unsigned long)trampoline_mem, page_size);
+				"%s mem via mmap: %p page size: %ld", log_prefix, trampoline_mem, page_size);
 		}
 	}
 	trampoline_mem_free = trampoline_mem;
 	//hot patch stuff
 	void * target_function = NULL;
+#if MYSQL_VERSION_ID < 50600
 	if(do_hot_patch((void **)&trampoline_log_slow_statement, &trampoline_log_slow_statement_size,  
 		(void *)log_slow_statement, (void *)audit_log_slow_statement,  "log_slow_statement"))
 	{
 		DBUG_RETURN(1);
 	}
+#endif
 	
 	if(do_hot_patch((void **)&trampoline_mysql_execute_command, &trampoline_mysql_execute_size,  
 		(void *)mysql_execute_command, (void *)audit_mysql_execute_command,  "mysql_execute_command"))
@@ -1657,13 +1817,13 @@ static int do_hot_patch(void ** trampoline_func_pp, unsigned int * trampoline_si
 	{
 		DBUG_RETURN(1);
 	}	
-#else
+#elif MYSQL_VERSION_ID < 50600
 	if(do_hot_patch((void **)&trampoline_acl_authenticate, &trampoline_acl_authenticate_size,  
 		(void *)acl_authenticate, (void *)audit_acl_authenticate,  "acl_authenticate"))
 	{
 		DBUG_RETURN(1);
 	}
-#endif	
+#endif
 	int (Query_cache::*pf_send_result_to_client)(THD *,char *, uint) = &Query_cache::send_result_to_client;	
 	target_function = *(void **)  &pf_send_result_to_client;
 	if(do_hot_patch((void **)&trampoline_send_result_to_client, &trampoline_send_result_to_client_size,  
@@ -1995,7 +2155,8 @@ extern "C" void __attribute__ ((constructor)) audit_plugin_so_init(void)
                 log_prefix, audit_plugin.interface_version >> 8);
     }
 }
-#else
+#elif MYSQL_VERSION_ID < 50600
+//no need to set interface version for 5.6 as we use audit plugin
 extern struct st_mysql_plugin *mysql_mandatory_plugins[];
 extern "C"  void __attribute__ ((constructor)) audit_plugin_so_init(void)
 {

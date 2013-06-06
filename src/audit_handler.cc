@@ -23,28 +23,6 @@
 #include <sys/un.h>
 #include "static_assert.h"
 
-
-
-/**
- * Will write into buff the date prefix for txt formatter. Return the number of bytes written
- * (not including null terminate).
- */
-static int log_date_prefix(char * buff, size_t buff_size)
-{
-    struct tm tm_tmp;
-    time_t result= time(NULL);
-    localtime_r(&result, &tm_tmp);
-    //my_snprintf is limited regarding formatting but sufficient for this
-    return my_snprintf(buff, buff_size, "%02d%02d%02d %2d:%02d:%02d: ",
-                    tm_tmp.tm_year % 100,
-                    tm_tmp.tm_mon+1,
-                    tm_tmp.tm_mday,
-                    tm_tmp.tm_hour,
-                    tm_tmp.tm_min,
-                    tm_tmp.tm_sec);
-}
-
-
 //utility macro to log also with a date as a prefix
 #define log_with_date(f, ...) do{\
     struct tm tm_tmp;\
@@ -81,7 +59,7 @@ const char *  Audit_formatter::retrive_object_type (TABLE_LIST *pObj)
 
 void Audit_handler::stop_all()
 {
-    for (int i = 0; i < MAX_AUDIT_HANDLERS_NUM; ++i)
+    for (size_t i = 0; i < MAX_AUDIT_HANDLERS_NUM; ++i)
     {
         if (m_audit_handler_list[i] != NULL)
         {
@@ -92,7 +70,7 @@ void Audit_handler::stop_all()
 
 void Audit_handler::log_audit_all(ThdSesData *pThdData)
 {
-    for (int i = 0; i < MAX_AUDIT_HANDLERS_NUM; ++i)
+    for (size_t i = 0; i < MAX_AUDIT_HANDLERS_NUM; ++i)
     {
         if (m_audit_handler_list[i] != NULL)
         {
@@ -259,8 +237,14 @@ void Audit_socket_handler::handler_start()
     struct sockaddr_un UNIXaddr;
     UNIXaddr.sun_family = AF_UNIX;
     strmake(UNIXaddr.sun_path, m_sockname, sizeof(UNIXaddr.sun_path)-1);
+#if MYSQL_VERSION_ID < 50600
     if (my_connect(sock,(struct sockaddr *) &UNIXaddr, sizeof(UNIXaddr),
                    m_connect_timeout))
+#else
+    //in 5.6 timeout is in ms
+    if (vio_socket_connect((Vio*)m_vio,(struct sockaddr *) &UNIXaddr, sizeof(UNIXaddr),
+                           m_connect_timeout * 1000))
+#endif
     {
       sql_print_error(
                 "%s unable to connect to socket: %s. err: %s. audit socket handler disabled!!",
@@ -393,9 +377,6 @@ ssize_t Audit_json_formatter::event_format(ThdSesData* pThdData, IWriter * write
 {
     unsigned long thdid = thd_get_thread_id(pThdData->getTHD());
     query_id_t qid = thd_inst_query_id(pThdData->getTHD());
-	int command = thd_inst_command(pThdData->getTHD());
-
-	
 	Security_context * sctx = thd_inst_main_security_ctx(pThdData->getTHD());
 
     //initialize yajl
@@ -436,7 +417,12 @@ ssize_t Audit_json_formatter::event_format(ThdSesData* pThdData, IWriter * write
     const char * query = thd_query_str(pThdData->getTHD(), &qlen);
     if (query && qlen > 0)
     {
-		CHARSET_INFO *col_connection = Item::default_charset();
+#if MYSQL_VERSION_ID < 50600
+        CHARSET_INFO *col_connection;
+#else
+        const CHARSET_INFO *col_connection;
+#endif
+		col_connection = Item::default_charset();
 		if (strcmp (col_connection->csname,"utf8")!=0) {
 			String sQuery (query,col_connection) ;
 			pThdData->getTHD()->convert_string (&sQuery,col_connection,&my_charset_utf8_general_ci);
