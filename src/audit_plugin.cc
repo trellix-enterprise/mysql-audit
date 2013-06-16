@@ -158,6 +158,8 @@ static const ThdOffsets thd_offsets_arr[] =
 		{"5.5.21-55","e4f1b39e9dca4edc51b8eb6aa09e2fa4", 6464, 6512, 4072, 4512, 88, 2576},
 		//offsets for: mysqlrpm/5.5.22/usr/sbin/mysqld (5.5.22)
 		{"5.5.22","f3592147108e65d92cb18fb4d900c4ab", 6048, 6096, 3800, 4224, 88, 2560},
+		//offsets for: Percona-Server-server-55-5.5.22-rel25.2.237.rhel5.x86_64/usr/sbin/mysqld (5.5.22-55)
+		{"5.5.22-55","0865d71ff0159d3f79f7e277e6010f92", 6456, 6504, 4064, 4504, 104, 2576},
 		//offsets for: mysqlrpm/5.5.23/usr/sbin/mysqld (5.5.23)
 		{"5.5.23","aac33433f75b9758e7f42fad6991fa9e", 6048, 6096, 3800, 4224, 88, 2568},
 		//offsets for: mysqlrpm/5.5.24/usr/sbin/mysqld (5.5.24)
