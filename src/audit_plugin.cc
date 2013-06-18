@@ -189,6 +189,8 @@ static const ThdOffsets thd_offsets_arr[] =
 		{"5.6.10","3b34d181e1d9baa4534fe1146ceb0ce9", 7808, 7856, 3960, 4400, 72, 2664},
 		//offsets for: /mysqlrpm/5.6.11/usr/sbin/mysqld (5.6.11)
 		{"5.6.11","452f9bb49741bfc97d0266120016d77b", 7808, 7856, 3960, 4400, 72, 2672},
+        //offsets for: /usr/sbin/mysqld (5.6.12)
+        {"5.6.12","8ec14d79a5fcb0e9a55b5e4da39b9896", 7816, 7864, 3960, 4400, 72, 2688},
 
 				//DISTRIBUTION: tar.gz
 		//offsets for: /mysql/5.1.30/bin/mysqld (5.1.30)
