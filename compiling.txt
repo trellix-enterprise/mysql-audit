@@ -51,6 +51,8 @@ extra
 
 back to working dir and run:
 
+chmod +x bootstrap.sh
+./bootstrap.sh
 CXX='gcc -static-libgcc' CC='gcc -static-libgcc' ./configure --with-mysql=mysql-5.5.8 --with-mysql-libservices=mysql-5.5.8/libservices/libmysqlservices.a
 make
 
