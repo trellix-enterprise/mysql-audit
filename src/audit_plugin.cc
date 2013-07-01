@@ -332,7 +332,21 @@ static const ThdOffsets thd_offsets_arr[] =
 		//offsets for: /mysql/5.6.10/bin/mysqld (5.6.10)
 		{"5.6.10","37f9c31dd092bb2d0da7eb6e2098732f", 7808, 7856, 3960, 4400, 72, 2664},
 		//offsets for: /mysql/5.6.11/bin/mysqld (5.6.11)
-		{"5.6.11","85fd884192cc5cd12fba52b7b140c819", 7808, 7856, 3960, 4400, 72, 2672}
+		{"5.6.11","85fd884192cc5cd12fba52b7b140c819", 7808, 7856, 3960, 4400, 72, 2672},
+		
+		//offsets for: /mysqlrpm/5.1.70/usr/sbin/mysqld (5.1.70-community)
+		{"5.1.70-community","e70f9d48dad2a30b24e6c2744bed94d2", 6376, 6440, 3736, 4008, 88, 2072},
+		//offsets for: /mysqlrpm/5.5.32/usr/sbin/mysqld (5.5.32)
+		{"5.5.32","0a8f2dab859c59656a7ee18f1c97746b", 6064, 6112, 3816, 4240, 88, 2592},
+		//offsets for: /mysqlrpm/5.6.12/usr/sbin/mysqld (5.6.12)
+		{"5.6.12","647c61f9e2e42a6b8af67ad7f3268858", 7816, 7864, 3960, 4400, 72, 2688},
+		//offsets for: /mysql/5.1.70/bin/mysqld (5.1.70)
+		{"5.1.70","67b86b3ffff1196ac6702a89cd41ff84", 6392, 6456, 3752, 4024, 88, 2072},
+		//offsets for: /mysql/5.5.32/bin/mysqld (5.5.32)
+		{"5.5.32","97829c2915124a7cfa605d3f39bea354", 6064, 6112, 3816, 4240, 88, 2592},
+		//offsets for: /mysql/5.6.12/bin/mysqld (5.6.12)
+		{"5.6.12","3a6bb81a7f1239eb810a06a3b0c5dc2a", 7816, 7864, 3960, 4400, 72, 2688}
+
 };
 
 #else
@@ -610,7 +624,20 @@ static const ThdOffsets thd_offsets_arr[] =
 		//offsets for: /mysql/5.6.10/bin/mysqld (5.6.10)
 		{"5.6.10","84600f18354f519e38302c04fe55ed9c", 5572, 5600, 2640, 2980, 36, 1712},
 		//offsets for: /mysql/5.6.11/bin/mysqld (5.6.11)
-		{"5.6.11","72e67111f3c1d1c1d4e7095e3a004fcf", 5572, 5600, 2640, 2980, 36, 1724}
+		{"5.6.11","72e67111f3c1d1c1d4e7095e3a004fcf", 5572, 5600, 2640, 2980, 36, 1724},
+		
+		//offsets for: /mysqlrpm/5.1.70/usr/sbin/mysqld (5.1.70-community)
+		{"5.1.70-community","605c76c9d37a890cea85c075aeaaa2e6", 4124, 4164, 2268, 2448, 44, 1188},
+		//offsets for: /mysqlrpm/5.5.32/usr/sbin/mysqld (5.5.32)
+		{"5.5.32","3c00829c6ef3286598079b9f49de9843", 3816, 3844, 2368, 2700, 44, 1656},
+		//offsets for: /mysqlrpm/5.6.12/usr/sbin/mysqld (5.6.12)
+		{"5.6.12","edaf494ffda685fb4b03b3d9366f6af6", 5580, 5608, 2640, 2980, 36, 1732},		
+		//offsets for: /mysql/5.1.70/bin/mysqld (5.1.70)
+		{"5.1.70","f1c06fde306a5cd5b195425c18c4351b", 4140, 4180, 2284, 2464, 44, 1188},
+		//offsets for: /mysql/5.5.32/bin/mysqld (5.5.32)
+		{"5.5.32","85199d7a643bf0c336385f613b007018", 3816, 3844, 2368, 2700, 44, 1656},
+		//offsets for: /mysql/5.6.12/bin/mysqld (5.6.12)
+		{"5.6.12","469ed6bc745eea0d47a69ecf7b3e0d56", 5580, 5608, 2640, 2980, 36, 1732}
 
 };
 
