@@ -1920,10 +1920,10 @@ static int audit_plugin_deinit(void *p)
 
 static struct st_mysql_show_var audit_status[] =
 {
-{ "AUDIT_version",
+{ "Audit_version",
         (char *) MYSQL_AUDIT_PLUGIN_VERSION "-" MYSQL_AUDIT_PLUGIN_REVISION,
         SHOW_CHAR },
-{ "AUDIT_protocol_version",
+{ "Audit_protocol_version",
 		(char *) "1.0",
 		SHOW_CHAR },
 //{"called",     (char *)&number_of_calls, SHOW_LONG},
