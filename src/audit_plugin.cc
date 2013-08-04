@@ -347,7 +347,7 @@ static const ThdOffsets thd_offsets_arr[] =
 		//offsets for: /mysql/5.6.12/bin/mysqld (5.6.12)
 		{"5.6.12","3a6bb81a7f1239eb810a06a3b0c5dc2a", 7816, 7864, 3960, 4400, 72, 2688},
         //offsets for: /mysql/5.6.13/bin/mysqld (5.6.13)
-        {"5.6.13","137c18e72cfe17d4fcacda209e405234", 7816, 7864, 3960, 4400, 72, 2688},
+        {"5.6.13","137c18e72cfe17d4fcacda209e405234", 7816, 7864, 3960, 4400, 72, 2688}
 
 };
 
