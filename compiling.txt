@@ -35,13 +35,13 @@ This will create configure script. Then run:
 CXX='gcc -static-libgcc' CC='gcc -static-libgcc' ./configure --with-mysql=mysql-5.1.40
 
 
-==== MySQL 5.5 ======
+==== MySQL 5.5 / 5.6 ======
 
-Extract MySQL 5.5 source code
+Extract MySQL 5.5 or 5.6 source code
 
 go to mysql-src dir and run:
 
-cd mysql-5.5.8
+cd mysql-5.5.x or mysql-5.6.x
 cmake .
 make
 
@@ -53,7 +53,7 @@ back to working dir and run:
 
 chmod +x bootstrap.sh
 ./bootstrap.sh
-CXX='gcc -static-libgcc' CC='gcc -static-libgcc' ./configure --with-mysql=mysql-5.5.8 --with-mysql-libservices=mysql-5.5.8/libservices/libmysqlservices.a
+CXX='gcc -static-libgcc' CC='gcc -static-libgcc' ./configure --with-mysql=mysql-5.x.x --with-mysql-libservices=mysql-5.x.x/libservices/libmysqlservices.a
 make
 
 ==== Compiling with make =====
