@@ -38,7 +38,6 @@ typedef size_t OFFSET;
 //mysql max identifier is 64 so 2*64 + . and null
 #define MAX_OBJECT_CHAR_NUMBERS 131
 #define MAX_USER_CHAR_NUMBERS 20
-const char * retrieve_user (THD * thd);
 #define MAX_NUM_OBJECT_ELEM 256
 #define MAX_NUM_USER_ELEM 256
 
@@ -55,6 +54,10 @@ typedef struct ThdOffsets
     OFFSET command;
 	OFFSET lex;
 	OFFSET lex_comment;
+	OFFSET sec_ctx_user;
+	OFFSET sec_ctx_host;
+	OFFSET sec_ctx_ip;
+	OFFSET sec_ctx_priv_user;	
 } ThdOffsets;
 
 /*
@@ -145,7 +148,7 @@ public:
      */
     virtual ssize_t stop_msg_format(IWriter * writer) { return 0; }
 
-	static const char * retrive_object_type (TABLE_LIST *pObj);
+	static const char * retrieve_object_type (TABLE_LIST *pObj);
 	static QueryTableInf* getQueryCacheTableList1 (THD *thd);
     //utility functions for fetching thd stuff
     static inline my_thread_id thd_inst_thread_id(THD * thd)
@@ -163,6 +166,58 @@ public:
         return (Security_context *) (((unsigned char *) thd)
                 + Audit_formatter::thd_offsets.main_security_ctx);
     }
+	
+	static inline const char * thd_inst_main_security_ctx_user(THD * thd)
+    {
+		Security_context * sctx = thd_inst_main_security_ctx(thd);
+		if(!Audit_formatter::thd_offsets.sec_ctx_user) //no offsets use compiled in header
+		{
+			return sctx->user;
+		}		
+        return *(const char **) (((unsigned char *) sctx)
+                + Audit_formatter::thd_offsets.sec_ctx_user);
+    }
+	
+	static inline const char * thd_inst_main_security_ctx_host(THD * thd)
+    {
+		Security_context * sctx = thd_inst_main_security_ctx(thd);
+		if(!Audit_formatter::thd_offsets.sec_ctx_ip) //check ip to understand if set as host is first and may actually be set to 0
+		{
+			return sctx->host;
+		}		
+        return *(const char **) (((unsigned char *) sctx)
+                + Audit_formatter::thd_offsets.sec_ctx_host);
+    }
+	
+	static inline const char * thd_inst_main_security_ctx_ip(THD * thd)
+    {
+		Security_context * sctx = thd_inst_main_security_ctx(thd);
+		if(!Audit_formatter::thd_offsets.sec_ctx_ip) //no offsets use compiled in header
+		{
+			return sctx->ip;
+		}		
+        return *(const char **) (((unsigned char *) sctx)
+                + Audit_formatter::thd_offsets.sec_ctx_ip);
+    }
+	
+	static inline const char * thd_inst_main_security_ctx_priv_user(THD * thd)
+    {
+		Security_context * sctx = thd_inst_main_security_ctx(thd);
+		if(!Audit_formatter::thd_offsets.sec_ctx_priv_user) //no offsets use compiled in header
+		{
+			return sctx->priv_user;
+		}		
+#if MYSQL_VERSION_ID < 50505 
+		//in 5.1.x priv_user is a pointer
+		return *(const char **) (((unsigned char *) sctx)
+                + Audit_formatter::thd_offsets.sec_ctx_priv_user);
+#else
+		//in 5.5 and up priv_user is an array (char   priv_user[USERNAME_LENGTH])
+        return (const char *) (((unsigned char *) sctx)
+                + Audit_formatter::thd_offsets.sec_ctx_priv_user);
+#endif
+    }
+	
 	static inline int thd_inst_command(THD * thd)
     {
         return *(int *) (((unsigned char *) thd) + Audit_formatter::thd_offsets.command);
@@ -172,6 +227,22 @@ public:
     {
 		return *(LEX**) (((unsigned char *) thd) + Audit_formatter::thd_offsets.lex);
     }
+	
+	//we don't use get_db_name() as when we call it view may be not null and it may return an invalid value for view_db 
+	static inline const char * table_get_db_name(TABLE_LIST * table)
+	{
+		return table->db;
+	}
+	
+	static inline const char * table_get_name(TABLE_LIST * table)
+	{
+		return table->table_name;
+	}
+	
+	static inline bool table_is_view(TABLE_LIST * table)	
+	{
+		return table->view_tables != 0;
+	}
 
 };
 

@@ -346,8 +346,28 @@ static const ThdOffsets thd_offsets_arr[] =
 		{"5.5.32","97829c2915124a7cfa605d3f39bea354", 6064, 6112, 3816, 4240, 88, 2592},
 		//offsets for: /mysql/5.6.12/bin/mysqld (5.6.12)
 		{"5.6.12","3a6bb81a7f1239eb810a06a3b0c5dc2a", 7816, 7864, 3960, 4400, 72, 2688},
-        //offsets for: /mysql/5.6.13/bin/mysqld (5.6.13)
-        {"5.6.13","137c18e72cfe17d4fcacda209e405234", 7816, 7864, 3960, 4400, 72, 2688}
+        //offsets for: /mysqlrpm/5.1.71/usr/sbin/mysqld (5.1.71-community) 
+		{"5.1.71-community","c8453ca637925c878356ca43eef8f654", 6376, 6440, 3736, 4008, 88, 2072},
+		//offsets for: /mysqlrpm/5.5.33/usr/sbin/mysqld (5.5.33) 
+		{"5.5.33","88b02a9e61f5faedcf2d64a9b0239f38", 6064, 6112, 3816, 4240, 88, 2592},
+		//offsets for: /mysqlrpm/5.6.13/usr/sbin/mysqld (5.6.13) 
+		{"5.6.13","441bbd39cf3df4847289f4cd4b2b3dc3", 7816, 7864, 3960, 4400, 72, 2688},
+		//offsets for: /mysql/5.1.71/bin/mysqld (5.1.71) 
+		{"5.1.71","f648e9c956c85fbb1fbe8250df518755", 6392, 6456, 3752, 4024, 88, 2072},
+		//offsets for: /mysql/5.5.33/bin/mysqld (5.5.33) 
+		{"5.5.33","59bf9fe80d6005e38238bc083b5aef51", 6064, 6112, 3816, 4240, 88, 2592},
+		//offsets for: /mysql/5.6.13/bin/mysqld (5.6.13) 
+		{"5.6.13","137c18e72cfe17d4fcacda209e405234", 7816, 7864, 3960, 4400, 72, 2688},
+		//offsets for: /mysql-5.5.34-linux2.6-x86_64/bin/mysqld (5.5.34)
+		{"5.5.34","94d083ef0a7f964dedb94684eb06c7e7", 6136, 6184, 3816, 4312, 88, 2592, 96, 0, 32, 104},
+		//offsets for: /mysqlrpm/5.5.34/usr/sbin/mysqld (5.5.34) 
+		{"5.5.34","b146111cae431cbb3d20322cc0a8e3be", 6136, 6184, 3816, 4312, 88, 2592, 96, 0, 32, 104},
+		//offsets for: /mysqlrpm/5.6.14/usr/sbin/mysqld (5.6.14) 
+		{"5.6.14","42907ed406036f7d651a73547a611be0", 7888, 7936, 3960, 4472, 72, 2696, 96, 0, 32, 104},
+		//offsets for: /mysqlrpm/5.1.72/usr/sbin/mysqld (5.1.72-community) 
+		{"5.1.72-community","c53f0d8b4d400755e8c476cd512dcea3", 6384, 6448, 3736, 4008, 88, 2072, 8, 0, 24, 16},
+		//offsets for: /mysql/5.1.72/bin/mysqld (5.1.72) 
+		{"5.1.72","f560445d3c5f98a88d50878b2cd661c0", 6400, 6464, 3752, 4024, 88, 2072, 8, 0, 24, 16}
 
 };
 
@@ -639,7 +659,28 @@ static const ThdOffsets thd_offsets_arr[] =
 		//offsets for: /mysql/5.5.32/bin/mysqld (5.5.32)
 		{"5.5.32","85199d7a643bf0c336385f613b007018", 3816, 3844, 2368, 2700, 44, 1656},
 		//offsets for: /mysql/5.6.12/bin/mysqld (5.6.12)
-		{"5.6.12","469ed6bc745eea0d47a69ecf7b3e0d56", 5580, 5608, 2640, 2980, 36, 1732}
+		{"5.6.12","469ed6bc745eea0d47a69ecf7b3e0d56", 5580, 5608, 2640, 2980, 36, 1732},
+		//offsets for: /mysqlrpm/5.1.71/usr/sbin/mysqld (5.1.71-community) 
+		{"5.1.71-community","2039eb1fb90b85d3744e3628b3ab35fa", 4124, 4164, 2268, 2448, 44, 1188},
+		//offsets for: /mysqlrpm/5.5.33/usr/sbin/mysqld (5.5.33) 
+		{"5.5.33","403fe8f9ecd935890f7ebc73297a08bb", 3816, 3844, 2368, 2700, 44, 1656},
+		//offsets for: /mysqlrpm/5.6.13/usr/sbin/mysqld (5.6.13) 
+		{"5.6.13","8ac0185b8f8a2a066ed0f5cd45597d6b", 5580, 5608, 2640, 2980, 36, 1732},
+		//offsets for: /mysql/5.1.71/bin/mysqld (5.1.71) 
+		{"5.1.71","5e9120167eae0138de4e6f307f337383", 4140, 4180, 2284, 2464, 44, 1188},
+		//offsets for: /mysql/5.5.33/bin/mysqld (5.5.33) 
+		{"5.5.33","3172729c5bf6e81c8d87fe26fe248204", 3816, 3844, 2368, 2700, 44, 1656},
+		//offsets for: /mysql/5.6.13/bin/mysqld (5.6.13) 
+		{"5.6.13","f25a8fabbb1d205f0f2d772d7f41b9da", 5580, 5608, 2640, 2980, 36, 1732},
+		//offsets for: /mysqlrpm/5.5.34/usr/sbin/mysqld (5.5.34) 
+		{"5.5.34","fc8bc7c4edd6c115be5f941ca4618f63", 3868, 3896, 2368, 2748, 44, 1656, 60, 0, 20, 64},
+		//offsets for: /mysqlrpm/5.6.14/usr/sbin/mysqld (5.6.14) 
+		{"5.6.14","d7444b6db9d1a5aceb2162e77de762dc", 5632, 5660, 2640, 3028, 36, 1744, 60, 0, 20, 64},
+		//offsets for: /mysqlrpm/5.1.72/usr/sbin/mysqld (5.1.72-community) 
+		{"5.1.72-community","3f7221660b8c9e953f327da95d250597", 4128, 4168, 2268, 2448, 44, 1188, 4, 0, 12, 8},
+		//offsets for: /mysql/5.1.72/bin/mysqld (5.1.72) 
+		{"5.1.72","199d47e26e5a4cc29399724f47c30aca", 4144, 4184, 2284, 2464, 44, 1188, 4, 0, 12, 8}
+
 
 };
 
@@ -880,11 +921,11 @@ static bool audit_check_table_access(THD *thd, ulong want_access,TABLE_LIST *tab
 			{
 				if (pQueryTableInf->num_of_elem < MAX_NUM_QUERY_TABLE_ELEM && pQueryTableInf->num_of_elem>=0)
 				{
-					pQueryTableInf->db[pQueryTableInf->num_of_elem] = (char*) thd_alloc (thd, strlen (pTables->get_db_name())+1);
-					strcpy (pQueryTableInf->db[pQueryTableInf->num_of_elem],pTables->get_db_name());
-					pQueryTableInf->table_name[pQueryTableInf->num_of_elem] = (char*) thd_alloc (thd, strlen (pTables->get_table_name()) +1);
-					strcpy (pQueryTableInf->table_name[pQueryTableInf->num_of_elem],pTables->get_table_name());
-					pQueryTableInf->object_type[pQueryTableInf->num_of_elem] = Audit_formatter::retrive_object_type ( pTables);					
+					pQueryTableInf->db[pQueryTableInf->num_of_elem] = (char*) thd_alloc (thd, strlen(Audit_formatter::table_get_db_name(pTables))+1);
+					strcpy (pQueryTableInf->db[pQueryTableInf->num_of_elem],Audit_formatter::table_get_db_name(pTables));
+					pQueryTableInf->table_name[pQueryTableInf->num_of_elem] = (char*) thd_alloc (thd, strlen(Audit_formatter::table_get_name(pTables)) +1);
+					strcpy (pQueryTableInf->table_name[pQueryTableInf->num_of_elem],Audit_formatter::table_get_name(pTables));
+					pQueryTableInf->object_type[pQueryTableInf->num_of_elem] = Audit_formatter::retrieve_object_type ( pTables);					
 					pQueryTableInf->num_of_elem ++;
 				}
 				pTables = pTables->next_global;
@@ -1272,14 +1313,21 @@ static bool validate_offsets(const ThdOffsets * offset)
 		return false;
 	}
 	//extended validation via security_context method
-	//can be disabled via: validate_offests_extended
+	//can be disabled via: audit_validate_offsets_extended=OFF
 	if(validate_offsets_extended_enable)
 	{
 	    const query_id_t query_id_test_val = 789;
 	    (*(query_id_t *) (((char *) thd)+ offset->query_id)) = query_id_test_val;
 	    Security_context * sctx = (Security_context *) (((unsigned char *) thd) + offset->main_security_ctx);
 	    char user_test_val[] = "aud_tusr";
-	    sctx->user = user_test_val;
+		if(!offset->sec_ctx_user) //use compiled header
+		{
+			sctx->user = user_test_val;
+		}
+	    else
+		{
+			(*(const char **) (((unsigned char *) sctx) + offset->sec_ctx_user)) = user_test_val;
+		}
 	    char buffer[2048] = {0};
 	    thd_security_context(thd, buffer, 2048, 1000);
 	    //verfiy our buffer contains query id
@@ -1398,13 +1446,17 @@ static int setup_offsets()
         }
 		if (parse_thd_offsets_string (offsets_string)) 
 		{
-			sql_print_information ("%s setup_offsets Audit_formatter::thd_offsets values: %zu %zu %zu %zu %zu %zu ", log_prefix,
+			sql_print_information ("%s setup_offsets Audit_formatter::thd_offsets values: %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu", log_prefix,
 				Audit_formatter::thd_offsets.query_id,
 				Audit_formatter::thd_offsets.thread_id,
 				Audit_formatter::thd_offsets.main_security_ctx, 
 				Audit_formatter::thd_offsets.command,
 				Audit_formatter::thd_offsets.lex,
-				Audit_formatter::thd_offsets.lex_comment);
+				Audit_formatter::thd_offsets.lex_comment,
+				Audit_formatter::thd_offsets.sec_ctx_user,
+				Audit_formatter::thd_offsets.sec_ctx_host,
+				Audit_formatter::thd_offsets.sec_ctx_ip,
+				Audit_formatter::thd_offsets.sec_ctx_priv_user);
 
 			if (!validate_offsets(&Audit_formatter::thd_offsets))
 			{
@@ -1480,14 +1532,18 @@ static int setup_offsets()
                         if (validate_offsets(&decoffsets))
                         {
                             Audit_formatter::thd_offsets = decoffsets;
-                            sql_print_information("%s Using decrement (%zu) offsets from offset version: %s (%s) values: %zu %zu %zu %zu %zu %zu",
+                            sql_print_information("%s Using decrement (%zu) offsets from offset version: %s (%s) values: %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu",
                                 log_prefix, dec, offset->version, offset->md5digest,
                                 Audit_formatter::thd_offsets.query_id,
                                 Audit_formatter::thd_offsets.thread_id,
                                 Audit_formatter::thd_offsets.main_security_ctx,
                                 Audit_formatter::thd_offsets.command,
                                 Audit_formatter::thd_offsets.lex,
-                                Audit_formatter::thd_offsets.lex_comment);
+                                Audit_formatter::thd_offsets.lex_comment,
+								Audit_formatter::thd_offsets.sec_ctx_user,
+								Audit_formatter::thd_offsets.sec_ctx_host,
+								Audit_formatter::thd_offsets.sec_ctx_ip,
+								Audit_formatter::thd_offsets.sec_ctx_priv_user);
 
                             DBUG_RETURN(0);
                         }
@@ -1504,14 +1560,18 @@ static int setup_offsets()
                     if (validate_offsets(&incoffsets))
                     {
                         Audit_formatter::thd_offsets = incoffsets;
-                        sql_print_information("%s Using increment (%zu) offsets from offset version: %s (%s) values: %zu %zu %zu %zu %zu %zu",
+                        sql_print_information("%s Using increment (%zu) offsets from offset version: %s (%s) values: %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu",
                             log_prefix, inc, offset->version, offset->md5digest,
                             Audit_formatter::thd_offsets.query_id,
                             Audit_formatter::thd_offsets.thread_id,
                             Audit_formatter::thd_offsets.main_security_ctx,
                             Audit_formatter::thd_offsets.command,
                             Audit_formatter::thd_offsets.lex,
-                            Audit_formatter::thd_offsets.lex_comment);
+                            Audit_formatter::thd_offsets.lex_comment,
+							Audit_formatter::thd_offsets.sec_ctx_user,
+							Audit_formatter::thd_offsets.sec_ctx_host,
+							Audit_formatter::thd_offsets.sec_ctx_ip,
+							Audit_formatter::thd_offsets.sec_ctx_priv_user);
                         DBUG_RETURN(0);
                     }
                 }
@@ -1549,27 +1609,14 @@ const char * retrieve_command (THD * thd, bool & is_sql_cmd)
     {
         cmd = command_name[command].str;
     }
-    Security_context * sctx = Audit_formatter::thd_inst_main_security_ctx(thd);
-    if (strcmp (cmd, "Connect") ==0 && ((sctx->user && strcmp(sctx->user, "event_scheduler") != 0) && (sctx->priv_user == NULL || *sctx->priv_user == 0x0)))
+	const char * user = Audit_formatter::thd_inst_main_security_ctx_user(thd);
+	const char * priv_user = Audit_formatter::thd_inst_main_security_ctx_priv_user(thd);
+    if (strcmp (cmd, "Connect") ==0 && ((user && strcmp(user, "event_scheduler") != 0) && (priv_user == NULL || *priv_user == 0x0)))
     {
         cmd = "Failed Login";
     }
     return cmd;
 }
-
-
-const char * retrieve_user (THD * thd)
-{
-    const char *user = NULL;
-
-    Security_context * sctx = Audit_formatter::thd_inst_main_security_ctx(thd);
-    if (sctx->priv_user != NULL && *sctx->priv_user != 0x0)
-    {
-        user = sctx->priv_user;
-    }
-    return user;
-}
-
 
 static int set_com_status_vars_array ()
 {

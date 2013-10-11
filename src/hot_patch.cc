@@ -1,5 +1,6 @@
 #include "hot_patch.h"
 #include "udis86.h"
+#include <ctype.h>
 
 #define UINT unsigned int
 #define DWORD uint32_t
@@ -65,11 +66,17 @@ static int unprotect(void *addr, size_t len)
                         log_prefix, (void *)addr, len, errno);
 			        return res;
 			    }
-			    char line[1024] = {0};
+			    char buff[1024] = {0};
 			    const char * flags = "flags";
-			    bool nxchecked = false;
-			    while(fgets(line, 1024, fp) != NULL)
+			    bool nxchecked = false;				
+			    while(fgets(buff, 1024, fp) != NULL)
 			    {
+					char * line = buff;
+					//trim white space at start
+					while ((strlen(line) > 0) && (isspace(line[0])))
+					{
+						line++;
+					}
 			        if(strncmp(line, flags, strlen(flags)) == 0)
 			        {
 			            nxchecked = true;

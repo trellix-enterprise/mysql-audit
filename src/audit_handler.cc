@@ -47,9 +47,9 @@ const char * Audit_json_formatter::DEF_MSG_DELIMITER = "\\n";
 #define C_STRING_WITH_LEN(X) ((char *) (X)), ((size_t) (sizeof(X) - 1))
 
 
-const char *  Audit_formatter::retrive_object_type (TABLE_LIST *pObj)
+const char *  Audit_formatter::retrieve_object_type (TABLE_LIST *pObj)
 {
-    if (pObj->view)
+    if (table_is_view(pObj))
 	{
 		return "VIEW";
 	}	
@@ -327,6 +327,23 @@ static inline void yajl_add_obj( yajl_gen gen,  const char *db,const char* ptype
     yajl_add_string_val(gen, "obj_type",ptype);
 }
 
+static inline const char * retrieve_user (THD * thd)
+{
+    
+	const char * user = Audit_formatter::thd_inst_main_security_ctx_user(thd);
+	if(user != NULL && *user != 0x0) //non empty
+	{
+		return user;
+	}	
+	user = Audit_formatter::thd_inst_main_security_ctx_priv_user(thd); //try using priv user
+	if(user != NULL && *user != 0x0) //non empty
+	{
+		return user;
+	}
+	return ""; //always use at least the empty string    
+}
+
+
 //will return a pointer to the query and set len with the length of the query
 //starting with MySQL version 5.1.41 thd_query_string is added
 #if MYSQL_VERSION_ID > 50140
@@ -375,9 +392,9 @@ static const char * thd_query_str(THD * thd, size_t * len)
 
 ssize_t Audit_json_formatter::event_format(ThdSesData* pThdData, IWriter * writer)
 {
-    unsigned long thdid = thd_get_thread_id(pThdData->getTHD());
-    query_id_t qid = thd_inst_query_id(pThdData->getTHD());
-	Security_context * sctx = thd_inst_main_security_ctx(pThdData->getTHD());
+	THD * thd = pThdData->getTHD();
+    unsigned long thdid = thd_get_thread_id(thd);
+    query_id_t qid = thd_inst_query_id(thd);	
 
     //initialize yajl
     yajl_gen gen = yajl_gen_alloc(&config, NULL);
@@ -390,10 +407,10 @@ ssize_t Audit_json_formatter::event_format(ThdSesData* pThdData, IWriter * write
     yajl_add_uint64(gen, "date", ts);
     yajl_add_uint64(gen, "thread-id", thdid);
     yajl_add_uint64(gen, "query-id", qid);
-	yajl_add_string_val(gen, "user", sctx->user);
-	yajl_add_string_val(gen, "priv_user", sctx->priv_user);
-	yajl_add_string_val(gen, "host", sctx->host);
-    yajl_add_string_val(gen, "ip", sctx->ip);    
+	yajl_add_string_val(gen, "user", pThdData->getUserName());
+	yajl_add_string_val(gen, "priv_user", Audit_formatter::thd_inst_main_security_ctx_priv_user(thd));
+	yajl_add_string_val(gen, "host", Audit_formatter::thd_inst_main_security_ctx_host(thd));
+    yajl_add_string_val(gen, "ip", Audit_formatter::thd_inst_main_security_ctx_ip(thd));    
     const char *cmd = pThdData->getCmdName();
     yajl_add_string_val(gen, "cmd", cmd);
     //get objects
@@ -554,14 +571,14 @@ bool ThdSesData::getNextObject(const char ** db_name, const char ** obj_name, co
         {
             if(m_tables)
             {
-                *db_name = m_tables->get_db_name();
-                *obj_name = m_tables->get_table_name();
+                *db_name = Audit_formatter::table_get_db_name(m_tables);
+                *obj_name = Audit_formatter::table_get_name(m_tables);
                 if(obj_type)
                 {
                     //object is a view if it view command (alter_view, drop_view ..)
                     //and first object or view field is populated
                     if((m_firstTable && strstr(getCmdName(), "_view") != NULL) ||
-                            m_tables->view)
+                            Audit_formatter::table_is_view(m_tables))
                     {
                         *obj_type = "VIEW";
                         m_firstTable = false;
