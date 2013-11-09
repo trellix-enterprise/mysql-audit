@@ -831,6 +831,10 @@ static void audit(ThdSesData *pThdData)
  if (num_whitelist_users > 0) {
       const char * user = pThdData->getUserName(); //If name is present, then no need to log the query
       const char *users[2];
+	  if(NULL == user || '\0' == user[0]) //empty user use special symbol: "{}"
+	  {
+		user = "{}";
+	  }
       users[0] = user;
       users[1] = NULL;
       if (check_array(users, (char *) whitelist_users_array, MAX_USER_CHAR_NUMBERS)) {
@@ -858,7 +862,8 @@ static void audit(ThdSesData *pThdData)
   }
     if (pThdPrintedList && pThdPrintedList->cur_index  < MAX_NUM_QUEUE_ELEM)
     {
-        if (pThdPrintedList->is_thd_printed_queue[pThdPrintedList->cur_index] == 0)
+		//audit the event if we haven't done so yet or in the case of prepare_sql we audit as the test "test select" doesn't go through mysql_execute_command
+        if (pThdPrintedList->is_thd_printed_queue[pThdPrintedList->cur_index] == 0 || strcmp(pThdData->getCmdName(), "prepare_sql") == 0)
         {
             Audit_handler::log_audit_all(pThdData);
             pThdPrintedList->is_thd_printed_queue[pThdPrintedList->cur_index] = 1;
