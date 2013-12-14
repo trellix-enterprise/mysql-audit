@@ -183,7 +183,7 @@ public:
 		Security_context * sctx = thd_inst_main_security_ctx(thd);
 		if(!Audit_formatter::thd_offsets.sec_ctx_ip) //check ip to understand if set as host is first and may actually be set to 0
 		{
-			return sctx->host;
+			return (const char *)sctx->host;
 		}		
         return *(const char **) (((unsigned char *) sctx)
                 + Audit_formatter::thd_offsets.sec_ctx_host);
@@ -194,7 +194,7 @@ public:
 		Security_context * sctx = thd_inst_main_security_ctx(thd);
 		if(!Audit_formatter::thd_offsets.sec_ctx_ip) //no offsets use compiled in header
 		{
-			return sctx->ip;
+			return (const char *)sctx->ip;
 		}		
         return *(const char **) (((unsigned char *) sctx)
                 + Audit_formatter::thd_offsets.sec_ctx_ip);
