@@ -367,8 +367,15 @@ static const ThdOffsets thd_offsets_arr[] =
 		//offsets for: /mysqlrpm/5.1.72/usr/sbin/mysqld (5.1.72-community) 
 		{"5.1.72-community","c53f0d8b4d400755e8c476cd512dcea3", 6384, 6448, 3736, 4008, 88, 2072, 8, 0, 24, 16},
 		//offsets for: /mysql/5.1.72/bin/mysqld (5.1.72) 
-		{"5.1.72","f560445d3c5f98a88d50878b2cd661c0", 6400, 6464, 3752, 4024, 88, 2072, 8, 0, 24, 16}
-
+		{"5.1.72","f560445d3c5f98a88d50878b2cd661c0", 6400, 6464, 3752, 4024, 88, 2072, 8, 0, 24, 16},
+		//offsets for: /mysqlrpm/5.1.73/usr/sbin/mysqld (5.1.73-community) 
+		{"5.1.73-community","85cdb461556846fb29cbbaae49dfde94", 6384, 6448, 3736, 4008, 88, 2072, 8, 0, 24, 16},
+		//offsets for: /mysqlrpm/5.5.35/usr/sbin/mysqld (5.5.35) 
+		{"5.5.35","09c5971f9df91d9fde18e969f66d9ff7", 6136, 6184, 3816, 4312, 88, 2592, 96, 0, 32, 104},
+		//offsets for: /mysqlrpm/5.6.15/usr/sbin/mysqld (5.6.15) 
+		{"5.6.15","dbd2d20241e4e59412b5d2bff97513da", 7920, 7968, 3984, 4504, 72, 2704, 96, 0, 32, 104},
+		//offsets for: /mysql/5.1.73/bin/mysqld (5.1.73) 
+		{"5.1.73","c84e4519e1ada16c245a87170bf1c3f0", 6400, 6464, 3752, 4024, 88, 2072, 8, 0, 24, 16}
 };
 
 #else
@@ -679,9 +686,15 @@ static const ThdOffsets thd_offsets_arr[] =
 		//offsets for: /mysqlrpm/5.1.72/usr/sbin/mysqld (5.1.72-community) 
 		{"5.1.72-community","3f7221660b8c9e953f327da95d250597", 4128, 4168, 2268, 2448, 44, 1188, 4, 0, 12, 8},
 		//offsets for: /mysql/5.1.72/bin/mysqld (5.1.72) 
-		{"5.1.72","199d47e26e5a4cc29399724f47c30aca", 4144, 4184, 2284, 2464, 44, 1188, 4, 0, 12, 8}
-
-
+		{"5.1.72","199d47e26e5a4cc29399724f47c30aca", 4144, 4184, 2284, 2464, 44, 1188, 4, 0, 12, 8},
+		//offsets for: /mysqlrpm/5.1.73/usr/sbin/mysqld (5.1.73-community) 
+		{"5.1.73-community","3ecceab3ca6a816f5744a9437208e5a3", 4128, 4168, 2268, 2448, 44, 1188, 4, 0, 12, 8},
+		//offsets for: /mysqlrpm/5.5.35/usr/sbin/mysqld (5.5.35) 
+		{"5.5.35","7cd5543273a70209e746b6df7d4b5406", 3868, 3896, 2368, 2748, 44, 1656, 60, 0, 20, 64},
+		//offsets for: /mysqlrpm/5.6.15/usr/sbin/mysqld (5.6.15) 
+		{"5.6.15","59683562fb382b2ab43394517802595e", 5648, 5676, 2652, 3044, 36, 1748, 60, 0, 20, 64},
+		//offsets for: /mysql/5.1.73/bin/mysqld (5.1.73) 
+		{"5.1.73","6a9357091496248e25387f9c2c0c75c4", 4144, 4184, 2284, 2464, 44, 1188, 4, 0, 12, 8}
 };
 
 #endif
