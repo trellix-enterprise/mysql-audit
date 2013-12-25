@@ -1805,15 +1805,16 @@ static int do_hot_patch(void ** trampoline_func_pp, unsigned int * trampoline_si
 	#endif
 
 	//See here: http://bugs.mysql.com/bug.php?id=56652
-	int interface_ver = audit_plugin.interface_version >> 8;
+	int interface_ver = audit_plugin.interface_version ;
 #if MYSQL_VERSION_ID < 50600
+	interface_ver = interface_ver >> 8;
 	//we ignore || (50600 <= interface_ver && interface_ver < 50604)) as GA was with 5.6.10
 	need_free_memalloc_plugin_var = (interface_ver < 50519);
 #endif
     sql_print_information(
-            "%s starting up. Version: %s , Revision: %s (%s). AUDIT plugin interface version: %d. MySQL Server version: %s.",
+            "%s starting up. Version: %s , Revision: %s (%s). AUDIT plugin interface version: %d (0x%x). MySQL Server version: %s.",
             log_prefix, MYSQL_AUDIT_PLUGIN_VERSION,
-            MYSQL_AUDIT_PLUGIN_REVISION, arch, interface_ver,
+            MYSQL_AUDIT_PLUGIN_REVISION, arch, interface_ver, interface_ver,
             server_version);
     //setup our offsets.
 
@@ -2254,7 +2255,6 @@ extern "C" void __attribute__ ((constructor)) audit_plugin_so_init(void)
     }
 }
 #elif MYSQL_VERSION_ID < 50600
-//no need to set interface version for 5.6 as we use audit plugin
 extern struct st_mysql_plugin *mysql_mandatory_plugins[];
 extern "C"  void __attribute__ ((constructor)) audit_plugin_so_init(void)
 {
@@ -2265,6 +2265,20 @@ extern "C"  void __attribute__ ((constructor)) audit_plugin_so_init(void)
               log_prefix, audit_plugin.interface_version,
                audit_plugin.interface_version >> 8);
 
+}
+#else
+//interface version for 5.6 changed in 5.6.14 
+extern "C"  void __attribute__ ((constructor)) audit_plugin_so_init(void)
+{
+	const char * ver_5_6_13 = "5.6.13";
+	if(strncmp(server_version, ver_5_6_13, strlen(ver_5_6_13)) <= 0)
+	{
+		audit_plugin.interface_version = 0x0300;
+	}
+	else
+	{
+		audit_plugin.interface_version = 0x0301;
+	}
 }
 #endif
 
