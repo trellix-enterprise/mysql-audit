@@ -183,8 +183,13 @@ public:
 		Security_context * sctx = thd_inst_main_security_ctx(thd);
 		if(!Audit_formatter::thd_offsets.sec_ctx_ip) //check ip to understand if set as host is first and may actually be set to 0
 		{
-			return (const char *)sctx->host;
-		}		
+		//interface changed in 5.5.34 and 5.6.14 and up host changed to get_host()
+#if (MYSQL_VERSION_ID >= 50534 && MYSQL_VERSION_ID < 50600) || (MYSQL_VERSION_ID >= 50614)
+		return sctx->get_host()->ptr();
+#else
+		return sctx->host;
+#endif
+		}
         return *(const char **) (((unsigned char *) sctx)
                 + Audit_formatter::thd_offsets.sec_ctx_host);
     }
@@ -194,7 +199,12 @@ public:
 		Security_context * sctx = thd_inst_main_security_ctx(thd);
 		if(!Audit_formatter::thd_offsets.sec_ctx_ip) //no offsets use compiled in header
 		{
-			return (const char *)sctx->ip;
+//interface changed in 5.5.34 and 5.6.14 and up host changed to get_ip()
+#if (MYSQL_VERSION_ID >= 50534 && MYSQL_VERSION_ID < 50600) || (MYSQL_VERSION_ID >= 50614)
+		return sctx->get_ip()->ptr();
+#else
+		return sctx->ip;
+#endif					
 		}		
         return *(const char **) (((unsigned char *) sctx)
                 + Audit_formatter::thd_offsets.sec_ctx_ip);
@@ -532,3 +542,7 @@ protected:
 
 
 #endif /* AUDIT_HANDLER_H_ */
+
+
+
+
