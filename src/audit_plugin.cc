@@ -1772,7 +1772,7 @@ static int do_hot_patch(void ** trampoline_func_pp, unsigned int * trampoline_si
     if (res != 0)
     {
         //hot patch failed.
-        sql_print_error("%s unable to hot patch %s (%p). res: %d. Aborting.",
+        sql_print_error("%s unable to hot patch %s (%p). res: %d.",
                 log_prefix, func_name, target_function, res);
         return 1;
     }
@@ -1899,7 +1899,9 @@ static int do_hot_patch(void ** trampoline_func_pp, unsigned int * trampoline_si
 	if(do_hot_patch((void **)&trampoline_log_slow_statement, &trampoline_log_slow_statement_size,  
 		(void *)log_slow_statement, (void *)audit_log_slow_statement,  "log_slow_statement"))
 	{
-		DBUG_RETURN(1);
+		sql_print_error("%s Failed hot patch. Continuing as non-critical.",
+                log_prefix);		
+				
 	}
 #endif
 	
