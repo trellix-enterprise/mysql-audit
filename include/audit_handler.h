@@ -184,6 +184,7 @@ public:
 		if(!Audit_formatter::thd_offsets.sec_ctx_ip) //check ip to understand if set as host is first and may actually be set to 0
 		{
 		//interface changed in 5.5.34 and 5.6.14 and up host changed to get_host()
+		//see: http://bazaar.launchpad.net/~mysql/mysql-server/5.5/revision/4407.1.1/sql/sql_class.h
 #if (MYSQL_VERSION_ID >= 50534 && MYSQL_VERSION_ID < 50600) || (MYSQL_VERSION_ID >= 50614)
 		return sctx->get_host()->ptr();
 #else
@@ -540,9 +541,5 @@ protected:
 
 };
 
-
 #endif /* AUDIT_HANDLER_H_ */
-
-
-
 
