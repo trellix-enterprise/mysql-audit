@@ -185,7 +185,7 @@ public:
 		{
 		//interface changed in 5.5.34 and 5.6.14 and up host changed to get_host()
 		//see: http://bazaar.launchpad.net/~mysql/mysql-server/5.5/revision/4407.1.1/sql/sql_class.h
-#if (MYSQL_VERSION_ID >= 50534 && MYSQL_VERSION_ID < 50600) || (MYSQL_VERSION_ID >= 50614)
+#if ( !defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50534 && MYSQL_VERSION_ID < 50600) || (MYSQL_VERSION_ID >= 50614)
 		return sctx->get_host()->ptr();
 #else
 		return sctx->host;
@@ -201,7 +201,7 @@ public:
 		if(!Audit_formatter::thd_offsets.sec_ctx_ip) //no offsets use compiled in header
 		{
 //interface changed in 5.5.34 and 5.6.14 and up host changed to get_ip()
-#if (MYSQL_VERSION_ID >= 50534 && MYSQL_VERSION_ID < 50600) || (MYSQL_VERSION_ID >= 50614)
+#if ( !defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50534 && MYSQL_VERSION_ID < 50600) || (MYSQL_VERSION_ID >= 50614)
 		return sctx->get_ip()->ptr();
 #else
 		return sctx->ip;

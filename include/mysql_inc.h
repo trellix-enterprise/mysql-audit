@@ -5,7 +5,7 @@
 #define HAVE_CONFIG_H
 #endif
 
-#define MYSQL_DYNAMIC_PLUGIN
+#define MYSQL_DYNAMIC_PLUGIN 1
 #define MYSQL_SERVER 1
 
 //Fix for VIO. We don't want to using method mapping as then a change in the struct will cause the offsets compiled with to 
@@ -62,6 +62,13 @@
 # endif
 #endif
 
+//MariaDB doesn't have my_getsystime function. They replaced with my_hrtime_t my_hrtime()
+#if  defined(MARIADB_BASE_VERSION)
+#define my_getsystime() (my_hrtime()).val
+//MariaDB has a kill service that overrides thd_killed. It also has thd_killed function defined so redefine it.
+#undef thd_killed
+extern "C" int thd_killed(const MYSQL_THD thd);
+#endif
 
 #endif //MYSQL_INCL_H
 
