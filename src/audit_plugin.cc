@@ -34,6 +34,7 @@
  */
 
 //see offset-extract/readme.txt for explanation on how this was generated
+#if !defined(MARIADB_BASE_VERSION)
 #ifdef __x86_64__
 //64 bit offsets
 static const ThdOffsets thd_offsets_arr[] =
@@ -383,7 +384,13 @@ static const ThdOffsets thd_offsets_arr[] =
 		//offsets for: /mysql/5.5.36/bin/mysqld (5.5.36) 
 		{"5.5.36","f5595334dd163428d54a546b11b8e205", 6136, 6184, 3816, 4312, 88, 2592, 96, 0, 32, 104},
 		//offsets for: /mysql/5.6.16/bin/mysqld (5.6.16) 
-		{"5.6.16","b50b5c83341099b9cd6f6749dfd71bca", 7920, 7968, 3984, 4504, 72, 2704, 96, 0, 32, 104}
+		{"5.6.16","b50b5c83341099b9cd6f6749dfd71bca", 7920, 7968, 3984, 4504, 72, 2704, 96, 0, 32, 104},
+		//offsets for: /mysqlrpm/5.6.17/usr/sbin/mysqld (5.6.17) 
+		{"5.6.17","972845b7f80376956fc1db46ec88f72e", 7928, 7976, 3992, 4512, 72, 2704, 96, 0, 32, 104},
+		//offsets for: /mysql/5.6.17/bin/mysqld (5.6.17) 
+		{"5.6.17","525a28e1f7b05b2b03111f5f521b428d", 7928, 7976, 3992, 4512, 72, 2704, 96, 0, 32, 104},
+		//offsets for: /mysqlrpm/5.5.37/usr/sbin/mysqld (5.5.37) 
+		{"5.5.37","1a2d5e421f97381578cf037b69e90200", 6136, 6184, 3816, 4312, 88, 2592, 96, 0, 32, 104}
 };
 
 #else
@@ -710,10 +717,60 @@ static const ThdOffsets thd_offsets_arr[] =
 		//offsets for: /mysql/5.5.36/bin/mysqld (5.5.36) 
 		{"5.5.36","22663b7989f3c24619493ac414cbca38", 3868, 3896, 2368, 2748, 44, 1656, 60, 0, 20, 64},
 		//offsets for: /mysql/5.6.16/bin/mysqld (5.6.16) 
-		{"5.6.16","7019959ebb4adaff1047aa4dfb1ff688", 5648, 5676, 2652, 3044, 36, 1748, 60, 0, 20, 64}
+		{"5.6.16","7019959ebb4adaff1047aa4dfb1ff688", 5648, 5676, 2652, 3044, 36, 1748, 60, 0, 20, 64},
+		//offsets for: /mysqlrpm/5.6.17/usr/sbin/mysqld (5.6.17) 
+		{"5.6.17","c2a9a665cb88d59b21d85236c963a814", 5652, 5680, 2656, 3048, 36, 1748, 60, 0, 20, 64},
+		//offsets for: /mysql/5.6.17/bin/mysqld (5.6.17) 
+		{"5.6.17","fc472182fa82c4e6a2e84fa3e6550bc9", 5652, 5680, 2656, 3048, 36, 1748, 60, 0, 20, 64},
+		//offsets for: /mysqlrpm/5.5.37/usr/sbin/mysqld (5.5.37) 
+		{"5.5.37","4f7f6578b33b23ae04aa5c8b13a335dc", 3868, 3896, 2368, 2748, 44, 1656, 60, 0, 20, 64}
 };
 
 #endif
+
+
+#else
+//start offsets for MariaDB
+#ifdef __x86_64__
+//64 bit offsets
+static const ThdOffsets thd_offsets_arr[] =
+{	
+	//offsets for: /mariadb/5.5.32/bin/mysqld (5.5.32-MariaDB) 
+	{"5.5.32-MariaDB","c67c5c5eaab8467ad1cc170db8e0492d", 12032, 12096, 5816, 6912, 88, 2928, 8, 0, 16, 24},
+	//offsets for: /mariadb/5.5.33/bin/mysqld (5.5.33-MariaDB) 
+	{"5.5.33-MariaDB","170f56b89ca6a263c625b9f6dd76c6ad", 12032, 12096, 5816, 6912, 88, 2928, 8, 0, 16, 24},
+	//offsets for: /mariadb/5.5.33a/bin/mysqld (5.5.33a-MariaDB) 
+	{"5.5.33a-MariaDB","dc57899efbcc93a0ddf57c1820acf351", 12032, 12096, 5816, 6912, 88, 2928, 8, 0, 16, 24},
+	//offsets for: /mariadb/5.5.34/bin/mysqld (5.5.34-MariaDB) 
+	{"5.5.34-MariaDB","0c6901e6e213142c3db5176af4329696", 12032, 12096, 5816, 6912, 88, 2928, 8, 0, 16, 24},
+	//offsets for: /mariadb/5.5.35/bin/mysqld (5.5.35-MariaDB) 
+	{"5.5.35-MariaDB","18b283a98fa3659cf667446850e338eb", 12040, 12104, 5824, 6920, 88, 2936, 8, 0, 16, 24},	
+	//offsets for: /mariadb/5.5.36/bin/mysqld (5.5.36-MariaDB) 
+	{"5.5.36-MariaDB","33180ec22cf201f6f769540538318b5b", 12040, 12104, 5824, 6920, 88, 2936, 8, 0, 16, 24}
+};
+
+#else
+//32 bit offsets
+static const ThdOffsets thd_offsets_arr[] =
+{	
+	//offsets for: /mariadb/5.5.32/bin/mysqld (5.5.32-MariaDB) 
+	{"5.5.32-MariaDB","1c523e9b505795636319e30151eaf022", 7288, 7324, 3476, 4480, 44, 1856, 4, 0, 8, 12},
+	//offsets for: /mariadb/5.5.33/bin/mysqld (5.5.33-MariaDB) 
+	{"5.5.33-MariaDB","0cdf83696aabc4cba2e9642c3b986f6d", 7288, 7324, 3476, 4480, 44, 1856, 4, 0, 8, 12},
+	//offsets for: /mariadb/5.5.33a/bin/mysqld (5.5.33a-MariaDB) 
+	{"5.5.33a-MariaDB","6b7fa32fe316e16e3adba2fd2940a976", 7288, 7324, 3476, 4480, 44, 1856, 4, 0, 8, 12},
+	//offsets for: /mariadb/5.5.34/bin/mysqld (5.5.34-MariaDB) 
+	{"5.5.34-MariaDB","13639243e755ca61e45e61cd92c860b2", 7288, 7324, 3476, 4480, 44, 1856, 4, 0, 8, 12},
+	//offsets for: /mariadb/5.5.35/bin/mysqld (5.5.35-MariaDB) 
+	{"5.5.35-MariaDB","1dc4e9caca4b9aa2440943ba3355a572", 7296, 7332, 3484, 4488, 44, 1860, 4, 0, 8, 12},
+	//offsets for: /mariadb/5.5.36/bin/mysqld (5.5.36-MariaDB) 
+	{"5.5.36-MariaDB","5cf95a64e10e2b53b8c85554874d034b", 7296, 7332, 3484, 4488, 44, 1860, 4, 0, 8, 12}
+};
+#endif
+
+//end offsets for MariaDB
+#endif
+
 
 static my_bool need_free_memalloc_plugin_var = FALSE;
 

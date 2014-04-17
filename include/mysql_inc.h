@@ -62,9 +62,10 @@
 # endif
 #endif
 
-//MariaDB doesn't have my_getsystime function. They replaced with my_hrtime_t my_hrtime()
+//MariaDB doesn't have my_getsystime (returns 100 nano seconds) function. They replaced with my_hrtime_t my_hrtime() which returns microseconds
 #if  defined(MARIADB_BASE_VERSION)
-#define my_getsystime() (my_hrtime()).val
+
+#define my_getsystime() ((my_hrtime()).val * 10)
 //MariaDB has a kill service that overrides thd_killed as a macro. It also has thd_killed function defined for backwards compatibility, so we redefine it.
 #undef thd_killed
 extern "C" int thd_killed(const MYSQL_THD thd);
