@@ -39,7 +39,11 @@
 //64 bit offsets
 static const ThdOffsets thd_offsets_arr[] =
 {
-        //DISTRIBUTION: rpm
+        //offsets for: /mysqlrpm/5.5.38/usr/sbin/mysqld (5.5.38) 
+		{"5.5.38","ae5937fbe5856b36b1ac7b0cb400abdd", 6136, 6184, 3816, 4312, 88, 2592, 96, 0, 32, 104},
+		//offsets for: /mysqlrpm/5.6.19/usr/sbin/mysqld (5.6.19) 
+		{"5.6.19","2a01471dc6b6b59ae25a7efe675d1af4", 7928, 7976, 3992, 4512, 72, 2704, 96, 0, 32, 104},
+		
 		//offsets for: mysqlrpm/5.1.30/usr/sbin/mysqld (5.1.30-community)
 		{"5.1.30-community","8e43bda3644a883d46a1d064304b4f1d", 6184, 6248, 3656, 3928, 88, 2048},
 		//offsets for: mysqlrpm/5.1.31/usr/sbin/mysqld (5.1.31-community)
@@ -397,7 +401,11 @@ static const ThdOffsets thd_offsets_arr[] =
 //32 bit offsets
 static const ThdOffsets thd_offsets_arr[] =
 {
-        //DISTRIBUTION: rpm
+        //offsets for: /mysqlrpm/5.5.38/usr/sbin/mysqld (5.5.38) 
+		{"5.5.38","89e8b85dd5731e15df3d5597020c0ec8", 3868, 3896, 2368, 2748, 44, 1656, 60, 0, 20, 64},
+		//offsets for: /mysqlrpm/5.6.19/usr/sbin/mysqld (5.6.19) 
+		{"5.6.19","3f94430e20b564951159aa78627df97f", 5652, 5680, 2656, 3048, 36, 1748, 60, 0, 20, 64},
+
 		//offsets for: mysqlrpm/5.1.30/usr/sbin/mysqld (5.1.30-community)
 		{"5.1.30-community","fdfe108d05c262c185a7c28b2e493c10", 4024, 4064, 2224, 2404, 44, 1180},
 		//offsets for: mysqlrpm/5.1.31/usr/sbin/mysqld (5.1.31-community)
@@ -735,6 +743,8 @@ static const ThdOffsets thd_offsets_arr[] =
 //64 bit offsets
 static const ThdOffsets thd_offsets_arr[] =
 {	
+	//offsets for: /mariadb/5.5.38/bin/mysqld (5.5.38-MariaDB) 
+	{"5.5.38-MariaDB","1ecd82e172b1bf62cab9268d48e4e070", 12016, 12080, 5800, 6896, 88, 2936, 8, 0, 16, 24},
 	//offsets for: /mariadb/5.5.32/bin/mysqld (5.5.32-MariaDB) 
 	{"5.5.32-MariaDB","c67c5c5eaab8467ad1cc170db8e0492d", 12032, 12096, 5816, 6912, 88, 2928, 8, 0, 16, 24},
 	//offsets for: /mariadb/5.5.33/bin/mysqld (5.5.33-MariaDB) 
@@ -746,13 +756,17 @@ static const ThdOffsets thd_offsets_arr[] =
 	//offsets for: /mariadb/5.5.35/bin/mysqld (5.5.35-MariaDB) 
 	{"5.5.35-MariaDB","18b283a98fa3659cf667446850e338eb", 12040, 12104, 5824, 6920, 88, 2936, 8, 0, 16, 24},	
 	//offsets for: /mariadb/5.5.36/bin/mysqld (5.5.36-MariaDB) 
-	{"5.5.36-MariaDB","33180ec22cf201f6f769540538318b5b", 12040, 12104, 5824, 6920, 88, 2936, 8, 0, 16, 24}
+	{"5.5.36-MariaDB","33180ec22cf201f6f769540538318b5b", 12040, 12104, 5824, 6920, 88, 2936, 8, 0, 16, 24},
+	//offsets for: /mariadb/5.5.37/bin/mysqld (5.5.37-MariaDB) 
+	{"5.5.37-MariaDB","71b059dd674950c6007fdeb447311707", 12040, 12104, 5824, 6920, 88, 2936, 8, 0, 16, 24}	
 };
 
 #else
 //32 bit offsets
 static const ThdOffsets thd_offsets_arr[] =
 {	
+	//offsets for: /mariadb/5.5.38/bin/mysqld (5.5.38-MariaDB) 
+	{"5.5.38-MariaDB","39d11f6145bbe9bbf140bb235398969d", 7272, 7308, 3460, 4464, 44, 1860, 4, 0, 8, 12},
 	//offsets for: /mariadb/5.5.32/bin/mysqld (5.5.32-MariaDB) 
 	{"5.5.32-MariaDB","1c523e9b505795636319e30151eaf022", 7288, 7324, 3476, 4480, 44, 1856, 4, 0, 8, 12},
 	//offsets for: /mariadb/5.5.33/bin/mysqld (5.5.33-MariaDB) 
@@ -764,15 +778,14 @@ static const ThdOffsets thd_offsets_arr[] =
 	//offsets for: /mariadb/5.5.35/bin/mysqld (5.5.35-MariaDB) 
 	{"5.5.35-MariaDB","1dc4e9caca4b9aa2440943ba3355a572", 7296, 7332, 3484, 4488, 44, 1860, 4, 0, 8, 12},
 	//offsets for: /mariadb/5.5.36/bin/mysqld (5.5.36-MariaDB) 
-	{"5.5.36-MariaDB","5cf95a64e10e2b53b8c85554874d034b", 7296, 7332, 3484, 4488, 44, 1860, 4, 0, 8, 12}
+	{"5.5.36-MariaDB","5cf95a64e10e2b53b8c85554874d034b", 7296, 7332, 3484, 4488, 44, 1860, 4, 0, 8, 12},
+	//offsets for: /mariadb/5.5.37/bin/mysqld (5.5.37-MariaDB) 
+	{"5.5.37-MariaDB","f4434929944d7e9c4351b51e30c0d4d6", 7296, 7332, 3484, 4488, 44, 1860, 4, 0, 8, 12}
 };
 #endif
 
 //end offsets for MariaDB
 #endif
-
-
-static my_bool need_free_memalloc_plugin_var = FALSE;
 
 static const char * log_prefix = AUDIT_LOG_PREFIX;
 
@@ -795,9 +808,13 @@ static char * offsets_string = NULL;
 static char * checksum_string = NULL;
 static int delay_ms_val =0;
 static char *delay_cmds_string = NULL;
+static char delay_cmds_buff[4096] = {0};
 static char *record_cmds_string = NULL;
+static char record_cmds_buff[4096] = {0};
 static char *record_objs_string = NULL;
+static char record_objs_buff[4096] = {0};
 static char *whitelist_users_string = NULL;
+static char whitelist_users_buff[4096] = {0};
 
 static char delay_cmds_array [SQLCOM_END + 2][MAX_COMMAND_CHAR_NUMBERS] = {{0}};
 static char record_cmds_array [SQLCOM_END + 2][MAX_COMMAND_CHAR_NUMBERS] = {{0}};
@@ -1565,7 +1582,7 @@ static int setup_offsets()
         //exit from function 
 	}
 	
-    size_t arr_size = (sizeof(thd_offsets_arr) / sizeof(thd_offsets_arr[0]));
+    size_t arr_size =  array_elements(thd_offsets_arr);// (sizeof(thd_offsets_arr) / sizeof(thd_offsets_arr[0]));
     //iterate and search for the first offset which matches our checksum
     if(validate_checksum_enable && strlen(digest_str) > 0)
     {
@@ -1801,25 +1818,6 @@ static int string_to_array(const void *save, void *array,
     return r;
 }
 
-/*
- * Utility function to setup record_objs_array.
- * Will use record_objs_string to setup.
- */
-static void setup_record_objs_array()
-{
-	num_record_objs = string_to_array(&record_objs_string, record_objs_array, MAX_NUM_OBJECT_ELEM + 2, MAX_OBJECT_CHAR_NUMBERS);	
-	if(num_record_objs > 0) //check if to record also the empty set of objects
-	{ 
-	  const char *objects[] = {"{}", NULL};
-      record_empty_objs_set = check_array(objects, (const char *) record_objs_array, MAX_OBJECT_CHAR_NUMBERS);		 
-	}
-	else
-	{
-		record_empty_objs_set = true;
-	}
-	sql_print_information("%s Set num_record_objs: %d record objs: %s", log_prefix, num_record_objs, record_objs_string);
-}
-
 __attribute__ ((noinline)) static void trampoline_dummy_func_for_mem()
 {
     TRAMPOLINE_NOP_DEF
@@ -1856,6 +1854,37 @@ static int do_hot_patch(void ** trampoline_func_pp, unsigned int * trampoline_si
 	return 0;
 }
 
+#define DECLARE_STRING_ARR_UPDATE_FUNC(NAME) \
+static void NAME ## _string_update(THD *thd, struct st_mysql_sys_var *var, void *tgt, const void *save)\
+{\
+	num_ ## NAME = string_to_array(save, NAME ## _array, array_elements( NAME ## _array), sizeof( NAME ## _array[0]));\
+	strncpy( NAME ##_buff , *static_cast<char*const*>(save), array_elements( NAME ## _buff) - 1);\
+	NAME ## _string = NAME ##_buff;\
+    sql_print_information("%s Set " #NAME " num: %d, value: %s", log_prefix, num_ ## NAME, NAME ## _string);\
+}
+
+DECLARE_STRING_ARR_UPDATE_FUNC(delay_cmds)
+DECLARE_STRING_ARR_UPDATE_FUNC(record_cmds)
+DECLARE_STRING_ARR_UPDATE_FUNC(whitelist_users)
+DECLARE_STRING_ARR_UPDATE_FUNC(record_objs)
+
+//extended method to set also record_empty_objs_set
+static void record_objs_string_update_extended(THD *thd, struct st_mysql_sys_var *var, void *tgt, const void *save)
+{
+	record_objs_string_update(thd, var, tgt, save);
+	if(num_record_objs > 0) //check if to record also the empty set of objects
+	{
+		const char *objects[] = {"{}", NULL};
+		record_empty_objs_set = check_array(objects, (const char *) record_objs_array, sizeof(record_objs_array[0]));
+	}
+	else
+	{
+			record_empty_objs_set = true;
+	}
+	sql_print_information("%s Set record_empty_objs: %d", log_prefix, record_empty_objs_set);
+}
+
+
 /*
  Initialize the plugin installation.
 
@@ -1876,13 +1905,10 @@ static int do_hot_patch(void ** trampoline_func_pp, unsigned int * trampoline_si
 	#else
 		const char * arch = "32bit";
 	#endif
-
-	//See here: http://bugs.mysql.com/bug.php?id=56652
+	
 	int interface_ver = audit_plugin.interface_version ;
 #if MYSQL_VERSION_ID < 50600
-	interface_ver = interface_ver >> 8;
-	//we ignore || (50600 <= interface_ver && interface_ver < 50604)) as GA was with 5.6.10
-	need_free_memalloc_plugin_var = (interface_ver < 50519);
+	interface_ver = interface_ver >> 8;	
 #endif
     sql_print_information(
             "%s starting up. Version: %s , Revision: %s (%s). AUDIT plugin interface version: %d (0x%x). MySQL Server version: %s.",
@@ -1896,21 +1922,16 @@ static int do_hot_patch(void ** trampoline_func_pp, unsigned int * trampoline_si
         DBUG_RETURN(1);
     }
   if (delay_cmds_string != NULL) {
-    num_delay_cmds = string_to_array(&delay_cmds_string, delay_cmds_array, SQLCOM_END + 2, MAX_COMMAND_CHAR_NUMBERS);
-    sql_print_information("%s Set num_delay_cmds: %d", log_prefix, num_delay_cmds);
+	delay_cmds_string_update(NULL, NULL, NULL, &delay_cmds_string);    
   }
   if (record_cmds_string != NULL) {
-    num_record_cmds = string_to_array(&record_cmds_string, record_cmds_array, SQLCOM_END + 2, MAX_COMMAND_CHAR_NUMBERS);
-    sql_print_information("%s Set num_record_cmds: %d", log_prefix, num_record_cmds);
+	record_cmds_string_update(NULL, NULL, NULL, &record_cmds_string);    
   }
- if (whitelist_users_string != NULL) {
-    num_whitelist_users = string_to_array(&whitelist_users_string, whitelist_users_array, MAX_NUM_USER_ELEM + 2, MAX_USER_CHAR_NUMBERS);
-    sql_print_information("%s Set num_whitelist_users: %d", log_prefix, num_whitelist_users);
+  if (whitelist_users_string != NULL) {
+    whitelist_users_string_update(NULL, NULL, NULL, &whitelist_users_string);
   }
-
-
   if (record_objs_string != NULL) {
-	setup_record_objs_array();    
+	record_objs_string_update_extended(NULL, NULL, NULL, &record_objs_string);
   }
    
     //setup audit handlers (initially disabled)
@@ -1968,6 +1989,13 @@ static int do_hot_patch(void ** trampoline_func_pp, unsigned int * trampoline_si
 	trampoline_mem_free = trampoline_mem;
 	//hot patch stuff
 	void * target_function = NULL;
+	
+	if(do_hot_patch((void **)&trampoline_mysql_execute_command, &trampoline_mysql_execute_size,  
+		(void *)mysql_execute_command, (void *)audit_mysql_execute_command,  "mysql_execute_command"))
+	{
+		DBUG_RETURN(1);
+	}
+	
 #if MYSQL_VERSION_ID < 50600
 	if(do_hot_patch((void **)&trampoline_log_slow_statement, &trampoline_log_slow_statement_size,  
 		(void *)log_slow_statement, (void *)audit_log_slow_statement,  "log_slow_statement"))
@@ -1977,12 +2005,6 @@ static int do_hot_patch(void ** trampoline_func_pp, unsigned int * trampoline_si
 				
 	}
 #endif
-	
-	if(do_hot_patch((void **)&trampoline_mysql_execute_command, &trampoline_mysql_execute_size,  
-		(void *)mysql_execute_command, (void *)audit_mysql_execute_command,  "mysql_execute_command"))
-	{
-		DBUG_RETURN(1);
-	}
 	    
  
 #if MYSQL_VERSION_ID < 50505				
@@ -2109,78 +2131,6 @@ static void json_log_socket_enable(THD *thd, struct st_mysql_sys_var *var,
     }
 }
 
-static void delay_cmds_string_update(THD *thd,
-        struct st_mysql_sys_var *var, void *tgt,
-        const void *save)
-{
-    num_delay_cmds = string_to_array(save, delay_cmds_array, SQLCOM_END + 2, MAX_COMMAND_CHAR_NUMBERS);
-
-    if (need_free_memalloc_plugin_var)
-    {
-        x_free(delay_cmds_string);
-        delay_cmds_string = my_strdup(*static_cast<char*const*>(save), MYF(MY_WME));
-    }
-    else
-    {
-        delay_cmds_string = *static_cast<char* const *> (save);
-    }
-
-    sql_print_information("%s Set num_delay_cmds: %d, delay cmds: %s", log_prefix, num_delay_cmds, delay_cmds_string);
-}
-
-static void record_cmds_string_update(THD *thd,
-        struct st_mysql_sys_var *var, void *tgt,
-        const void *save)
-{
-    num_record_cmds = string_to_array(save, record_cmds_array, SQLCOM_END + 2, MAX_COMMAND_CHAR_NUMBERS);
-
-    if (need_free_memalloc_plugin_var)
-    {
-        x_free(record_cmds_string);
-        record_cmds_string = my_strdup(*static_cast<char*const*>(save), MYF(MY_WME));
-    }
-    else
-    {
-        record_cmds_string = *static_cast<char* const *> (save);
-    }
-
-    sql_print_information("%s Set num_record_cmds: %d record cmds: %s", log_prefix, num_record_cmds, record_cmds_string);
-}
-static void whitelist_users_string_update(THD *thd,
-        struct st_mysql_sys_var *var, void *tgt,
-        const void *save)
-{
-    num_whitelist_users = string_to_array(save, whitelist_users_array, MAX_NUM_USER_ELEM + 2, MAX_USER_CHAR_NUMBERS);
-    if (need_free_memalloc_plugin_var)
-    {
-        x_free(whitelist_users_string);
-        whitelist_users_string = my_strdup(*static_cast<char*const*>(save), MYF(MY_WME));
-    }
-    else
-    {
-        whitelist_users_string = *static_cast<char* const *> (save);
-    }	
-    sql_print_information("%s Set num_whitelist_users: %d whitelist users: %s", log_prefix, num_whitelist_users, whitelist_users_string);
-}
-
-
-
-static void record_objs_string_update(THD *thd,
-        struct st_mysql_sys_var *var, void *tgt,
-        const void *save)
-{
-    if (need_free_memalloc_plugin_var)
-    {
-        x_free(record_objs_string);
-        record_objs_string = my_strdup(*static_cast<char*const*>(save), MYF(MY_WME));
-    }
-    else
-    {
-        record_objs_string = *static_cast<char* const *> (save);
-    }
-
-    setup_record_objs_array();
-}
 
 //setup sysvars which update directly the relevant plugins
 
@@ -2246,22 +2196,22 @@ static MYSQL_SYSVAR_INT(delay_ms, delay_ms_val,
         NULL, NULL, 0, 0, INT_MAX32, 0);
 
 static MYSQL_SYSVAR_STR(delay_cmds, delay_cmds_string,
-        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
+        PLUGIN_VAR_RQCMDARG,
         "AUDIT plugin delay commands to match against comma separated. If empty then delay is disabled.",
 			NULL, delay_cmds_string_update, NULL);
 static MYSQL_SYSVAR_STR(record_cmds, record_cmds_string,
-			PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
+			PLUGIN_VAR_RQCMDARG,
 			"AUDIT plugin commands to record, comma separated",
 			NULL, record_cmds_string_update, NULL);
 static MYSQL_SYSVAR_STR(whitelist_users, whitelist_users_string,
-			PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
+			PLUGIN_VAR_RQCMDARG,
 			"AUDIT plugin whitelisted users whose queries are not to recorded, comma separated",
 			NULL, whitelist_users_string_update, NULL);
 
 static MYSQL_SYSVAR_STR(record_objs, record_objs_string,
-			PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
+			PLUGIN_VAR_RQCMDARG,
 			"AUDIT plugin objects to record, comma separated",
-			NULL, record_objs_string_update, NULL);
+			NULL, record_objs_string_update_extended, NULL);
 
 /*
  * Plugin system vars

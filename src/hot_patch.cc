@@ -20,15 +20,66 @@ static bool use_exec_prot = true;
 
 static int protect(void *addr, size_t len)
 {
+	int res = 0;
 	if(use_exec_prot)
 	{
-		return mprotect(addr,len,PROT_READ|PROT_EXEC);
+		res = mprotect(addr,len,PROT_READ|PROT_EXEC);
 	}
 	else //try doing in a 2 step fashion
 	{
 		mprotect(addr,len,PROT_READ);
-		return mprotect(addr,len,PROT_READ|PROT_EXEC);
+		res = mprotect(addr,len,PROT_READ|PROT_EXEC);		
 	}
+	if(res)
+	{
+		sql_print_information(
+			"%s unable to protect mode: PROT_READ|PROT_EXEC. Page: %p, Size: %zu, errno: %d, res %d.",
+			log_prefix, (void *)addr, len, errno, res);
+		//fail only if nx bit is enabled
+		FILE * fp = fopen("/proc/cpuinfo", "r");
+		if(NULL == fp)
+		{
+			sql_print_error(
+				"%s unable to verify nx bit. Failed checking /proc/cpuinfo. This may happen if you have SELinux enabled. Disable SELinux execmod protection for mysqld. Page: %p, Size: %zu, errno: %d.",
+				log_prefix, (void *)addr, len, errno);
+			return res;
+		}
+		char buff[1024] = {0};
+		const char * flags = "flags";
+		bool nxchecked = false;				
+		while(fgets(buff, 1024, fp) != NULL)
+		{
+			char * line = buff;
+			//trim white space at start
+			while ((strlen(line) > 0) && (isspace(line[0])))
+			{
+				line++;
+			}
+			if(strncmp(line, flags, strlen(flags)) == 0)
+			{
+				nxchecked = true;
+				sql_print_information("%s cpuinfo flags line: %s. ",log_prefix, line);
+				if(strstr(line, " nx")) //nx enabled so fail
+				{
+					sql_print_error(
+						"%s unable to protect page and nx bit enabled. This may happen if you have SELinux enabled. Disable SELinux execmod protection for mysqld. Page: %p, Size: %zu.",
+						log_prefix, (void *)addr, len);
+					fclose(fp);
+					return res;
+				}
+				break;
+			}
+		}
+		fclose(fp);
+		if(!nxchecked) //we didn't find flags string for some reason
+		{
+			sql_print_error(
+				"%s unable to verify nx bit. Failed finding: %s in /proc/cpuinfo. This may happen if you have SELinux enabled. Disable SELinux execmod protection for mysqld. Page: %p, Size: %zu.",
+				log_prefix, flags, (void *)addr, len);
+			return res;
+		}
+	}
+	return 0;
 }
 
 //will try to unprotect with PROT_READ|PROT_WRITE|PROT_EXEC. If fails (might happen under SELinux) 
@@ -39,7 +90,7 @@ static int unprotect(void *addr, size_t len)
 	if(use_exec_prot)
 	{
 		res = mprotect(addr,len,PROT_READ|PROT_WRITE|PROT_EXEC);
-		if(0 != res)
+		if(res)
 		{
 			sql_print_information(
                 "%s unable to unprotect. Page: %p, Size: %zu, errno: %d. Using NO EXEC mode.",
@@ -47,7 +98,7 @@ static int unprotect(void *addr, size_t len)
 			use_exec_prot = false;
 			//do a sanity test that we can actually unprotect/protect and that nx bit is off
 			res = unprotect(addr, len);
-			if(0 != res)
+			if(res)
 			{
 			    sql_print_error(
                     "%s unable to unprotect page. This may happen if you have SELinux enabled. Disable SELinux execmod protection for mysqld. Aborting. Page: %p, Size: %zu, errno: %d.",
@@ -55,51 +106,13 @@ static int unprotect(void *addr, size_t len)
 			    return res;
 			}
 			res = protect(addr, len);
-			if(0 != res)
+			sql_print_information("%s protect res: %d", log_prefix, res);
+			if(res)
             {
-			    //fail only if nx bit is enabled
-			    FILE * fp = fopen("/proc/cpuinfo", "r");
-			    if(NULL == fp)
-			    {
-			        sql_print_error(
-                        "%s unable to verify nx bit. Failed checking /proc/cpuinfo. This may happen if you have SELinux enabled. Disable SELinux execmod protection for mysqld. Aborting. Page: %p, Size: %zu, errno: %d.",
-                        log_prefix, (void *)addr, len, errno);
-			        return res;
-			    }
-			    char buff[1024] = {0};
-			    const char * flags = "flags";
-			    bool nxchecked = false;				
-			    while(fgets(buff, 1024, fp) != NULL)
-			    {
-					char * line = buff;
-					//trim white space at start
-					while ((strlen(line) > 0) && (isspace(line[0])))
-					{
-						line++;
-					}
-			        if(strncmp(line, flags, strlen(flags)) == 0)
-			        {
-			            nxchecked = true;
-			            sql_print_information("%s cpuinfo flags line: %s. ",log_prefix, line);
-			            if(strstr(line, " nx")) //nx enabled so fail
-			            {
-			                sql_print_error(
-                                "%s unable to protect page and nx bit enabled. This may happen if you have SELinux enabled. Disable SELinux execmod protection for mysqld. Aborting. Page: %p, Size: %zu.",
-                                log_prefix, (void *)addr, len);
-			                fclose(fp);
-			                return res;
-			            }
-			            break;
-			        }
-			    }
-			    fclose(fp);
-			    if(!nxchecked) //we didn't find flags string for some reason
-			    {
-			        sql_print_error(
-                        "%s unable to verify nx bit. Failed finding: %s in /proc/cpuinfo. This may happen if you have SELinux enabled. Disable SELinux execmod protection for mysqld. Aborting. Page: %p, Size: %zu.",
-                        log_prefix, flags, (void *)addr, len);
-	                return res;
-			    }
+				sql_print_error(
+                    "%s unable to protect page. This may happen if you have SELinux enabled. Disable SELinux execmod protection for mysqld. Aborting. Page: %p, Size: %zu, errno: %d.",
+                    log_prefix, (void *)addr, len, errno);
+			    return res;			    
             }
 		}
 		else //all is good
@@ -242,7 +255,13 @@ static bool  HookFunction(ULONG_PTR targetFunction, ULONG_PTR newFunction, ULONG
             break;
         }
     }
-    protect((void*)trampolineFunctionPage, PAGE_SIZE);
+    if(protect((void*)trampolineFunctionPage, PAGE_SIZE)) //0 valid return
+	{
+		sql_print_error(
+			"%s unable to protect page. Error. Page: %p.",
+                    log_prefix, (void *)trampolineFunctionPage);
+		return false;
+	}
     if(!disassemble_valid) //something went wrong. log was written before so return false
     {
         return false;
