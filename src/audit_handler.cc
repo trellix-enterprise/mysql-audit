@@ -389,6 +389,45 @@ static const char * thd_query_str(THD * thd, size_t * len)
 }
 #endif
 
+ssize_t Audit_json_formatter::start_msg_format(IWriter * writer)
+{
+    if(!m_write_start_msg) //disabled
+    {
+        return 0;
+    }
+	//initialize yajl
+    yajl_gen gen = yajl_gen_alloc(&config, NULL);
+    yajl_gen_map_open(gen);
+    yajl_add_string_val(gen, "msg-type", "header");
+	uint64 ts = my_getsystime() / (10000);
+	yajl_add_uint64(gen, "date", ts);
+	yajl_add_string_val(gen, "audit-version", MYSQL_AUDIT_PLUGIN_VERSION"-"MYSQL_AUDIT_PLUGIN_REVISION);
+	yajl_add_string_val(gen, "audit-protocol-version", AUDIT_PROTOCOL_VERSION);	
+	yajl_add_string_val(gen, "hostname", glob_hostname);
+	yajl_add_string_val(gen, "mysql-version", server_version);	
+	yajl_add_string_val(gen, "mysql-program", my_progname);	
+	yajl_add_string_val(gen, "mysql-socket", mysqld_unix_port);	
+	yajl_add_uint64(gen, "mysql-port", mysqld_port);	
+	ssize_t res = -2;
+	yajl_gen_status stat = yajl_gen_map_close(gen); //close the object
+    if(stat == yajl_gen_status_ok) //all is good write the buffer out
+    {
+        const unsigned char * text = NULL;
+        unsigned int len = 0;
+        yajl_gen_get_buf(gen, &text, &len);
+        //print the json
+        res = writer->write((const char *)text, len);
+        if(res >= 0)
+        {
+            //TODO: use the msg_delimiter
+            res = writer->write("\n", 1);
+        }
+        //my_fwrite(log_file, (uchar *) b.data, json_size(&b), MYF(0));
+    }
+    yajl_gen_free(gen); //free the generator
+    return res;
+	
+}
 
 ssize_t Audit_json_formatter::event_format(ThdSesData* pThdData, IWriter * writer)
 {

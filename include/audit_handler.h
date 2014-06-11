@@ -12,6 +12,7 @@
 #include <yajl/yajl_gen.h>
 
 #define AUDIT_LOG_PREFIX "Audit Plugin:"
+#define AUDIT_PROTOCOL_VERSION "1.0"
 
 class THD;
 
@@ -267,13 +268,20 @@ public:
 
     static const char * DEF_MSG_DELIMITER;
 
-    Audit_json_formatter(): m_msg_delimiter(NULL)
+    Audit_json_formatter(): m_msg_delimiter(NULL), m_write_start_msg(true)
     {
         config.beautify = 0;
         config.indentString = NULL;
     }
     virtual ~Audit_json_formatter() {}
     virtual ssize_t event_format(ThdSesData *pThdData, IWriter * writer);
+	virtual ssize_t start_msg_format(IWriter * writer);
+
+	/**
+	 * Boolean indicating if to log start msg.
+	 * Public so sysvar can update.
+	 */
+	my_bool m_write_start_msg;
 
     /**
      * Message delimiter. Should point to a valid json string (supporting the json escapping format).

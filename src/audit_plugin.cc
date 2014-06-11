@@ -2089,7 +2089,7 @@ static struct st_mysql_show_var audit_status[] =
         (char *) MYSQL_AUDIT_PLUGIN_VERSION "-" MYSQL_AUDIT_PLUGIN_REVISION,
         SHOW_CHAR },
 { "Audit_protocol_version",
-		(char *) "1.0",
+		(char *) AUDIT_PROTOCOL_VERSION,
 		SHOW_CHAR },
 //{"called",     (char *)&number_of_calls, SHOW_LONG},
         { 0, 0, (enum_mysql_show_type) 0 } };
@@ -2134,6 +2134,9 @@ static void json_log_socket_enable(THD *thd, struct st_mysql_sys_var *var,
 
 //setup sysvars which update directly the relevant plugins
 
+static MYSQL_SYSVAR_BOOL(header_msg, json_formatter.m_write_start_msg,
+             PLUGIN_VAR_RQCMDARG,
+        "AUDIT write header message at start of logging or file flush Enable|Disable. Default enabled.", NULL, NULL, 1);
 
 static MYSQL_SYSVAR_STR(json_log_file, json_file_handler.m_filename,
         PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
@@ -2218,6 +2221,7 @@ static MYSQL_SYSVAR_STR(record_objs, record_objs_string,
  */
 static struct st_mysql_sys_var* audit_system_variables[] =
 {
+        MYSQL_SYSVAR(header_msg),
         MYSQL_SYSVAR(json_log_file),
         MYSQL_SYSVAR(json_file_sync),
         MYSQL_SYSVAR(json_file),
