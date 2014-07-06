@@ -811,6 +811,8 @@ static char *delay_cmds_string = NULL;
 static char delay_cmds_buff[4096] = {0};
 static char *record_cmds_string = NULL;
 static char record_cmds_buff[4096] = {0};
+static char *password_masking_cmds_string = NULL;
+static char password_masking_cmds_buff[4096] = {0};
 static char *record_objs_string = NULL;
 static char record_objs_buff[4096] = {0};
 static char *whitelist_users_string = NULL;
@@ -818,14 +820,23 @@ static char whitelist_users_buff[4096] = {0};
 
 static char delay_cmds_array [SQLCOM_END + 2][MAX_COMMAND_CHAR_NUMBERS] = {{0}};
 static char record_cmds_array [SQLCOM_END + 2][MAX_COMMAND_CHAR_NUMBERS] = {{0}};
+static char password_masking_cmds_array [SQLCOM_END + 2][MAX_COMMAND_CHAR_NUMBERS] = {{0}};
 static char record_objs_array [MAX_NUM_OBJECT_ELEM + 2][MAX_OBJECT_CHAR_NUMBERS] = {{0}};
 static char whitelist_users_array [MAX_NUM_USER_ELEM + 2][MAX_USER_CHAR_NUMBERS] = {{0}};
 static bool record_empty_objs_set = true;
 static int num_delay_cmds = 0;
 static int num_record_cmds = 0;
+static int num_password_masking_cmds = 0;
 static int num_record_objs = 0;
 static int num_whitelist_users = 0;
 static SHOW_VAR com_status_vars_array [MAX_COM_STATUS_VARS_RECORDS] = {{0}};
+
+//regex stuff
+static char password_masking_regex_check_buff[4096] = {0};
+static char * password_masking_regex_string = NULL;
+static char password_masking_regex_buff[4096] = {0};
+
+
 /**
  * The trampoline functions we use. Will be set to point to allocated mem.
  */
@@ -919,6 +930,31 @@ static bool check_db_obj(const char * db, const char * name)
     return false;
 }
 
+//callback function returns if password masking is required according to cmd type
+static my_bool check_do_password_masking(const char * cmd)
+{
+	if(num_password_masking_cmds > 0)
+	{
+		const char *cmds[2];
+		cmds[0] = cmd;
+		cmds[1] = NULL;
+		return check_array(cmds, (const char *) password_masking_cmds_array, sizeof(password_masking_cmds_array[0]));
+	}
+	return false;
+}
+
+//utility compiles the regex. if fails zero outs password_masking_regex_string
+static void password_masking_regex_compile()
+{
+	int res = json_formatter.compile_password_masking_regex(password_masking_regex_string);
+	if(res)
+	{	password_masking_regex_buff[0] = '\0';
+		password_masking_regex_string = password_masking_regex_buff;
+	}
+	sql_print_information("%s Compile password_masking_regex  res: [%d]", log_prefix, res);	
+}
+
+
 static void audit(ThdSesData *pThdData)
 {
     THDPRINTED *pThdPrintedList = GetThdPrintedList (pThdData->getTHD());
@@ -962,7 +998,7 @@ static void audit(ThdSesData *pThdData)
     if (!matched) {
 		return;
     }
-  }
+  }    
     if (pThdPrintedList && pThdPrintedList->cur_index  < MAX_NUM_QUEUE_ELEM)
     {
 		//audit the event if we haven't done so yet or in the case of prepare_sql we audit as the test "test select" doesn't go through mysql_execute_command
@@ -1786,14 +1822,20 @@ static int string_to_array(const void *save, void *array,
     if (save_string != NULL)
     {
         int p = 0;
+		int last_char=0; //points to the index after last non-whitespace char (used to trim whitespace at end)
         for (int i = 0; save_string[i] != '\0'; i++)
         {
-            if (save_string[i] == ' ' || save_string[i] == '\t'
-                    || save_string[i] == ',')
+			if (0 == p && isspace(save_string[i]))
+			{
+				//leading white space. trim it out
+				continue;
+			}
+            if (save_string[i] == ',')
             {
                 if (p > 0)
                 {
-                    string_array[r * length + p] = '\0';
+                    string_array[r * length + last_char] = '\0';
+					last_char = 0;
                     p = 0;
                     r++;
                     if (r == (rows - 1))
@@ -1803,14 +1845,18 @@ static int string_to_array(const void *save, void *array,
                 }
             }
             else
-            {
+            {								
                 string_array[r * length + p] = tolower(save_string[i]);
                 p++;
+				if(!isspace(save_string[i]))
+				{
+					last_char = p;
+				}
             }
         }
-        if (p > 0)
+        if (last_char > 0)
         {
-            string_array[r * length + p] = '\0';
+            string_array[r * length + last_char] = '\0';
             r++;
         }
         string_array[r * length + 0] = '\0';
@@ -1865,8 +1911,43 @@ static void NAME ## _string_update(THD *thd, struct st_mysql_sys_var *var, void 
 
 DECLARE_STRING_ARR_UPDATE_FUNC(delay_cmds)
 DECLARE_STRING_ARR_UPDATE_FUNC(record_cmds)
+DECLARE_STRING_ARR_UPDATE_FUNC(password_masking_cmds)
 DECLARE_STRING_ARR_UPDATE_FUNC(whitelist_users)
 DECLARE_STRING_ARR_UPDATE_FUNC(record_objs)
+
+static void password_masking_regex_string_update(THD *thd, struct st_mysql_sys_var *var, void *tgt, const void *save)
+{
+	const char * str_val = *static_cast<char*const*>(save);
+	const char * str = str_val;	
+	//copy str to buffer only if str is not pointing to buff
+	if(str != password_masking_regex_buff)
+	{
+		strncpy( password_masking_regex_buff , str, array_elements( password_masking_regex_buff) - 1);
+	}
+	password_masking_regex_string = password_masking_regex_buff;		
+	password_masking_regex_compile();			
+	sql_print_information("%s Set password_masking_regex  value: [%s]", log_prefix, str_val);
+}
+
+//check that the regex compiles. Return 0 on success.
+static int password_masking_regex_check(THD* thd, struct st_mysql_sys_var * var, void* save, st_mysql_value* value)
+{
+	int length= array_elements(password_masking_regex_check_buff);
+	const char * str = value->val_str(value, password_masking_regex_check_buff, &length);
+	*(const char**)save= str;	
+	if(NULL == str || str[0] == '\0') //empty string is fine (means disabled)
+	{
+		return 0;
+	}
+	int res = 1;
+	pcre * preg = Audit_json_formatter::regex_compile(str);
+	if(preg)
+	{
+		res = 0;
+	}
+	pcre_free(preg);
+	return res;
+}
 
 //extended method to set also record_empty_objs_set
 static void record_objs_string_update_extended(THD *thd, struct st_mysql_sys_var *var, void *tgt, const void *save)
@@ -1926,13 +2007,22 @@ static void record_objs_string_update_extended(THD *thd, struct st_mysql_sys_var
   }
   if (record_cmds_string != NULL) {
 	record_cmds_string_update(NULL, NULL, NULL, &record_cmds_string);    
-  }
+  }  
   if (whitelist_users_string != NULL) {
     whitelist_users_string_update(NULL, NULL, NULL, &whitelist_users_string);
   }
   if (record_objs_string != NULL) {
 	record_objs_string_update_extended(NULL, NULL, NULL, &record_objs_string);
   }
+  if (NULL != password_masking_cmds_string) {
+	password_masking_cmds_string_update(NULL, NULL, NULL, &password_masking_cmds_string);    
+  }
+  if (NULL != password_masking_regex_string) {
+	password_masking_regex_string_update(NULL, NULL, NULL, &password_masking_regex_string);
+  }
+  
+  //set the password masking callback for json formatters
+  json_formatter.m_perform_password_masking = check_do_password_masking;
    
     //setup audit handlers (initially disabled)
     int res = json_file_handler.init(&json_formatter);
@@ -2075,7 +2165,7 @@ static int audit_plugin_deinit(void *p)
 {	
     DBUG_ENTER("audit_plugin_deinit");	
 	sql_print_information("%s deinit", log_prefix);
-	remove_hot_functions();
+	remove_hot_functions();	
 	DBUG_RETURN(0);    
 }
 
@@ -2171,6 +2261,26 @@ static MYSQL_SYSVAR_STR(checksum, checksum_string,
 			PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY  | PLUGIN_VAR_MEMALLOC,
 			"AUDIT plugin checksum. Checksum for mysqld corresponding to offsets",
 			NULL, NULL, "");
+
+#define _COMMENT_SPACE_ "(?:/\\*.*?\\*/|\\s)*?"
+#define _QUOTED_PSW_ "[\'|\"](?<psw>.*?)(?<!\\\\)[\'|\"]"
+			
+static MYSQL_SYSVAR_STR(password_masking_regex, password_masking_regex_string,
+			PLUGIN_VAR_RQCMDARG ,
+			"AUDIT plugin regex to use for password masking",
+			password_masking_regex_check, password_masking_regex_string_update, 
+			//identified by [password] '***'
+			"identified"_COMMENT_SPACE_"by"_COMMENT_SPACE_"(?:password)?"_COMMENT_SPACE_ _QUOTED_PSW_
+			//password function
+			"|password"_COMMENT_SPACE_"\\("_COMMENT_SPACE_ _QUOTED_PSW_ _COMMENT_SPACE_"\\)"
+			//Used at: CHANGE MASTER TO MASTER_PASSWORD='new3cret', SET PASSWORD [FOR user] = 'hash', password 'user_pass';
+			"|password"_COMMENT_SPACE_"(?:for"_COMMENT_SPACE_"\\S+?)?"_COMMENT_SPACE_"="_COMMENT_SPACE_ _QUOTED_PSW_
+			"|password"_COMMENT_SPACE_ _QUOTED_PSW_
+			//federated engine create table with connection. See: http://dev.mysql.com/doc/refman/5.5/en/federated-create-connection.html
+			//commented out as federated engine is disabled by default 
+			//"|ENGINE"_COMMENT_SPACE_"="_COMMENT_SPACE_"FEDERATED"_COMMENT_SPACE_".*CONNECTION"_COMMENT_SPACE_"="_COMMENT_SPACE_"[\'|\"]\\S+?://\\S+?:(?<psw>.*)@\\S+[\'|\"]"
+			);			
+			
 static MYSQL_SYSVAR_BOOL(uninstall_plugin, uninstall_plugin_enable,
         PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY ,
         "AUDIT uninstall plugin Enable|Disable. Default disabled. If disabled attempts to uninstall the AUDIT plugin via the sql UNINSTALL command will fail.", NULL, NULL, 0);
@@ -2206,6 +2316,12 @@ static MYSQL_SYSVAR_STR(record_cmds, record_cmds_string,
 			PLUGIN_VAR_RQCMDARG,
 			"AUDIT plugin commands to record, comma separated",
 			NULL, record_cmds_string_update, NULL);
+static MYSQL_SYSVAR_STR(password_masking_cmds, password_masking_cmds_string,
+			PLUGIN_VAR_RQCMDARG,
+			"AUDIT plugin commands to apply password masking regex to, comma separated",
+			NULL, password_masking_cmds_string_update,
+			//set passowrd is recoreded as set_option
+			"CREATE_USER,GRANT,SET_OPTION,SLAVE_START,CREATE_SERVER,ALTER_SERVER,CHANGE_MASTER");			
 static MYSQL_SYSVAR_STR(whitelist_users, whitelist_users_string,
 			PLUGIN_VAR_RQCMDARG,
 			"AUDIT plugin whitelisted users whose queries are not to recorded, comma separated",
@@ -2221,27 +2337,31 @@ static MYSQL_SYSVAR_STR(record_objs, record_objs_string,
  */
 static struct st_mysql_sys_var* audit_system_variables[] =
 {
-        MYSQL_SYSVAR(header_msg),
-        MYSQL_SYSVAR(json_log_file),
-        MYSQL_SYSVAR(json_file_sync),
-        MYSQL_SYSVAR(json_file),
-		MYSQL_SYSVAR(json_file_flush),
-		MYSQL_SYSVAR(uninstall_plugin),
-		MYSQL_SYSVAR(validate_checksum),
-		MYSQL_SYSVAR(offsets_by_version),
-		MYSQL_SYSVAR(validate_offsets_extended),
-		MYSQL_SYSVAR(json_socket_name),
-		MYSQL_SYSVAR(offsets),
-        MYSQL_SYSVAR(json_socket),
-		MYSQL_SYSVAR(query_cache_table_list),
-        MYSQL_SYSVAR(is_thd_printed_list),
-        MYSQL_SYSVAR(delay_ms),
-        MYSQL_SYSVAR(delay_cmds),
+	MYSQL_SYSVAR(header_msg),
+	MYSQL_SYSVAR(json_log_file),
+	MYSQL_SYSVAR(json_file_sync),
+	MYSQL_SYSVAR(json_file),
+	MYSQL_SYSVAR(json_file_flush),
+	MYSQL_SYSVAR(uninstall_plugin),
+	MYSQL_SYSVAR(validate_checksum),
+	MYSQL_SYSVAR(offsets_by_version),
+	MYSQL_SYSVAR(validate_offsets_extended),
+	MYSQL_SYSVAR(json_socket_name),
+	MYSQL_SYSVAR(offsets),
+	MYSQL_SYSVAR(json_socket),
+	MYSQL_SYSVAR(query_cache_table_list),
+	MYSQL_SYSVAR(is_thd_printed_list),
+	MYSQL_SYSVAR(delay_ms),
+	MYSQL_SYSVAR(delay_cmds),
     MYSQL_SYSVAR(record_cmds),
+	MYSQL_SYSVAR(password_masking_cmds),
     MYSQL_SYSVAR(whitelist_users),
     MYSQL_SYSVAR(record_objs),
     MYSQL_SYSVAR(checksum),
-        NULL };
+	MYSQL_SYSVAR(password_masking_regex),
+	
+    NULL 
+};
 
 //declare our plugin
 mysql_declare_plugin(audit_plugin)

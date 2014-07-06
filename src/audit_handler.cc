@@ -38,6 +38,9 @@
     fprintf(f, __VA_ARGS__);\
 }while(0)
 
+//regex flags used in compilation
+static const int regex_flags = PCRE_DOTALL | PCRE_UTF8 | PCRE_CASELESS | PCRE_DUPNAMES;
+
 
 //initialize static stuff
 ThdOffsets Audit_formatter::thd_offsets = { 0 };
@@ -479,16 +482,38 @@ ssize_t Audit_json_formatter::event_format(ThdSesData* pThdData, IWriter * write
         const CHARSET_INFO *col_connection;
 #endif
 		col_connection = Item::default_charset();
-		if (strcmp (col_connection->csname,"utf8")!=0) {
-			String sQuery (query,col_connection) ;
-			pThdData->getTHD()->convert_string (&sQuery,col_connection,&my_charset_utf8_general_ci);
-			yajl_add_string_val(gen, "query", sQuery.c_ptr_safe(), sQuery.length());
-		}
-		else
-		{
-			yajl_add_string_val(gen, "query",query, qlen);
-		}
 		
+		String sQuery (query,qlen,col_connection) ;
+		if (strcmp (col_connection->csname,"utf8")!=0) {						
+			pThdData->getTHD()->convert_string (&sQuery,col_connection,&my_charset_utf8_general_ci);						
+		}
+		if(m_perform_password_masking && m_password_mask_regex_compiled && m_password_mask_regex_preg && m_perform_password_masking(cmd))
+		{
+			//do password masking
+			int matches[90] = {0};
+			if(pcre_exec(m_password_mask_regex_preg, NULL, sQuery.ptr(), sQuery.length(), 0, 0, matches,  array_elements(matches)) >= 0)
+			{
+				//search for the first substring that matches with the name psw
+				char *first = NULL, *last = NULL;
+				int entrysize = pcre_get_stringtable_entries(m_password_mask_regex_preg, "psw", &first, &last);
+				if(entrysize > 0)
+				{
+					for (unsigned char * entry = (unsigned char *)first; entry <= (unsigned char *)last; entry += entrysize)
+					{
+						//first 2 bytes give us the number
+						int n = (((int)(entry)[0]) << 8) | (entry)[1];
+						if (n > 0 && n < (int)array_elements(matches) && matches[n*2] >= 0)
+						{ //we have a match
+							sQuery.copy(); //make sure string is alloced before doing replace
+							const char * pass_replace = "***";
+							sQuery.replace(matches[n*2], matches[(n*2) + 1] - matches[n*2], pass_replace, strlen(pass_replace));
+							break;
+						}
+					}
+				}								
+			}
+		}
+		yajl_add_string_val(gen, "query", sQuery.ptr(), sQuery.length());		
     }
     else 
     {
@@ -635,4 +660,40 @@ bool ThdSesData::getNextObject(const char ** db_name, const char ** obj_name, co
         default :
             return false;
     }
+}
+
+pcre * Audit_json_formatter::regex_compile(const char * str)
+{
+	const char *error;
+	int erroffset;
+	pcre * re = pcre_compile(str, regex_flags, &error, &erroffset, NULL);
+	if (!re)
+	{
+		sql_print_error("%s unable to compile regex [%s]. offset: %d message: [%s].",
+                AUDIT_LOG_PREFIX, str, erroffset, error);		
+	}
+	return re;
+}
+
+int Audit_json_formatter::compile_password_masking_regex(const char * str)
+{
+	//first free existing
+	if(m_password_mask_regex_compiled)
+	{
+		m_password_mask_regex_compiled = false;
+		//small sleep to let threads oomplete regexc
+		my_sleep(10 * 1000);
+		pcre_free(m_password_mask_regex_preg);		
+	}
+	int error = 1; //default is error (case of empty string)
+	if(NULL != str && str[0] != '\0')
+	{
+		m_password_mask_regex_preg =  regex_compile(str);
+		if(m_password_mask_regex_preg)
+		{
+			m_password_mask_regex_compiled = true;
+			error = 0;
+		}		
+	}
+	return error;
 }

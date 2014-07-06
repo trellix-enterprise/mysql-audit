@@ -12,17 +12,23 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
+#pcre dependencies
+$(top_srcdir)/pcre/libpcre.la:
+	cd $(top_srcdir)/pcre && $(MAKE) $(AM_MAKEFLAGS) libpcre.la
 
-INCLUDES = $(MYSQL_INC) $(YAJL_INC) $(UDIS_INC)
+INCLUDES = $(MYSQL_INC) $(YAJL_INC) $(UDIS_INC) -I$(top_srcdir)/pcre
 			
 pkgplugindir =  $(MYSQL_PLUGIN_DIR)
 
 pkgplugin_LTLIBRARIES =	libaudit_plugin.la
+
+libaudit_plugin_la_DEPENDENCIESADD = pcre
+
 libaudit_plugin_la_LDFLAGS =	-module -Wl,--version-script=MySQLPlugin.map 
 
 libaudit_plugin_la_SOURCES =	hot_patch.cc audit_plugin.cc audit_handler.cc md5.cc
 
-libaudit_plugin_la_LIBADD = $(top_srcdir)/yajl/src/libyajl.la $(top_srcdir)/udis86/libudis86/libudis86.la $(MYSQL_LIBSERVICES)  
+libaudit_plugin_la_LIBADD = $(top_srcdir)/yajl/src/libyajl.la $(top_srcdir)/udis86/libudis86/libudis86.la $(top_srcdir)/pcre/libpcre.la $(MYSQL_LIBSERVICES)  
 
 
 

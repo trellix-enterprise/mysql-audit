@@ -10,6 +10,8 @@
 
 #include "mysql_inc.h"
 #include <yajl/yajl_gen.h>
+#define PCRE_STATIC
+#include <pcre.h>
 
 #define AUDIT_LOG_PREFIX "Audit Plugin:"
 #define AUDIT_PROTOCOL_VERSION "1.0"
@@ -268,20 +270,48 @@ public:
 
     static const char * DEF_MSG_DELIMITER;
 
-    Audit_json_formatter(): m_msg_delimiter(NULL), m_write_start_msg(true)
+    Audit_json_formatter(): m_msg_delimiter(NULL), m_write_start_msg(true), m_password_mask_regex_preg(NULL),
+		m_password_mask_regex_compiled(false), m_perform_password_masking(NULL)
     {
         config.beautify = 0;
         config.indentString = NULL;
     }
-    virtual ~Audit_json_formatter() {}
+    virtual ~Audit_json_formatter() 
+	{
+		if(m_password_mask_regex_preg)
+		{
+			m_password_mask_regex_compiled = false;
+			pcre_free(m_password_mask_regex_preg);
+			m_password_mask_regex_preg = NULL;			
+		}
+	}
+	
     virtual ssize_t event_format(ThdSesData *pThdData, IWriter * writer);
-	virtual ssize_t start_msg_format(IWriter * writer);
+	virtual ssize_t start_msg_format(IWriter * writer);		
+	
+	/**
+	 * Utility method used to compile a regex program. Will compile and log errors if necessary.
+	 * Return null if fails
+	 */
+	static pcre * regex_compile(const char * str);
+	
+	/**
+	 * Compile password masking regex
+	 * Return 0 on success
+	 */
+	int compile_password_masking_regex(const char * str);
 
 	/**
 	 * Boolean indicating if to log start msg.
 	 * Public so sysvar can update.
 	 */
-	my_bool m_write_start_msg;
+	my_bool m_write_start_msg;		
+	
+	
+	/**
+	 * Callback function to determine if password masking should be performed
+	 */
+	my_bool (* m_perform_password_masking)(const char *cmd);
 
     /**
      * Message delimiter. Should point to a valid json string (supporting the json escapping format).
@@ -300,7 +330,17 @@ protected:
 
 	Audit_json_formatter& operator =(const Audit_json_formatter& b);
 	Audit_json_formatter(const Audit_json_formatter& );
-
+	
+	/**
+	 * Boolean indicating if password masking regex is compiled
+	 */
+	my_bool m_password_mask_regex_compiled;
+	
+	/**
+	 * Regex used for password masking
+	 */
+	pcre * m_password_mask_regex_preg;
+		
 };
 
 /**

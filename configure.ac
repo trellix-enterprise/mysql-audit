@@ -50,6 +50,12 @@ AC_SUBST(YAJL_INC)
 UDIS_INC=-I`cd udis86 && pwd`
 AC_SUBST(UDIS_INC)
 
+#pcre
+(cd pcre && CFLAGS=-fPIC ./configure --enable-utf --disable-cpp --disable-shared --enable-static )
+if test $? -ne 0 ; then 
+	AC_MSG_ERROR([Failed pcre configure])
+fi
+
 
 dnl AC_PROG_CC set CFLAGS=-g if CFLAGS was empty before. Reset to empty value
 dnl when not building a debug version.
