@@ -809,6 +809,8 @@ static char * checksum_string = NULL;
 static int delay_ms_val =0;
 static char *delay_cmds_string = NULL;
 static char delay_cmds_buff[4096] = {0};
+static char *skip_cmds_string = NULL;
+static char skip_cmds_buff[4096] = {0};
 static char *record_cmds_string = NULL;
 static char record_cmds_buff[4096] = {0};
 static char *password_masking_cmds_string = NULL;
@@ -819,12 +821,14 @@ static char *whitelist_users_string = NULL;
 static char whitelist_users_buff[4096] = {0};
 
 static char delay_cmds_array [SQLCOM_END + 2][MAX_COMMAND_CHAR_NUMBERS] = {{0}};
+static char skip_cmds_array [SQLCOM_END + 2][MAX_COMMAND_CHAR_NUMBERS] = {{0}};
 static char record_cmds_array [SQLCOM_END + 2][MAX_COMMAND_CHAR_NUMBERS] = {{0}};
 static char password_masking_cmds_array [SQLCOM_END + 2][MAX_COMMAND_CHAR_NUMBERS] = {{0}};
 static char record_objs_array [MAX_NUM_OBJECT_ELEM + 2][MAX_OBJECT_CHAR_NUMBERS] = {{0}};
 static char whitelist_users_array [MAX_NUM_USER_ELEM + 2][MAX_USER_CHAR_NUMBERS] = {{0}};
 static bool record_empty_objs_set = true;
 static int num_delay_cmds = 0;
+static int num_skip_cmds = 0;
 static int num_record_cmds = 0;
 static int num_password_masking_cmds = 0;
 static int num_record_objs = 0;
@@ -958,6 +962,15 @@ static void password_masking_regex_compile()
 static void audit(ThdSesData *pThdData)
 {
     THDPRINTED *pThdPrintedList = GetThdPrintedList (pThdData->getTHD());
+  if (num_skip_cmds > 0) {
+      const char * cmd = pThdData->getCmdName();
+      const char *cmds[2];
+      cmds[0] = cmd;
+      cmds[1] = NULL;
+      if (check_array(cmds, (char *) skip_cmds_array, MAX_COMMAND_CHAR_NUMBERS)) {
+	return;
+      }
+  }
   if (num_record_cmds > 0) {
       const char * cmd = pThdData->getCmdName();
       const char *cmds[2];
@@ -1910,6 +1923,7 @@ static void NAME ## _string_update(THD *thd, struct st_mysql_sys_var *var, void 
 }
 
 DECLARE_STRING_ARR_UPDATE_FUNC(delay_cmds)
+DECLARE_STRING_ARR_UPDATE_FUNC(skip_cmds)
 DECLARE_STRING_ARR_UPDATE_FUNC(record_cmds)
 DECLARE_STRING_ARR_UPDATE_FUNC(password_masking_cmds)
 DECLARE_STRING_ARR_UPDATE_FUNC(whitelist_users)
@@ -2004,6 +2018,9 @@ static void record_objs_string_update_extended(THD *thd, struct st_mysql_sys_var
     }
   if (delay_cmds_string != NULL) {
 	delay_cmds_string_update(NULL, NULL, NULL, &delay_cmds_string);    
+  }
+  if (skip_cmds_string != NULL) {
+	skip_cmds_string_update(NULL, NULL, NULL, &skip_cmds_string);    
   }
   if (record_cmds_string != NULL) {
 	record_cmds_string_update(NULL, NULL, NULL, &record_cmds_string);    
@@ -2312,6 +2329,10 @@ static MYSQL_SYSVAR_STR(delay_cmds, delay_cmds_string,
         PLUGIN_VAR_RQCMDARG,
         "AUDIT plugin delay commands to match against comma separated. If empty then delay is disabled.",
 			NULL, delay_cmds_string_update, NULL);
+static MYSQL_SYSVAR_STR(skip_cmds, skip_cmds_string,
+			PLUGIN_VAR_RQCMDARG,
+			"AUDIT plugin commands to skip, comma separated",
+			NULL, skip_cmds_string_update, NULL);
 static MYSQL_SYSVAR_STR(record_cmds, record_cmds_string,
 			PLUGIN_VAR_RQCMDARG,
 			"AUDIT plugin commands to record, comma separated",
@@ -2353,11 +2374,12 @@ static struct st_mysql_sys_var* audit_system_variables[] =
 	MYSQL_SYSVAR(is_thd_printed_list),
 	MYSQL_SYSVAR(delay_ms),
 	MYSQL_SYSVAR(delay_cmds),
-    MYSQL_SYSVAR(record_cmds),
+        MYSQL_SYSVAR(skip_cmds),
+        MYSQL_SYSVAR(record_cmds),
 	MYSQL_SYSVAR(password_masking_cmds),
-    MYSQL_SYSVAR(whitelist_users),
-    MYSQL_SYSVAR(record_objs),
-    MYSQL_SYSVAR(checksum),
+        MYSQL_SYSVAR(whitelist_users),
+        MYSQL_SYSVAR(record_objs),
+        MYSQL_SYSVAR(checksum),
 	MYSQL_SYSVAR(password_masking_regex),
 	
     NULL 
