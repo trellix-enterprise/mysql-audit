@@ -418,6 +418,11 @@ public:
 
     void set_enable(bool val);
 	
+	bool is_enabled()
+	{
+		return m_enabled;
+	}
+	
 	/**
 	 * will close and start the handler
 	 */
