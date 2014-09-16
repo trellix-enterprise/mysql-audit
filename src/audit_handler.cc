@@ -127,7 +127,7 @@ void Audit_handler::log_audit(ThdSesData *pThdData)
     {
         unlock();
         return;
-    }
+    }	
     //sanity check that offsets match
 	//we can also consider using secutiry context function to do some sanity checks
 	//  char buffer[2048];
@@ -148,98 +148,196 @@ void Audit_handler::log_audit(ThdSesData *pThdData)
     else
     {//offsets are good
         m_print_offset_err = true; //mark to print offset err to log incase we encounter in the future
-        handler_log_audit(pThdData);
+		pthread_mutex_lock(&LOCK_io);
+		//check if failed
+		bool do_log = true;
+		if (m_failed)
+		{		
+			do_log = false;
+			bool retry = m_retry_interval > 0 && 
+				difftime(time(NULL), m_last_retry_sec_ts) > m_retry_interval;		
+			if(retry)
+			{
+				do_log = handler_start_nolock();
+			}					
+		}
+		if(do_log)
+		{
+			if(!handler_log_audit(pThdData))
+			{
+				set_failed();
+				handler_stop_internal();
+			}
+		}
+		pthread_mutex_unlock(&LOCK_io);
     }
     unlock();
 }
 
+void Audit_file_handler::close()
+{
+	if (m_log_file)
+	{
+		my_fclose(m_log_file, MYF(0));
+	}
+	m_log_file = NULL;
+}
+
 ssize_t Audit_file_handler::write(const char * data, size_t size)
 {
-    return my_fwrite(m_log_file, (uchar *) data, size, MYF(0));
+    ssize_t res = my_fwrite(m_log_file, (uchar *) data, size, MYF(0));
+	if(res < 0) // log the error
+	{
+		sql_print_error("%s failed writing to file: %s. Err: %s", 
+			AUDIT_LOG_PREFIX, m_io_dest, strerror(errno));
+	}
+	return res;
 }
 
-void Audit_file_handler::handler_start()
+int Audit_file_handler::open(const char * io_dest, bool log_errors)
 {
-    pthread_mutex_lock(&LOCK_io);
-    char format_name[FN_REFLEN];
-    fn_format(format_name, m_filename, "", "", MY_UNPACK_FILENAME);
+	char format_name[FN_REFLEN];
+    fn_format(format_name, io_dest, "", "", MY_UNPACK_FILENAME);
     m_log_file = my_fopen(format_name, O_RDWR | O_APPEND, MYF(0));
-    if (!m_log_file)
+	if (!m_log_file)
     {
-        sql_print_error(
-                "%s unable to create %s: %s. audit file handler disabled!!",
-                AUDIT_LOG_PREFIX, m_filename, strerror(errno));
-        m_enabled = false;
-    }
-    else
+		if(log_errors)
+		{
+			sql_print_error(
+					"%s unable to open file %s: %s. audit file handler disabled!!",
+					AUDIT_LOG_PREFIX, m_io_dest, strerror(errno));
+		}
+		return -1;
+	}
+	return 0;
+}
+
+//no locks. called by handler_start and when it is time to retry
+bool Audit_io_handler::handler_start_internal()
+{
+	if (open(m_io_dest, m_log_io_errors) != 0)
     {
-        ssize_t res = m_formatter->start_msg_format(this);
-        /*
-         sanity check of writing to the log. If we fail. We will print an erorr and disable this handler.
-         */
-        if (res < 0 || fflush(m_log_file) != 0)
-        {
-            sql_print_error(
-                    "%s unable to write to %s: %s. Disabling audit handler.",
-                    AUDIT_LOG_PREFIX, m_filename, strerror(errno));
-            close_file();
-            m_enabled = false;
-        }
+		//open failed        
+		return false;
     }
+    ssize_t res = m_formatter->start_msg_format(this);
+	/*
+	 sanity check of writing to the log. If we fail. We will print an erorr and disable this handler.
+	 */
+	if (res < 0)
+	{
+		if(m_log_io_errors)
+		{
+			sql_print_error(
+					"%s unable to write header msg to %s: %s.",
+					AUDIT_LOG_PREFIX, m_io_dest, strerror(errno));
+		}
+		close();		
+		return false;
+	}
+	sql_print_information("%s success opening %s: %s.", AUDIT_LOG_PREFIX, m_io_type, m_io_dest);
+	return true;    
+}
+
+void Audit_io_handler::handler_stop_internal()
+{
+	if(!m_failed)
+	{
+		m_formatter->stop_msg_format(this);
+	}
+    close();
+}
+
+bool Audit_handler::handler_start_nolock()
+{
+	bool res = handler_start_internal();
+	if(res)
+	{
+		m_failed = false;
+	}
+	else
+	{
+		set_failed();
+	}
+	return res;
+}
+
+void Audit_handler::handler_start()
+{
+    pthread_mutex_lock(&LOCK_io);    
+	m_log_io_errors = true;
+    handler_start_nolock();
     pthread_mutex_unlock(&LOCK_io);
 }
-void Audit_file_handler::handler_stop()
+void Audit_handler::handler_stop()
 {
     pthread_mutex_lock(&LOCK_io);
-    m_formatter->stop_msg_format(this);
-    close_file();
+    handler_stop_internal();
     pthread_mutex_unlock(&LOCK_io);
 }
 
-void Audit_file_handler::handler_log_audit(ThdSesData *pThdData)
+bool Audit_file_handler::handler_log_audit(ThdSesData *pThdData)
 {
-    pthread_mutex_lock(&LOCK_io);
-    m_formatter->event_format(pThdData, this);
-    if (++m_sync_counter >= m_sync_period && m_sync_period)
+    bool res = (m_formatter->event_format(pThdData, this) >= 0);
+    if (res && m_sync_period && ++m_sync_counter >= m_sync_period)
     {
         m_sync_counter = 0;
         //Note fflush() only flushes the user space buffers provided by the C library.
         //To ensure that the data is physically stored on disk the kernel buffers must be flushed too,
         //e.g. with sync(2) or fsync(2).
-        fflush(m_log_file);
-        int fd = fileno(m_log_file);
-        my_sync(fd, MYF(MY_WME));
+		res = (fflush(m_log_file) == 0);
+        if(res)
+		{
+			int fd = fileno(m_log_file);
+			res = (my_sync(fd, MYF(MY_WME)) == 0);
+		}
     }
-    pthread_mutex_unlock(&LOCK_io);
+	return res;
 }
 
 /////////////////// Audit_socket_handler //////////////////////////////////
 
-ssize_t Audit_socket_handler::write(const char * data, size_t size)
+void Audit_socket_handler::close()
 {
-    return vio_write((Vio*)m_vio, (const uchar *) data, size);
+	if (m_vio)
+	{
+		//no need for vio_close as is called by delete (additionally close changed its name to vio_shutdown in 5.6.11)
+		vio_delete((Vio*)m_vio);
+	}
+	m_vio = NULL;
 }
 
-void Audit_socket_handler::handler_start()
+ssize_t Audit_socket_handler::write(const char * data, size_t size)
 {
-    pthread_mutex_lock(&LOCK_io);
-    //open the socket
+    ssize_t res = vio_write((Vio*)m_vio, (const uchar *) data, size);
+	if(res < 0) // log the error
+	{
+		sql_print_error("%s failed writing to socket: %s. Err: %s", 
+			AUDIT_LOG_PREFIX, m_io_dest, strerror(vio_errno((Vio*)m_vio)));
+	}
+	return res;
+}
+
+int Audit_socket_handler::open(const char * io_dest, bool log_errors)
+{
+	//open the socket
     int sock = socket(AF_UNIX,SOCK_STREAM,0);
     if (sock < 0)
     {
-        sql_print_error(
-                "%s unable to create socket: %s. audit socket handler disabled!!",
-                AUDIT_LOG_PREFIX, strerror(errno));
-        m_enabled = false;
-        pthread_mutex_unlock(&LOCK_io);
-        return;
+		if(log_errors)
+		{
+			sql_print_error(
+					"%s unable to create unix socket: %s.",
+					AUDIT_LOG_PREFIX, strerror(errno));
+		}
+        return -1;
     }
 
     //connect the socket
     m_vio= vio_new(sock, VIO_TYPE_SOCKET, VIO_LOCALHOST);
     struct sockaddr_un UNIXaddr;
     UNIXaddr.sun_family = AF_UNIX;
-    strmake(UNIXaddr.sun_path, m_sockname, sizeof(UNIXaddr.sun_path)-1);
+    strmake(UNIXaddr.sun_path, io_dest, sizeof(UNIXaddr.sun_path)-1);
 #if MYSQL_VERSION_ID < 50600
     if (my_connect(sock,(struct sockaddr *) &UNIXaddr, sizeof(UNIXaddr),
                    m_connect_timeout))
@@ -249,42 +347,21 @@ void Audit_socket_handler::handler_start()
                            m_connect_timeout * 1000))
 #endif
     {
-      sql_print_error(
-                "%s unable to connect to socket: %s. err: %s. audit socket handler disabled!!",
-                AUDIT_LOG_PREFIX, m_sockname, strerror(errno));
-      close_vio();
-      m_enabled = false;
-      pthread_mutex_unlock(&LOCK_io);
-      return;
-
-    }
-    ssize_t res = m_formatter->start_msg_format(this);
-    /*
-     sanity check of writing to the log. If we fail. We will print an erorr and disable this handler.
-     */
-    if (res < 0)
-    {
-        sql_print_error(
-                "%s unable to write to %s: %s. Disabling audit handler.",
-                AUDIT_LOG_PREFIX, m_sockname, strerror(errno));
-        close_vio();
-        m_enabled = false;
-    }
-    pthread_mutex_unlock(&LOCK_io);
-}
-void Audit_socket_handler::handler_stop()
-{
-    pthread_mutex_lock(&LOCK_io);
-    m_formatter->stop_msg_format(this);
-    close_vio();
-    pthread_mutex_unlock(&LOCK_io);
+		if(log_errors)
+		{
+			sql_print_error(
+                "%s unable to connect to socket: %s. err: %s.",
+                AUDIT_LOG_PREFIX, m_io_dest, strerror(errno));
+		}
+		close();
+		return -2;
+	}
+	return 0;
 }
 
-void Audit_socket_handler::handler_log_audit(ThdSesData *pThdData)
-{
-    pthread_mutex_lock(&LOCK_io);
-    m_formatter->event_format(pThdData, this);
-    pthread_mutex_unlock(&LOCK_io);
+bool Audit_socket_handler::handler_log_audit(ThdSesData *pThdData)
+{    
+    return (m_formatter->event_format(pThdData, this) >= 0);    
 }
 
 //////////////////////// Audit Socket handler end ///////////////////////////////////////////

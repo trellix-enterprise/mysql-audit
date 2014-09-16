@@ -852,6 +852,9 @@ static char password_masking_regex_check_buff[4096] = {0};
 static char * password_masking_regex_string = NULL;
 static char password_masking_regex_buff[4096] = {0};
 
+//socket name
+static char json_socket_name_buff[1024] = {0};
+
 
 /**
  * The trampoline functions we use. Will be set to point to allocated mem.
@@ -1949,10 +1952,74 @@ static void password_masking_regex_string_update(THD *thd, struct st_mysql_sys_v
 	if(str != password_masking_regex_buff)
 	{
 		strncpy( password_masking_regex_buff , str, array_elements( password_masking_regex_buff) - 1);
-	}
+	}	
 	password_masking_regex_string = password_masking_regex_buff;		
 	password_masking_regex_compile();			
 	sql_print_information("%s Set password_masking_regex  value: [%s]", log_prefix, str_val);
+}
+
+static void replace_char(char * str, const char tofind, const char rplc)
+{
+	size_t n = strlen(str);
+	for(size_t i = 0; i< n; i++)
+	{
+		if(tofind == str[i])
+		{
+			str[i] = rplc;
+		}
+	}
+}
+
+static void json_socket_name_update(THD *thd, struct st_mysql_sys_var *var, void *tgt, const void *save)
+{
+	const char * str_val = *static_cast<char*const*>(save);
+	const char * str = str_val;
+	const size_t buff_len = array_elements( json_socket_name_buff) -1;
+	//copy str to buffer only if str is not pointing to buff	
+	if(NULL == str)
+	{
+		json_socket_name_buff[0] = '\0';
+	}
+	else if(str != json_socket_name_buff)
+	{
+		strncpy( json_socket_name_buff , str, buff_len);
+	}
+	if(strlen(json_socket_name_buff) == 0) //set default
+	{
+		const char * name_prefix = "/tmp/mysql.audit_";
+		
+		size_t indx = strlen(name_prefix); //count how much to move forward the buff
+		strncpy( json_socket_name_buff, name_prefix, buff_len);
+		char cwd_buff[512] = {0};
+		my_getwd(cwd_buff, array_elements(cwd_buff) - 1, 0);
+		replace_char(cwd_buff, '/', '_');
+		size_t cwd_len = strlen(cwd_buff);
+		if(cwd_len > 0 && '_' != cwd_buff[cwd_len-1]) //add _ to end
+		{
+			strncpy(cwd_buff + cwd_len, "_", array_elements(cwd_buff) - 1  - cwd_len);
+		}
+		strncpy(json_socket_name_buff + indx, cwd_buff, buff_len  - indx);
+		indx += cwd_len;
+		if(indx < buff_len)
+		{
+			if(mysqld_port > 0)
+			{
+				snprintf(json_socket_name_buff + indx, buff_len  - indx, "%u", mysqld_port);
+			}
+			else
+			{
+				strncpy(json_socket_name_buff + indx,  mysqld_unix_port, buff_len  - indx);
+				replace_char(json_socket_name_buff + indx, '/', '_');
+			}
+		}
+		else //should never happen
+		{
+			sql_print_error("%s json_socket_name_buff not big enough to set default name. buff: %s",
+                log_prefix, json_socket_name_buff);
+		}		
+	}
+	json_socket_handler.m_io_dest = json_socket_name_buff;			
+	sql_print_information("%s Set json_socket_name str: [%s] value: [%s]", log_prefix, str, json_socket_handler.m_io_dest);
 }
 
 //check that the regex compiles. Return 0 on success.
@@ -2049,6 +2116,8 @@ static void record_objs_string_update_extended(THD *thd, struct st_mysql_sys_var
   if (NULL != password_masking_regex_string) {
 	password_masking_regex_string_update(NULL, NULL, NULL, &password_masking_regex_string);
   }
+  //update to generate the default if needed
+  json_socket_name_update(NULL, NULL, NULL, &(json_socket_handler.m_io_dest));
   
   //set the password masking callback for json formatters
   json_formatter.m_perform_password_masking = check_do_password_masking;
@@ -2257,7 +2326,7 @@ static MYSQL_SYSVAR_BOOL(header_msg, json_formatter.m_write_start_msg,
              PLUGIN_VAR_RQCMDARG,
         "AUDIT write header message at start of logging or file flush Enable|Disable. Default enabled.", NULL, NULL, 1);
 
-static MYSQL_SYSVAR_STR(json_log_file, json_file_handler.m_filename,
+static MYSQL_SYSVAR_STR(json_log_file, json_file_handler.m_io_dest,
         PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
         "AUDIT plugin json log file name",
         NULL, NULL, "mysql-audit.json");
@@ -2266,6 +2335,16 @@ static MYSQL_SYSVAR_UINT(json_file_sync, json_file_handler.m_sync_period,
         PLUGIN_VAR_RQCMDARG,
         "AUDIT plugin json log file sync period. If the value of this variable is greater than 0, audit log will sync to disk after every audit_json_file_sync writes.",
         NULL, NULL, 0, 0, UINT_MAX32, 0);
+
+static MYSQL_SYSVAR_UINT(json_file_retry, json_file_handler.m_retry_interval,
+        PLUGIN_VAR_RQCMDARG,
+        "AUDIT plugin json log file retry interval. If the plugin fails to open/write to the json log file, will retry to open every specified interval in seconds. Set for 0 to disable retrying. Default 60 seconds.",
+        NULL, NULL, 60, 0, UINT_MAX32, 0);
+
+static MYSQL_SYSVAR_UINT(json_socket_retry, json_socket_handler.m_retry_interval,
+        PLUGIN_VAR_RQCMDARG,
+        "AUDIT plugin json socket connect interval. If the plugin fails to connect/write to the json audit socket, will retry to connect every specified interval in seconds. Set for 0 to disable retrying. Default 10 seconds.",
+        NULL, NULL, 10, 0, UINT_MAX32, 0);
 
 static MYSQL_SYSVAR_BOOL(json_file, json_file_handler_enable,
 			 PLUGIN_VAR_RQCMDARG,
@@ -2276,10 +2355,10 @@ static MYSQL_SYSVAR_BOOL(json_file_flush, json_file_handler_flush,
         "AUDIT plugin json log file flush. Set to ON to perform a flush of the log.", NULL, json_log_file_flush, 0);
 
 
-static MYSQL_SYSVAR_STR(json_socket_name, json_socket_handler.m_sockname,
-        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
+static MYSQL_SYSVAR_STR(json_socket_name, json_socket_handler.m_io_dest,
+        PLUGIN_VAR_RQCMDARG,
         "AUDIT plugin json log unix socket name",
-        NULL, NULL, "/tmp/mysql-audit.json.sock");
+        NULL, json_socket_name_update, "");
 
 static MYSQL_SYSVAR_STR(offsets, offsets_string,
         PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY  | PLUGIN_VAR_MEMALLOC,
@@ -2373,6 +2452,8 @@ static struct st_mysql_sys_var* audit_system_variables[] =
 	MYSQL_SYSVAR(header_msg),
 	MYSQL_SYSVAR(json_log_file),
 	MYSQL_SYSVAR(json_file_sync),
+	MYSQL_SYSVAR(json_file_retry),
+	MYSQL_SYSVAR(json_socket_retry),
 	MYSQL_SYSVAR(json_file),
 	MYSQL_SYSVAR(json_file_flush),
 	MYSQL_SYSVAR(uninstall_plugin),

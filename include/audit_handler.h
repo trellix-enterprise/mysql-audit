@@ -76,11 +76,15 @@ class IWriter
 {
 public:
     virtual ~IWriter() {}
+	//return negative on fail
     virtual ssize_t write(const char * data, size_t size) = 0;
     inline ssize_t write_str(const char * str)
     {
         return write(str, strlen(str));
     }
+	//return 0 on success
+	virtual int open(const char * io_dest, bool log_errors) = 0;
+	virtual void close() = 0;	
 };
 
 class ThdSesData {
@@ -369,7 +373,7 @@ public:
     static void stop_all();
 
     Audit_handler() :
-        m_initialized(false), m_enabled(false), m_print_offset_err(true), m_formatter(NULL)
+        m_initialized(false), m_enabled(false), m_print_offset_err(true), m_formatter(NULL), m_failed(false), m_log_io_errors(true)
     {
     }
 
@@ -378,14 +382,13 @@ public:
         if (m_initialized)
         {
             rwlock_destroy(&LOCK_audit);
+			pthread_mutex_destroy(&LOCK_io);
         }
     }
 
     /**
      * Should be called to initialize. We don't init in constructor in order to provide indication if
      * pthread stuff failed init.
-     *
-     * Will internally call handler_init();
      *
      * @frmt the formatter to use in this handler (does not manage distruction of this object)
      * @return 0 on success
@@ -402,7 +405,7 @@ public:
         {
             return res;
         }
-        res = handler_init();
+        res = pthread_mutex_init(&LOCK_io, MY_MUTEX_INIT_SLOW);;
         if (res)
         {
             return res;
@@ -431,17 +434,48 @@ public:
     /**
      * Will get relevant shared lock and call internal method of handler
      */
-    void log_audit(ThdSesData *pThdData);
+    void log_audit(ThdSesData *pThdData);		
+	
+	/**
+	 * Public so can be configured via sysvar
+	 */
+	unsigned int m_retry_interval;
 
 protected:
     Audit_formatter * m_formatter;
-    virtual void handler_start() = 0;
-    virtual void handler_stop() = 0;
-    virtual int handler_init() = 0;
-    virtual void handler_log_audit(ThdSesData *pThdData) =0;
+    virtual void handler_start();
+	//wiil call internal method and set failed as needed
+	bool handler_start_nolock();
+    virtual void handler_stop();    
+	virtual bool handler_start_internal() = 0;
+	virtual void handler_stop_internal() = 0;
+    virtual bool handler_log_audit(ThdSesData *pThdData) =0;
     bool m_initialized;
     bool m_enabled;
-    rw_lock_t LOCK_audit;
+	bool m_failed;
+	bool m_log_io_errors;
+	time_t m_last_retry_sec_ts;	    
+	inline void set_failed()
+	{
+		time(&m_last_retry_sec_ts);
+		m_failed = true;
+		m_log_io_errors = false;
+	}
+	inline bool is_failed_now()
+	{
+		return m_failed && (m_retry_interval < 0 || 
+			difftime(time(NULL), m_last_retry_sec_ts) > m_retry_interval);
+	}
+    //override default assignment and copy to protect against creating additional instances
+	Audit_handler & operator=(const Audit_handler&);
+	Audit_handler(const Audit_handler&);	
+private:
+    //bool indicating if to print offset errors to log or not
+    bool m_print_offset_err;
+	//lock io
+	pthread_mutex_t LOCK_io;
+	//audit (enable) lock
+	rw_lock_t LOCK_audit;
     inline void lock_shared()
     {
         rw_rdlock(&LOCK_audit);
@@ -454,12 +488,6 @@ protected:
     {
         rw_unlock(&LOCK_audit);
     }
-    //override default assignment and copy to protect against creating additional instances
-	Audit_handler & operator=(const Audit_handler&);
-	Audit_handler(const Audit_handler&);
-private:
-    //bool indicating if to print offset errors to log or not
-    bool m_print_offset_err;
 };
 
 /**
@@ -468,21 +496,25 @@ private:
 class Audit_io_handler: public Audit_handler, public IWriter
 {
 public:
-    virtual ~Audit_io_handler()
-    {
-        if (m_initialized)
-        {
-            pthread_mutex_destroy(&LOCK_io);
-        }
+	Audit_io_handler() : m_io_dest(NULL), m_io_type(NULL)
+	{
+	}
+	
+    virtual ~Audit_io_handler() 
+    {        
     }
+		
+	
+	/**
+	 * target we write to (socket/file). Public so we update via sysvar
+	 */
+	char * m_io_dest;
 
 protected:
-    virtual int handler_init()
-    {
-        return pthread_mutex_init(&LOCK_io, MY_MUTEX_INIT_SLOW);
-    }
-    //mutex we need sync writes on file
-    pthread_mutex_t LOCK_io;
+    virtual bool handler_start_internal();
+	virtual void handler_stop_internal();
+	//used for logging messages
+	const char * m_io_type;
 };
 
 class Audit_file_handler: public Audit_io_handler
@@ -490,8 +522,9 @@ class Audit_file_handler: public Audit_io_handler
 public:
 
     Audit_file_handler() :
-        m_sync_period(0), m_filename(NULL), m_log_file(NULL), m_sync_counter(0)
+        m_sync_period(0), m_log_file(NULL), m_sync_counter(0)
     {
+		m_io_type = "file";
     }
 
     virtual ~Audit_file_handler()
@@ -505,38 +538,31 @@ public:
      * We leave this public so the mysql sysvar function can update this variable directly.
      */
     unsigned int m_sync_period;
-    /**
-     * File name of the file we write to. Public so sysvar function can update this directly.
-     */
-    char * m_filename;
-
+    
     /**
      * Write function we pass to formatter
      */
     ssize_t write(const char * data, size_t size);
+	
+	void close();
+    
+	int open(const char * io_dest, bool m_log_errors);
     //static void print_sleep (THD *thd, int delay_ms);
 protected:
     //override default assignment and copy to protect against creating additional instances
 	Audit_file_handler & operator=(const Audit_file_handler&);
 	Audit_file_handler(const Audit_file_handler&);
-    virtual void handler_start();
-    virtual void handler_stop();
+    
+    
 
     /**
      * Will acquire locks and call handler_write
      */
-    virtual void handler_log_audit(ThdSesData *pThdData);
+    virtual bool handler_log_audit(ThdSesData *pThdData);
     FILE * m_log_file;
     //the period to use for syncing
     unsigned int m_sync_counter;
-    void close_file()
-    {
-        if (m_log_file)
-        {
-            my_fclose(m_log_file, MYF(0));
-        }
-        m_log_file = NULL;
-    }
+    
 
 };
 
@@ -545,19 +571,16 @@ class Audit_socket_handler: public Audit_io_handler
 public:
 
     Audit_socket_handler() :
-        m_sockname(NULL), m_vio(NULL), m_connect_timeout(1)
+        m_vio(NULL), m_connect_timeout(1)
     {
+		m_io_type = "socket";
     }
 
     virtual ~Audit_socket_handler()
     {
     }
 
-    /**
-     * Socket name of the UNIX socket we write to. Public so sysvar function can update this directly.
-     */
-    char * m_sockname;
-
+    
     /**
      * Connect timeout in secconds
      */
@@ -567,31 +590,22 @@ public:
      * Write function we pass to formatter
      */
     ssize_t write(const char * data, size_t size);
-
+	
+	void close();
+    
+	int open(const char * io_dest, bool log_errors);
 protected:
     //override default assignment and copy to protect against creating additional instances
 	Audit_socket_handler & operator=(const Audit_socket_handler&);
-	Audit_socket_handler(const Audit_socket_handler&);
-    virtual void handler_start();
-    virtual void handler_stop();
+	Audit_socket_handler(const Audit_socket_handler&);        
 
     /**
      * Will acquire locks and call handler_write
      */
-    virtual void handler_log_audit(ThdSesData *pThdData);
+    virtual bool handler_log_audit(ThdSesData *pThdData);
     //Vio we write to
     //define as void* so we don't access members directly
-    void * m_vio;
-    void close_vio()
-    {
-        if (m_vio)
-        {
-            //no need for vio_close as is called by delete (additionally close changed its name to vio_shutdown in 5.6.11)
-            vio_delete((Vio*)m_vio);
-        }
-        m_vio = NULL;
-    }
-
+    void * m_vio;    
 };
 
 #endif /* AUDIT_HANDLER_H_ */
