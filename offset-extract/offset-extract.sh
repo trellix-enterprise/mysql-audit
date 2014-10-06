@@ -25,7 +25,7 @@ fi
 COMMAND_MEMBER=command
 
 #in 5.6 command member is named m_command
-echo $MYVER | grep -P '^5.6' > /dev/null
+echo $MYVER | grep -P '^(5\.6|10\.)' > /dev/null
 if [ $? = 0 ]; then
 	COMMAND_MEMBER=m_command
 fi
@@ -36,6 +36,12 @@ echo 'printf "{\"'$MYVER'\",\"'$MYMD5'\", %d, %d, %d, %d, %d, %d, %d, %d, %d, %d
 SYMPARAM=""
 if [ -n "$2" ]; then
 	SYMPARAM="-s $2 -e"
+fi
+
+which gdb > /dev/null 2>&1
+if [ $? != 0 ]; then
+        echo "ERROR: gdb not found. Make sure gdb is installed and on the path."
+        exit 3;
 fi
 
 gdb -n -q -batch -x offsets.gdb $SYMPARAM  $1 > /dev/null 2>&1

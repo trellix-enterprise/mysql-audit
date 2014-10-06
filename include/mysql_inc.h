@@ -51,7 +51,6 @@
 #include <my_md5.h>
 #include <my_dir.h>
 #include <my_sys.h>
-#include <my_regex.h>
 
 //5.5 use my_free with a single param. 5.1 use with 2 params
 //based on: http://bazaar.launchpad.net/~mysql/myodbc/5.1/view/head:/util/stringutil.h
@@ -70,7 +69,15 @@
 //MariaDB has a kill service that overrides thd_killed as a macro. It also has thd_killed function defined for backwards compatibility, so we redefine it.
 #undef thd_killed
 extern "C" int thd_killed(const MYSQL_THD thd);
+
+//MariadDB 10.0.10 removed the include for thd_security_context
+#if MYSQL_VERSION_ID >= 100010
+extern "C"  char *thd_security_context(MYSQL_THD thd, char *buffer, unsigned int length, unsigned int max_query_len);
 #endif
+
+#endif
+
+
 
 #endif //MYSQL_INCL_H
 

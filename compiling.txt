@@ -45,6 +45,8 @@ cd mysql-5.5.x or mysql-5.6.x
 cmake .
 make
 
+Note: For MariaDB use:  cmake . -DBUILD_CONFIG=mysql_release
+
 Note: to speed things up it is possible to build just the following directories:  
 libservices 
 extra

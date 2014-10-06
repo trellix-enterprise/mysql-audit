@@ -10,7 +10,11 @@
 
 #include "mysql_inc.h"
 #include <yajl/yajl_gen.h>
+
+#ifndef PCRE_STATIC
 #define PCRE_STATIC
+#endif
+
 #include <pcre.h>
 
 #define AUDIT_LOG_PREFIX "Audit Plugin:"
@@ -62,6 +66,12 @@ typedef struct ThdOffsets
 	OFFSET sec_ctx_ip;
 	OFFSET sec_ctx_priv_user;	
 } ThdOffsets;
+
+/*
+ * The offsets array
+ */
+extern const ThdOffsets thd_offsets_arr[];
+extern const size_t thd_offsets_arr_size;
 
 /*
  * On  success,  the  number of bytes written are returned (zero indicates nothing was written).  On error, -1 is returned,
@@ -192,7 +202,7 @@ public:
 		{
 		//interface changed in 5.5.34 and 5.6.14 and up host changed to get_host()
 		//see: http://bazaar.launchpad.net/~mysql/mysql-server/5.5/revision/4407.1.1/sql/sql_class.h
-#if ( !defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50534 && MYSQL_VERSION_ID < 50600) || (MYSQL_VERSION_ID >= 50614)
+#if  !defined(MARIADB_BASE_VERSION) && ( ( MYSQL_VERSION_ID >= 50534 && MYSQL_VERSION_ID < 50600) || (MYSQL_VERSION_ID >= 50614) )
 		return sctx->get_host()->ptr();
 #else
 		return sctx->host;
@@ -208,7 +218,7 @@ public:
 		if(!Audit_formatter::thd_offsets.sec_ctx_ip) //no offsets use compiled in header
 		{
 //interface changed in 5.5.34 and 5.6.14 and up host changed to get_ip()
-#if ( !defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50534 && MYSQL_VERSION_ID < 50600) || (MYSQL_VERSION_ID >= 50614)
+#if !defined(MARIADB_BASE_VERSION) && ( (MYSQL_VERSION_ID >= 50534 && MYSQL_VERSION_ID < 50600) || (MYSQL_VERSION_ID >= 50614) )
 		return sctx->get_ip()->ptr();
 #else
 		return sctx->ip;
