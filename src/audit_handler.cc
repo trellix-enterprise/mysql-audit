@@ -215,6 +215,16 @@ int Audit_file_handler::open(const char * io_dest, bool log_errors)
 //no locks. called by handler_start and when it is time to retry
 bool Audit_io_handler::handler_start_internal()
 {
+	if(!m_io_dest || strlen(m_io_dest) == 0)
+	{
+		if(m_log_io_errors)
+		{
+			sql_print_error(
+					"%s %s: io destination not set. Not connecting.",
+					AUDIT_LOG_PREFIX,  m_io_type);
+		}
+        return false;
+	}
 	if (open(m_io_dest, m_log_io_errors) != 0)
     {
 		//open failed        
@@ -319,7 +329,7 @@ ssize_t Audit_socket_handler::write(const char * data, size_t size)
 }
 
 int Audit_socket_handler::open(const char * io_dest, bool log_errors)
-{
+{	
 	//open the socket
     int sock = socket(AF_UNIX,SOCK_STREAM,0);
     if (sock < 0)

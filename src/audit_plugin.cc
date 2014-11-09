@@ -1223,7 +1223,7 @@ static void json_socket_name_update(THD *thd, struct st_mysql_sys_var *var, void
 	{
 		strncpy( json_socket_name_buff , str, buff_len);
 	}
-	if(strlen(json_socket_name_buff) == 0) //set default
+	if(strlen(json_socket_name_buff) == 0 && (mysqld_port > 0 || mysqld_unix_port)) //set default
 	{
 		const char * name_prefix = "/tmp/mysql.audit_";
 		
