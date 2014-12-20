@@ -1797,3 +1797,13 @@ extern "C" int __cxa_pure_virtual (void)
 		log_prefix);
 	return 0;
 }
+
+/*
+ * Variable to hold version
+ */
+MYSQL_AUDIT_PLUGIN_SYMBOL_VERSION() = '\0';
+
+
+
+
+
