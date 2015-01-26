@@ -587,7 +587,11 @@ static int audit_mysql_execute_command(THD *thd)
         audit(&thd_data);
     }
 	int res;
-	if(thd_killed(thd))
+#if  defined(MARIADB_BASE_VERSION)
+    if(Audit_formatter::thd_killed(thd) >= KILL_CONNECTION)
+#else
+    if(Audit_formatter::thd_killed(thd) == THD::KILL_CONNECTION)
+#endif	
 	{
 	    res = 1;
 	}

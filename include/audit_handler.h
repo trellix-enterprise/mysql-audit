@@ -49,7 +49,7 @@ typedef size_t OFFSET;
 #define MAX_NUM_USER_ELEM 256
 
 /**
- * The struct usd to hold offsets. We should have one per version.
+ * The struct used to hold offsets. We should have one per version.
  */
 typedef struct ThdOffsets
 {
@@ -64,7 +64,9 @@ typedef struct ThdOffsets
 	OFFSET sec_ctx_user;
 	OFFSET sec_ctx_host;
 	OFFSET sec_ctx_ip;
-	OFFSET sec_ctx_priv_user;	
+	OFFSET sec_ctx_priv_user;
+    OFFSET db;
+    OFFSET killed;
 } ThdOffsets;
 
 /*
@@ -184,6 +186,26 @@ public:
                 + Audit_formatter::thd_offsets.main_security_ctx);
     }
 	
+    static inline const char * thd_db(THD * thd)
+    {		
+		if(!Audit_formatter::thd_offsets.db) //no offsets use compiled in header
+		{
+			return thd->db;
+		}
+        return *(const char **) (((unsigned char *) thd)
+                + Audit_formatter::thd_offsets.db);        
+    }
+    
+    static inline int thd_killed(THD * thd)
+    {		
+        if(!Audit_formatter::thd_offsets.killed) //no offsets use thd_killed function
+		{
+			return ::thd_killed(thd);
+		}
+        return *(int *) (((unsigned char *) thd)
+                + Audit_formatter::thd_offsets.killed);        
+    }
+    
 	static inline const char * thd_inst_main_security_ctx_user(THD * thd)
     {
 		Security_context * sctx = thd_inst_main_security_ctx(thd);

@@ -691,7 +691,7 @@ bool ThdSesData::getNextObject(const char ** db_name, const char ** obj_name, co
         {
             if(m_firstTable)
             {
-                *db_name = getTHD()->db;
+                *db_name = Audit_formatter::thd_db(getTHD());
                 *obj_name = NULL;
                 if(obj_type)
                 {
