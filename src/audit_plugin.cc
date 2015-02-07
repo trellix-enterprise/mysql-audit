@@ -44,6 +44,7 @@ static Audit_json_formatter json_formatter;
 
 //flags to hold if audit handlers are enabled
 static my_bool json_file_handler_enable = FALSE;
+static my_bool record_logins_enable = FALSE;
 static my_bool json_file_handler_flush = FALSE;
 static my_bool json_socket_handler_enable = FALSE;
 static my_bool uninstall_plugin_enable = FALSE;
@@ -218,6 +219,15 @@ static void audit(ThdSesData *pThdData)
       cmds[1] = NULL;
       if (check_array(cmds, (char *) whitelist_cmds_array, MAX_COMMAND_CHAR_NUMBERS)) {
 	return;
+      }
+  }
+  if (record_logins_enable) {
+      const char * cmd = pThdData->getCmdName();
+      const char * user = pThdData->getUserName();
+      if (!strcasecmp(cmd, "Connect") || !strcasecmp(cmd, "Quit")) {
+         if(user && strlen( user))
+         	Audit_handler::log_audit_all(pThdData);    
+         return;
       }
   }
   if (num_record_cmds > 0) {
@@ -1569,6 +1579,10 @@ static MYSQL_SYSVAR_BOOL(header_msg, json_formatter.m_write_start_msg,
              PLUGIN_VAR_RQCMDARG,
         "AUDIT write header message at start of logging or file flush Enable|Disable. Default enabled.", NULL, NULL, 1);
 
+static MYSQL_SYSVAR_BOOL(record_logins, record_logins_enable,
+             PLUGIN_VAR_RQCMDARG,
+        "AUDIT record Connect and Quit commands Enable|Disable. Default enabled.", NULL, NULL, 1);
+
 static MYSQL_SYSVAR_STR(json_log_file, json_file_handler.m_io_dest,
         PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
         "AUDIT plugin json log file name",
@@ -1693,6 +1707,7 @@ static MYSQL_SYSVAR_STR(record_objs, record_objs_string,
 static struct st_mysql_sys_var* audit_system_variables[] =
 {
 	MYSQL_SYSVAR(header_msg),
+	MYSQL_SYSVAR(record_logins),
 	MYSQL_SYSVAR(json_log_file),
 	MYSQL_SYSVAR(json_file_sync),
 	MYSQL_SYSVAR(json_file_retry),
