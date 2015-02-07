@@ -224,7 +224,7 @@ static void audit(ThdSesData *pThdData)
   if (record_logins_enable) {
       const char * cmd = pThdData->getCmdName();
       const char * user = pThdData->getUserName();
-      if (!strcasecmp(cmd, "Connect") || !strcasecmp(cmd, "Quit")) {
+      if (!strcasecmp(cmd, "Connect") || !strcasecmp(cmd, "Quit") || !strcasecmp(cmd, "Failed Login")) {
          if(user && strlen( user))
          	Audit_handler::log_audit_all(pThdData);    
          return;
