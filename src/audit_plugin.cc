@@ -381,26 +381,32 @@ static bool audit_open_tables(THD *thd, TABLE_LIST **start, uint *counter, uint 
                 Prelocking_strategy *prelocking_strategy)
 {
 
-     bool res;
-     res = trampoline_open_tables (thd, start, counter, flags, prelocking_strategy);
-     ThdSesData thd_data (thd);
-     audit(&thd_data);
-     return res;
-
+    bool res;
+    res = trampoline_open_tables (thd, start, counter, flags, prelocking_strategy);
+    //only log if thread id or query id is non 0 (otherwise this is comming from startup activity)
+    if(Audit_formatter::thd_inst_thread_id(thd) || Audit_formatter::thd_inst_query_id(thd))
+    {
+        ThdSesData thd_data (thd);
+        audit(&thd_data);
+    }
+    return res;
 }
-
-static unsigned int trampoline_open_tables_size =0;
 #else
 static int audit_open_tables(THD *thd, TABLE_LIST **start, uint *counter, uint flags)
 {
-     bool res;
-     res = trampoline_open_tables (thd, start, counter, flags);
-     ThdSesData thd_data (thd);
-     audit(&thd_data);
-     return res;
+    bool res;
+    res = trampoline_open_tables (thd, start, counter, flags);
+    //only log if thread id or query id is non 0 (otherwise this is comming from startup activity)
+    if(Audit_formatter::thd_inst_thread_id(thd) || Audit_formatter::thd_inst_query_id(thd))
+    {         
+        ThdSesData thd_data (thd);
+        audit(&thd_data);
+    }
+    return res;
 }
-static unsigned int trampoline_open_tables_size =0;
 #endif
+static unsigned int trampoline_open_tables_size =0;
+
 
 
 //called by log_slow_statement and general audit event caught by audit interface
