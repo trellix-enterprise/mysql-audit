@@ -44,7 +44,7 @@ static Audit_json_formatter json_formatter;
 
 //flags to hold if audit handlers are enabled
 static my_bool json_file_handler_enable = FALSE;
-static my_bool record_logins_enable = FALSE;
+static my_bool force_record_logins_enable = FALSE;
 static my_bool json_file_handler_flush = FALSE;
 static my_bool json_socket_handler_enable = FALSE;
 static my_bool uninstall_plugin_enable = FALSE;
@@ -221,25 +221,7 @@ static void audit(ThdSesData *pThdData)
 	return;
       }
   }
-  if (record_logins_enable) {
-      const char * cmd = pThdData->getCmdName();
-      const char * user = pThdData->getUserName();
-      if (!strcasecmp(cmd, "Connect") || !strcasecmp(cmd, "Quit") || !strcasecmp(cmd, "Failed Login")) {
-         if(user && strlen( user))
-         	Audit_handler::log_audit_all(pThdData);    
-         return;
-      }
-  }
-  if (num_record_cmds > 0) {
-      const char * cmd = pThdData->getCmdName();
-      const char *cmds[2];
-      cmds[0] = cmd;
-      cmds[1] = NULL;
-      if (!check_array(cmds, (char *) record_cmds_array, MAX_COMMAND_CHAR_NUMBERS)) {
-	return;
-      }
-  }
- if (num_whitelist_users > 0) {
+  if (num_whitelist_users > 0) {
       const char * user = pThdData->getUserName(); //If name is present, then no need to log the query
       const char *users[2];
 	  if(NULL == user || '\0' == user[0]) //empty user use special symbol: "{}"
@@ -251,8 +233,24 @@ static void audit(ThdSesData *pThdData)
       if (check_array(users, (char *) whitelist_users_array, MAX_USER_CHAR_NUMBERS)) {
 	return;
       }
+  }    
+  bool do_objs_cmds_check = true;
+  if (force_record_logins_enable) {
+      const char * cmd = pThdData->getCmdName();      
+      if (!strcasecmp(cmd, "Connect") || !strcasecmp(cmd, "Quit") || !strcasecmp(cmd, "Failed Login")) {
+        do_objs_cmds_check = false;
+      }
   }
-  if (num_record_objs > 0) {
+  if (num_record_cmds > 0 && do_objs_cmds_check) {
+      const char * cmd = pThdData->getCmdName();
+      const char *cmds[2];
+      cmds[0] = cmd;
+      cmds[1] = NULL;
+      if (!check_array(cmds, (char *) record_cmds_array, MAX_COMMAND_CHAR_NUMBERS)) {
+	return;
+      }
+  }
+  if (num_record_objs > 0 && do_objs_cmds_check) {
 	bool matched = false;
 	if(pThdData->startGetObjects())
     {
@@ -1585,9 +1583,9 @@ static MYSQL_SYSVAR_BOOL(header_msg, json_formatter.m_write_start_msg,
              PLUGIN_VAR_RQCMDARG,
         "AUDIT write header message at start of logging or file flush Enable|Disable. Default enabled.", NULL, NULL, 1);
 
-static MYSQL_SYSVAR_BOOL(record_logins, record_logins_enable,
+static MYSQL_SYSVAR_BOOL(force_record_logins, force_record_logins_enable,
              PLUGIN_VAR_RQCMDARG,
-        "AUDIT record Connect and Quit commands Enable|Disable. Default enabled.", NULL, NULL, 1);
+        "AUDIT force record Connect, Quit and Failed Login commands, regardless of the settings in audit_record_cmds and audit_record_objs  Enable|Disable. Default disabled.", NULL, NULL, 0);
 
 static MYSQL_SYSVAR_STR(json_log_file, json_file_handler.m_io_dest,
         PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
@@ -1713,7 +1711,7 @@ static MYSQL_SYSVAR_STR(record_objs, record_objs_string,
 static struct st_mysql_sys_var* audit_system_variables[] =
 {
 	MYSQL_SYSVAR(header_msg),
-	MYSQL_SYSVAR(record_logins),
+	MYSQL_SYSVAR(force_record_logins),
 	MYSQL_SYSVAR(json_log_file),
 	MYSQL_SYSVAR(json_file_sync),
 	MYSQL_SYSVAR(json_file_retry),
