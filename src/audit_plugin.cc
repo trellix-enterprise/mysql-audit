@@ -1591,6 +1591,10 @@ static MYSQL_SYSVAR_STR(json_log_file, json_file_handler.m_io_dest,
         PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
         "AUDIT plugin json log file name",
         NULL, NULL, "mysql-audit.json");
+static MYSQL_SYSVAR_LONG(json_file_bufsize, json_file_handler.m_bufsize,
+        PLUGIN_VAR_RQCMDARG,
+        "AUDIT plugin json log file buffer size. Buffer size in bytes (lager size may improve performance). 0 = use default size, 1 = no buffering. If changed during runtime need to perform a flush for the new value to take affect.",
+        NULL, NULL, 0, 1, 262144, 0);
 
 static MYSQL_SYSVAR_UINT(json_file_sync, json_file_handler.m_sync_period,
         PLUGIN_VAR_RQCMDARG,
@@ -1713,6 +1717,7 @@ static struct st_mysql_sys_var* audit_system_variables[] =
 	MYSQL_SYSVAR(header_msg),
 	MYSQL_SYSVAR(force_record_logins),
 	MYSQL_SYSVAR(json_log_file),
+    MYSQL_SYSVAR(json_file_bufsize),
 	MYSQL_SYSVAR(json_file_sync),
 	MYSQL_SYSVAR(json_file_retry),
 	MYSQL_SYSVAR(json_socket_retry),

@@ -554,7 +554,7 @@ class Audit_file_handler: public Audit_io_handler
 public:
 
     Audit_file_handler() :
-        m_sync_period(0), m_log_file(NULL), m_sync_counter(0)
+        m_sync_period(0), m_log_file(NULL), m_sync_counter(0), m_bufsize(0)
     {
 		m_io_type = "file";
     }
@@ -570,6 +570,11 @@ public:
      * We leave this public so the mysql sysvar function can update this variable directly.
      */
     unsigned int m_sync_period;
+    
+    /**
+     * The buf size used by the file stream. 0 = use default, negative or 1 = no buffering
+     */
+    long m_bufsize;
     
     /**
      * Write function we pass to formatter

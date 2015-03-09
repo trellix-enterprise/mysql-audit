@@ -21,6 +21,7 @@
 #include "audit_handler.h"
 //for definition of sockaddr_un
 #include <sys/un.h>
+#include <stdio_ext.h>
 #include "static_assert.h"
 
 //utility macro to log also with a date as a prefix
@@ -198,7 +199,7 @@ int Audit_file_handler::open(const char * io_dest, bool log_errors)
 {
 	char format_name[FN_REFLEN];
     fn_format(format_name, io_dest, "", "", MY_UNPACK_FILENAME);
-    m_log_file = my_fopen(format_name, O_RDWR | O_APPEND, MYF(0));
+    m_log_file = my_fopen(format_name,  O_WRONLY | O_APPEND| O_CREAT, MYF(0));
 	if (!m_log_file)
     {
 		if(log_errors)
@@ -209,6 +210,31 @@ int Audit_file_handler::open(const char * io_dest, bool log_errors)
 		}
 		return -1;
 	}
+    ssize_t bufsize = BUFSIZ;
+    int res =0;
+    //0 -> use default, 1 or negative -> disabled
+    if(m_bufsize > 1) 
+    {
+        bufsize = m_bufsize;
+    }
+    if(1 == m_bufsize || m_bufsize < 0)
+    {
+        //disabled
+        res = setvbuf(m_log_file, NULL,  _IONBF, 0);
+    }
+    else
+    {   
+        res = setvbuf(m_log_file, NULL, _IOFBF, bufsize);        
+        
+    }    
+    if(res)
+    {
+        sql_print_error(
+					"%s unable to set bufzie [%zd (%ld)] for file %s: %s.",
+					AUDIT_LOG_PREFIX, bufsize, m_bufsize, m_io_dest, strerror(errno));
+    }
+    sql_print_information("%s bufsize for file [%s]: %zd. Value of json_file_bufsize: %ld.", AUDIT_LOG_PREFIX, m_io_dest, 
+        __fbufsize(m_log_file), m_bufsize);
 	return 0;
 }
 
