@@ -21,6 +21,10 @@
 //64 bit offsets
 const ThdOffsets thd_offsets_arr[] =
 {
+        //offsets for: /mysqlrpm/5.5.43/usr/sbin/mysqld (5.5.43) 
+        {"5.5.43","d9bc90e06a5f97a4e6524bee2cd2ba62", 6136, 6184, 3816, 4312, 88, 2592, 96, 0, 32, 104, 120, 6256},
+        //offsets for: /mysqlrpm/5.6.24/usr/sbin/mysqld (5.6.24) 
+        {"5.6.24","fa139b24fa0074925a76592a3beba284", 6976, 7024, 4000, 4520, 72, 2704, 96, 0, 32, 104, 136, 7112},
         //offsets for: /mysqlrpm/5.5.42/usr/sbin/mysqld (5.5.42) 
         {"5.5.42","2b3289c6a80d166b0343677c31a99676", 6136, 6184, 3816, 4312, 88, 2592, 96, 0, 32, 104, 120, 6256},
         //offsets for: /mysqlrpm/5.6.23/usr/sbin/mysqld (5.6.23) 
@@ -399,6 +403,10 @@ const ThdOffsets thd_offsets_arr[] =
 //32 bit offsets
 const ThdOffsets thd_offsets_arr[] =
 {
+        //offsets for: /mysqlrpm/5.5.43/usr/sbin/mysqld (5.5.43) 
+        {"5.5.43","5bb9944b00a46765a12e6a3a261e10fa", 3868, 3896, 2368, 2748, 44, 1656, 60, 0, 20, 64, 60, 3952},
+        //offsets for: /mysqlrpm/5.6.24/usr/sbin/mysqld (5.6.24) 
+        {"5.6.24","55aab9806d2b88fe1fe0ab66dd2017eb", 4668, 4696, 2660, 3052, 36, 1748, 60, 0, 20, 64, 72, 4768},
         //offsets for: /mysqlrpm/5.5.42/usr/sbin/mysqld (5.5.42) 
         {"5.5.42","e0e62892aeb511bcfe92fcd95bf90fcb", 3868, 3896, 2368, 2748, 44, 1656, 60, 0, 20, 64, 60, 3952},
         //offsets for: /mysqlrpm/5.6.23/usr/sbin/mysqld (5.6.23) 
