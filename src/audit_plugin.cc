@@ -1687,11 +1687,11 @@ static MYSQL_SYSVAR_STR(delay_cmds, delay_cmds_string,
 			NULL, delay_cmds_string_update, NULL);
 static MYSQL_SYSVAR_STR(whitelist_cmds, whitelist_cmds_string,
 			PLUGIN_VAR_RQCMDARG,
-			"AUDIT plugin commands to skip, comma separated",
+			"AUDIT plugin whitelisted commands for which queries are not recorded, comma separated",
 			NULL, whitelist_cmds_string_update, NULL);
 static MYSQL_SYSVAR_STR(record_cmds, record_cmds_string,
 			PLUGIN_VAR_RQCMDARG,
-			"AUDIT plugin whitelisted commands for which queries are not recorded, comma separated",
+			"AUDIT plugin commands for which queries are recorded, comma separated. If set then only queries of these commands will be recorded.",
 			NULL, record_cmds_string_update, NULL);
 static MYSQL_SYSVAR_STR(password_masking_cmds, password_masking_cmds_string,
 			PLUGIN_VAR_RQCMDARG,
@@ -1706,7 +1706,7 @@ static MYSQL_SYSVAR_STR(whitelist_users, whitelist_users_string,
 
 static MYSQL_SYSVAR_STR(record_objs, record_objs_string,
 			PLUGIN_VAR_RQCMDARG,
-			"AUDIT plugin objects to record, comma separated",
+			"AUDIT plugin objects to record, comma separated. If set then only queries containing these objects will be recorded.",
 			NULL, record_objs_string_update_extended, NULL);
 
 /*
