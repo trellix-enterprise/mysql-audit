@@ -435,7 +435,10 @@ static inline void yajl_add_uint64(yajl_gen gen, const char * name, uint64 num)
 }
 static inline void yajl_add_obj( yajl_gen gen,  const char *db,const char* ptype,const char * name =NULL)
 {
-    yajl_add_string_val(gen, "db", db);
+    if(db)
+    {
+        yajl_add_string_val(gen, "db", db);
+    }
     if (name)
     {
         yajl_add_string_val(gen, "name", name);
@@ -690,7 +693,7 @@ bool ThdSesData::startGetObjects()
     //commands which have single database object
     if (strcmp (cmd,"Init DB") ==0 || strcmp (cmd, "SHOW TABLES")== 0 || strcmp (cmd,  "SHOW TABLE")==0)
     {
-        if(getTHD()->db)
+        if(Audit_formatter::thd_db(getTHD()))
         {
             m_objIterType = OBJ_DB;
             return true;
