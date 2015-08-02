@@ -405,12 +405,12 @@ bool Audit_socket_handler::handler_log_audit(ThdSesData *pThdData)
 
 
 
-static inline yajl_gen_status yajl_add_string(yajl_gen hand, const char * str)
+static  yajl_gen_status yajl_add_string(yajl_gen hand, const char * str)
 {
     return yajl_gen_string(hand, (const unsigned char*)str, strlen(str));
 }
 
-static inline void yajl_add_string_val(yajl_gen hand, const char * name, const char* val)
+static  void yajl_add_string_val(yajl_gen hand, const char * name, const char* val)
 {
 	if(0 == val)
 	{
@@ -420,20 +420,20 @@ static inline void yajl_add_string_val(yajl_gen hand, const char * name, const c
     yajl_add_string(hand, val);
 }
 
-static inline void yajl_add_string_val(yajl_gen hand, const char * name, const char* val, size_t val_len)
+static  void yajl_add_string_val(yajl_gen hand, const char * name, const char* val, size_t val_len)
 {
     yajl_add_string(hand, name);
     yajl_gen_string(hand, (const unsigned char*)val, val_len);
 }
 
-static inline void yajl_add_uint64(yajl_gen gen, const char * name, uint64 num)
+static  void yajl_add_uint64(yajl_gen gen, const char * name, uint64 num)
 {
     const size_t max_int64_str_len = 21;
     char buf[max_int64_str_len];
     snprintf(buf, max_int64_str_len, "%llu", num);
     yajl_add_string_val(gen, name, buf);
 }
-static inline void yajl_add_obj( yajl_gen gen,  const char *db,const char* ptype,const char * name =NULL)
+static  void yajl_add_obj( yajl_gen gen,  const char *db,const char* ptype,const char * name =NULL)
 {
     if(db)
     {
@@ -446,7 +446,7 @@ static inline void yajl_add_obj( yajl_gen gen,  const char *db,const char* ptype
     yajl_add_string_val(gen, "obj_type",ptype);
 }
 
-static inline const char * retrieve_user (THD * thd)
+static  const char * retrieve_user (THD * thd)
 {
     
 	const char * user = Audit_formatter::thd_inst_main_security_ctx_user(thd);
