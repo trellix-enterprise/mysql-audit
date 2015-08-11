@@ -676,7 +676,7 @@ static bool parse_thd_offsets_string (char *poffsets_string)
 		
     char  offset_str [2048] = {0};
 	char *poffset_str = offset_str;
-	strncpy (poffset_str,poffsets_string,2048);
+	strncpy (poffset_str,poffsets_string,array_elements(offset_str));
 	char * comma_delimiter = strchr (poffset_str,',');
 	size_t i =0;
 	OFFSET *pOffset;
@@ -687,34 +687,44 @@ static bool parse_thd_offsets_string (char *poffsets_string)
 		if (!((poffset_str[j] >= '0' && poffset_str[j] <='9') || poffset_str[j] == ' ' || poffset_str[j] == ','))
 			return false;
 	}
-	while (comma_delimiter !=NULL)
+	while (poffset_str !=NULL)
 	{
-		*comma_delimiter = '\0';
+        comma_delimiter = strchr (poffset_str,',');
+        if(comma_delimiter)
+        {
+            *comma_delimiter = '\0';
+        }
 		pOffset = (OFFSET*)&Audit_formatter::thd_offsets.query_id + i;
 		if ((size_t)pOffset- (size_t)&Audit_formatter::thd_offsets < sizeof (Audit_formatter::thd_offsets))
 		{
-			sscanf (poffset_str, "%zu", pOffset);
+			if(sscanf (poffset_str, "%zu", pOffset) != 1)
+            {
+               sql_print_error("%s Failed parsing audit_offsets: scanf failed for offset string: \"%s\" (possible missing offset)", log_prefix, poffset_str); 
+               return false;
+            }
 		}
 		else 
 		{
+            sql_print_error("%s Failed parsing audit_offsets: too many offsets specified", log_prefix);
 			return false;
 		}
 		i++;
-		poffset_str = comma_delimiter + 1;
-		comma_delimiter = strchr (poffset_str,',');
-	}
-	if (poffset_str !=NULL)
-	{
-		pOffset = &Audit_formatter::thd_offsets.query_id + i;
-		if ((size_t)pOffset- (size_t)&Audit_formatter::thd_offsets < sizeof (Audit_formatter::thd_offsets))
-		{
-			sscanf (poffset_str, "%zu", pOffset);
-		}
-		else
-		{
-			return false;
-		}
-	}
+        if(comma_delimiter)
+        {
+            poffset_str = comma_delimiter + 1;		
+        }
+        else
+        {
+            poffset_str = NULL;
+        }
+	}	
+    //validate that we got all offsets. If there is still space in thd_offsets then we didn't get all offsets
+    pOffset = (OFFSET*)&Audit_formatter::thd_offsets.query_id + i;
+    if ((size_t)pOffset- (size_t)&Audit_formatter::thd_offsets < sizeof (Audit_formatter::thd_offsets))
+    {
+        sql_print_error("%s Failed parsing audit_offsets: not all offsets specified. This may happen if you used an old version of offset-extract.sh script.", log_prefix);
+        return false;
+    }       
 	return true;
 }
 
@@ -871,7 +881,7 @@ static int setup_offsets()
         }
 		if (parse_thd_offsets_string (offsets_string)) 
 		{
-			sql_print_information ("%s setup_offsets Audit_formatter::thd_offsets values: %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu", log_prefix,
+			sql_print_information ("%s setup_offsets Audit_formatter::thd_offsets values: %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu", log_prefix,
 				Audit_formatter::thd_offsets.query_id,
 				Audit_formatter::thd_offsets.thread_id,
 				Audit_formatter::thd_offsets.main_security_ctx, 
@@ -881,7 +891,9 @@ static int setup_offsets()
 				Audit_formatter::thd_offsets.sec_ctx_user,
 				Audit_formatter::thd_offsets.sec_ctx_host,
 				Audit_formatter::thd_offsets.sec_ctx_ip,
-				Audit_formatter::thd_offsets.sec_ctx_priv_user);
+				Audit_formatter::thd_offsets.sec_ctx_priv_user,
+                Audit_formatter::thd_offsets.db,
+                Audit_formatter::thd_offsets.killed);
 
 			if (!validate_offsets(&Audit_formatter::thd_offsets))
 			{
