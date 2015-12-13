@@ -23,15 +23,33 @@ if [ $? = 0 ]; then
 fi
 
 COMMAND_MEMBER=command
+THREAD_ID=thread_id
+SEC_CONTEXT=main_security_ctx
+USER=user
+HOST=host
+IP=ip
+PRIV_USER=priv_user
+DB=db
 
 #in 5.6 command member is named m_command
-echo $MYVER | grep -P '^(5\.6|10\.)' > /dev/null
+echo $MYVER | grep -P '^(5\.6|5\.7|10\.)' > /dev/null
 if [ $? = 0 ]; then
 	COMMAND_MEMBER=m_command
 fi
+#in 5.7 thread_id changed to m_thread_id. main_security_ctx changed to m_main_security_ctx
+echo $MYVER | grep -P '^(5\.7)' > /dev/null
+if [ $? = 0 ]; then
+	THREAD_ID=m_thread_id
+    SEC_CONTEXT=m_main_security_ctx
+    USER=m_user
+    HOST=m_host
+    IP=m_ip
+    PRIV_USER=m_priv_user    
+    DB=m_db
+fi
 
 echo "set logging on" > offsets.gdb
-echo 'printf "{\"'$MYVER'\",\"'$MYMD5'\", %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d}", ((size_t)&((THD *)log_slow_statement)->query_id) - (size_t)log_slow_statement, ((size_t)&((THD *)log_slow_statement)->thread_id) - (size_t)log_slow_statement, ((size_t)&((THD *)log_slow_statement)->main_security_ctx) - (size_t)log_slow_statement, ((size_t)&((THD *)log_slow_statement)->'$COMMAND_MEMBER') - (size_t)log_slow_statement, ((size_t)&((THD *)log_slow_statement)->lex) - (size_t)log_slow_statement, (size_t)&((LEX*)log_slow_statement)->comment - (size_t)  log_slow_statement, ((size_t)&((Security_context *)log_slow_statement)->user) - (size_t)log_slow_statement, ((size_t)&((Security_context *)log_slow_statement)->host) - (size_t)log_slow_statement, ((size_t)&((Security_context *)log_slow_statement)->ip) - (size_t)log_slow_statement, ((size_t)&((Security_context *)log_slow_statement)->priv_user) - (size_t)log_slow_statement, ((size_t)&((THD *)log_slow_statement)->db) - (size_t)log_slow_statement, ((size_t)&((THD *)log_slow_statement)->killed) - (size_t)log_slow_statement' >> offsets.gdb
+echo 'printf "{\"'$MYVER'\",\"'$MYMD5'\", %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d}", ((size_t)&((THD *)log_slow_statement)->query_id) - (size_t)log_slow_statement, ((size_t)&((THD *)log_slow_statement)->'$THREAD_ID') - (size_t)log_slow_statement, ((size_t)&((THD *)log_slow_statement)->'$SEC_CONTEXT') - (size_t)log_slow_statement, ((size_t)&((THD *)log_slow_statement)->'$COMMAND_MEMBER') - (size_t)log_slow_statement, ((size_t)&((THD *)log_slow_statement)->lex) - (size_t)log_slow_statement, (size_t)&((LEX*)log_slow_statement)->comment - (size_t)  log_slow_statement, ((size_t)&((Security_context *)log_slow_statement)->'$USER') - (size_t)log_slow_statement, ((size_t)&((Security_context *)log_slow_statement)->'$HOST') - (size_t)log_slow_statement, ((size_t)&((Security_context *)log_slow_statement)->'$IP') - (size_t)log_slow_statement, ((size_t)&((Security_context *)log_slow_statement)->'$PRIV_USER') - (size_t)log_slow_statement, ((size_t)&((THD *)log_slow_statement)->'$DB') - (size_t)log_slow_statement, ((size_t)&((THD *)log_slow_statement)->killed) - (size_t)log_slow_statement' >> offsets.gdb
 
 SYMPARAM=""
 if [ -n "$2" ]; then

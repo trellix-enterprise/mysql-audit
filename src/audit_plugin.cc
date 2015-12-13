@@ -307,6 +307,9 @@ static int  (*trampoline_send_result_to_client)(Query_cache *pthis, THD *thd, ch
 #if MYSQL_VERSION_ID > 50505
 static bool (*trampoline_open_tables)(THD *thd, TABLE_LIST **start, uint *counter, uint flags,
                 Prelocking_strategy *prelocking_strategy) = NULL;
+#elif defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100108
+static bool (*trampoline_open_tables)(THD *thd, const DDL_options_st &options, TABLE_LIST **start, uint *counter, uint flags,
+                Prelocking_strategy *prelocking_strategy) = NULL;                
 #else
 static int (*trampoline_open_tables)(THD *thd, TABLE_LIST **start, uint *counter, uint flags) = NULL;
 #endif
@@ -381,6 +384,18 @@ static bool audit_open_tables(THD *thd, TABLE_LIST **start, uint *counter, uint 
 
     bool res;
     res = trampoline_open_tables (thd, start, counter, flags, prelocking_strategy);
+#elif defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100108
+static bool audit_open_tables(THD *thd, const DDL_options_st &options, TABLE_LIST **start, uint *counter, uint flags,
+                Prelocking_strategy *prelocking_strategy)
+{
+    bool res;
+    res = trampoline_open_tables (thd, options, start, counter, flags, prelocking_strategy);
+#else
+static int audit_open_tables(THD *thd, TABLE_LIST **start, uint *counter, uint flags)
+{
+    int res;
+    res = trampoline_open_tables (thd, start, counter, flags);
+#endif    
     //only log if thread id or query id is non 0 (otherwise this is comming from startup activity)
     if(Audit_formatter::thd_inst_thread_id(thd) || Audit_formatter::thd_inst_query_id(thd))
     {
@@ -389,20 +404,8 @@ static bool audit_open_tables(THD *thd, TABLE_LIST **start, uint *counter, uint 
     }
     return res;
 }
-#else
-static int audit_open_tables(THD *thd, TABLE_LIST **start, uint *counter, uint flags)
-{
-    bool res;
-    res = trampoline_open_tables (thd, start, counter, flags);
-    //only log if thread id or query id is non 0 (otherwise this is comming from startup activity)
-    if(Audit_formatter::thd_inst_thread_id(thd) || Audit_formatter::thd_inst_query_id(thd))
-    {         
-        ThdSesData thd_data (thd);
-        audit(&thd_data);
-    }
-    return res;
-}
-#endif
+    
+
 static unsigned int trampoline_open_tables_size =0;
 
 
@@ -509,15 +512,15 @@ void remove_hot_functions ()
 #if MYSQL_VERSION_ID > 50505
 	target_function = (void *)*(bool (*)(THD *thd, TABLE_LIST **start, uint *counter, uint flags,
                 Prelocking_strategy *prelocking_strategy)) &open_tables;
-	remove_hot_patch_function(target_function,
-	(void*) trampoline_open_tables, trampoline_open_tables_size, true);
-	trampoline_open_tables_size=0;
+#elif defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100108
+    target_function = (void *)*(bool (*)(THD *thd, const DDL_options_st &options, TABLE_LIST **start, uint *counter, uint flags,
+                Prelocking_strategy *prelocking_strategy)) &open_tables;
 #else
 	target_function = (void *)*(int (*)(THD *thd, TABLE_LIST **start, uint *counter, uint flags)) &open_tables;
+#endif
 	remove_hot_patch_function(target_function,
 	(void*) trampoline_open_tables, trampoline_open_tables_size, true);
 	trampoline_open_tables_size=0;
-#endif
 
 	int (Query_cache::*pf_send_result_to_client)(THD *,char *, uint) = &Query_cache::send_result_to_client;
 	target_function = *(void **) &pf_send_result_to_client;
@@ -1087,8 +1090,8 @@ static int set_com_status_vars_array ()
         size_t initial_offset = (size_t) com_status_vars[status_vars_index].value;
         status_vars_index =0;
         while  (com_status_vars[status_vars_index].name != NullS)
-        {
-            int sql_command_idx = (com_status_vars[status_vars_index].value - (char*) (initial_offset)) / sizeof (ulong);
+        {        
+            int sql_command_idx = ((size_t)(com_status_vars[status_vars_index].value) -  (initial_offset)) / sizeof (ulong);
             if (sql_command_idx >=0 && sql_command_idx < MAX_COM_STATUS_VARS_RECORDS)
             {
                 com_status_vars_array [sql_command_idx].name = com_status_vars[status_vars_index].name;
@@ -1493,20 +1496,18 @@ static void record_objs_string_update_extended(THD *thd, struct st_mysql_sys_var
 		
 #if MYSQL_VERSION_ID > 50505				
 	target_function = (void *)*(bool (*)(THD *thd, TABLE_LIST **start, uint *counter, uint flags,
+                Prelocking_strategy *prelocking_strategy)) &open_tables;			    
+#elif defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100108
+    target_function = (void *)*(bool (*)(THD *thd, const DDL_options_st &options, TABLE_LIST **start, uint *counter, uint flags,
                 Prelocking_strategy *prelocking_strategy)) &open_tables;
-	if(do_hot_patch((void **)&trampoline_open_tables, &trampoline_open_tables_size,  
-		(void *)target_function, (void *)audit_open_tables,  "open_tables"))
-	{
-		DBUG_RETURN(1);
-	}		    
 #else
-    target_function = (void *)*(int (*)(THD *thd, TABLE_LIST **start, uint *counter, uint flags)) &open_tables;
-	if(do_hot_patch((void **)&trampoline_open_tables, &trampoline_open_tables_size,  
+    target_function = (void *)*(int (*)(THD *thd, TABLE_LIST **start, uint *counter, uint flags)) &open_tables;	    
+#endif
+    if(do_hot_patch((void **)&trampoline_open_tables, &trampoline_open_tables_size,  
 		(void *)target_function, (void *)audit_open_tables,  "open_tables"))
 	{
 		DBUG_RETURN(1);
-	}    
-#endif
+	}
     if (set_com_status_vars_array () !=0)
     {
         DBUG_RETURN(1);
