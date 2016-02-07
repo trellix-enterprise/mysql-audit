@@ -48,7 +48,9 @@ ThdOffsets Audit_formatter::thd_offsets = { 0 };
 Audit_handler * Audit_handler::m_audit_handler_list[Audit_handler::MAX_AUDIT_HANDLERS_NUM];
 const char * Audit_json_formatter::DEF_MSG_DELIMITER = "\\n";
 
+#if MYSQL_VERSION_ID < 50709
 #define C_STRING_WITH_LEN(X) ((char *) (X)), ((size_t) (sizeof(X) - 1))
+#endif
 
 
 const char *  Audit_formatter::retrieve_object_type (TABLE_LIST *pObj)
@@ -465,7 +467,25 @@ static  const char * retrieve_user (THD * thd)
 
 //will return a pointer to the query and set len with the length of the query
 //starting with MySQL version 5.1.41 thd_query_string is added
-#if MYSQL_VERSION_ID > 50140
+//And at 5.7 it changed
+#if ! defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50709
+
+extern "C" LEX_CSTRING thd_query_unsafe(MYSQL_THD thd);
+
+static const char * thd_query_str(THD * thd, size_t * len)
+{
+    const LEX_CSTRING str = thd_query_unsafe(thd);
+    if(str.length > 0)
+    {
+        *len = str.length;
+        return str.str;
+    }
+    *len = 0;
+    return NULL;
+}
+
+#elif defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID > 50140
+
 extern "C" {
     MYSQL_LEX_STRING *thd_query_string(MYSQL_THD thd);
 }
@@ -548,6 +568,40 @@ ssize_t Audit_json_formatter::start_msg_format(IWriter * writer)
 	
 }
 
+// This routine replaces clear text with the string in `replace', leaving the rest of the string intact.
+//
+// thd			- MySQL thread, used for allocating memory
+// str			- pointer to start of original string
+// str_len		- length thereof
+// cleartext_start	- start of cleartext to replace
+// cleartext_len	- length of cleartext
+// replace		- \0 terminated string with replacement text
+static const char *replace_in_string(THD *thd,
+					const char *str, size_t str_len,
+					size_t cleartext_start, size_t cleartext_len,
+					const char *replace)
+{
+	size_t to_alloc = str_len + strlen(replace) + 1;
+	char *new_str = (char *) thd_alloc(thd, to_alloc);
+	memset(new_str, '\0', to_alloc);
+
+	// point to text after clear text
+	const char *trailing = str + cleartext_start + cleartext_len;
+	// how much text after clear text to copy in
+	size_t final_to_move = ((str + str_len) - trailing);
+
+	char *pos = new_str;
+	memcpy(pos, str, cleartext_start);	// copy front of string
+	pos += cleartext_start;
+
+	memcpy(pos, replace, strlen(replace));	// copy replacement text
+	pos += strlen(replace);
+
+	memcpy(pos, trailing, final_to_move);	// copy trailing part of string
+
+	return new_str;
+}
+
 ssize_t Audit_json_formatter::event_format(ThdSesData* pThdData, IWriter * writer)
 {
 	THD * thd = pThdData->getTHD();
@@ -598,16 +652,35 @@ ssize_t Audit_json_formatter::event_format(ThdSesData* pThdData, IWriter * write
         const CHARSET_INFO *col_connection;
 #endif
 		col_connection = Item::default_charset();
-		
-		String sQuery (query,qlen,col_connection) ;
-		if (strcmp (col_connection->csname,"utf8")!=0) {						
-			pThdData->getTHD()->convert_string (&sQuery,col_connection,&my_charset_utf8_general_ci);						
+
+		// See comment below as to why we don't use String class directly, or call
+		// pThdData->getTHD()->convert_string (&sQuery,col_connection,&my_charset_utf8_general_ci);
+		const char *query_text = query;
+		size_t query_len = qlen;
+
+		if (strcmp(col_connection->csname, "utf8") != 0) {
+			// max UTF-8 bytes per char is 4.
+			size_t to_amount = (qlen * 4) + 1;
+			char* to = (char *) thd_alloc(thd, to_amount);
+
+			uint errors = 0;
+
+			size_t len = copy_and_convert(to, to_amount,
+				&my_charset_utf8_general_ci,
+				query, qlen,
+				col_connection, & errors);
+
+			to[len] = '\0';
+
+			query = to;
+			qlen = len;
 		}
+
 		if(m_perform_password_masking && m_password_mask_regex_compiled && m_password_mask_regex_preg && m_perform_password_masking(cmd))
 		{
 			//do password masking
 			int matches[90] = {0};
-			if(pcre_exec(m_password_mask_regex_preg, NULL, sQuery.ptr(), sQuery.length(), 0, 0, matches,  array_elements(matches)) >= 0)
+			if(pcre_exec(m_password_mask_regex_preg, NULL, query_text, query_len, 0, 0, matches,  array_elements(matches)) >= 0)
 			{
 				//search for the first substring that matches with the name psw
 				char *first = NULL, *last = NULL;
@@ -619,17 +692,24 @@ ssize_t Audit_json_formatter::event_format(ThdSesData* pThdData, IWriter * write
 						//first 2 bytes give us the number
 						int n = (((int)(entry)[0]) << 8) | (entry)[1];
 						if (n > 0 && n < (int)array_elements(matches) && matches[n*2] >= 0)
-						{ //we have a match
-							sQuery.copy(); //make sure string is alloced before doing replace
-							const char * pass_replace = "***";
-							sQuery.replace(matches[n*2], matches[(n*2) + 1] - matches[n*2], pass_replace, strlen(pass_replace));
+						{
+							// We have a match.
+
+							// Starting with MySQL 5.7, we cannot use the String::replace() function.
+							// Doing so causes a crash in the string's destructor. It appears that the
+							// interfaces in MySQL have changed fairly drastically. So we just do the
+							// replacement ourselves.
+							const char *pass_replace = "***";
+							const char *updated = replace_in_string(thd, query_text, query_len, matches[n*2], matches[(n*2) + 1] - matches[n*2], pass_replace);
+							query_text = updated;
+							query_len = strlen(query_text);
 							break;
 						}
 					}
 				}								
 			}
 		}
-		yajl_add_string_val(gen, "query", sQuery.ptr(), sQuery.length());		
+		yajl_add_string_val(gen, "query", query_text, query_len);
     }
     else 
     {
@@ -691,7 +771,9 @@ bool ThdSesData::startGetObjects()
     }
     const char *cmd = getCmdName();
     //commands which have single database object
-    if (strcmp (cmd,"Init DB") ==0 || strcmp (cmd, "SHOW TABLES")== 0 || strcmp (cmd,  "SHOW TABLE")==0)
+    if (strcmp (cmd,"Init DB") ==0
+        || strcmp (cmd, "SHOW TABLES")== 0
+        || strcmp (cmd,  "SHOW TABLE")==0)
     {
         if(Audit_formatter::thd_db(getTHD()))
         {

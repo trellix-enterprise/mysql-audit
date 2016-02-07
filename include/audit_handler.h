@@ -20,6 +20,18 @@
 #define AUDIT_LOG_PREFIX "Audit Plugin:"
 #define AUDIT_PROTOCOL_VERSION "1.0"
 
+#if !defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50709
+// For locking we use the native lock routines provided by MySQL.
+// The data types and functions for native locking changed at 5.7.x.
+// Try to hide this with macros.
+#define rw_lock_t	native_rw_lock_t
+#define rw_rdlock	native_rw_rdlock
+#define rw_wrlock	native_rw_wrlock
+#define rw_unlock	native_rw_unlock
+#define rwlock_destroy	native_rw_destroy
+#define my_rwlock_init(lock, unused)	native_rw_init(lock)
+#endif
+
 class THD;
 
 #define MAX_NUM_QUERY_TABLE_ELEM 100
@@ -190,7 +202,11 @@ public:
     {		
 		if(!Audit_formatter::thd_offsets.db) //no offsets use compiled in header
 		{
-			return thd->db;
+#if defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID < 50709
+ 			return thd->db;
+#else
+			return thd->db().str;
+#endif
 		}
         return *(const char **) (((unsigned char *) thd)
                 + Audit_formatter::thd_offsets.db);        
@@ -211,7 +227,11 @@ public:
 		Security_context * sctx = thd_inst_main_security_ctx(thd);
 		if(!Audit_formatter::thd_offsets.sec_ctx_user) //no offsets use compiled in header
 		{
-			return sctx->user;
+#if defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID < 50709
+ 			return sctx->user;
+#else
+			return sctx->user().str;
+#endif
 		}		
         return *(const char **) (((unsigned char *) sctx)
                 + Audit_formatter::thd_offsets.sec_ctx_user);
@@ -224,11 +244,20 @@ public:
 		{
 		//interface changed in 5.5.34 and 5.6.14 and up host changed to get_host()
 		//see: http://bazaar.launchpad.net/~mysql/mysql-server/5.5/revision/4407.1.1/sql/sql_class.h
-#if  !defined(MARIADB_BASE_VERSION) && ( ( MYSQL_VERSION_ID >= 50534 && MYSQL_VERSION_ID < 50600) || (MYSQL_VERSION_ID >= 50614) )
-		return sctx->get_host()->ptr();
-#else
+#if defined(MARIADB_BASE_VERSION) 
 		return sctx->host;
+#else
+		// MySQL
+#if  MYSQL_VERSION_ID < 50534 || (MYSQL_VERSION_ID >= 50600 && MYSQL_VERSION_ID < 50614)
+		return sctx->host;
+#elif (MYSQL_VERSION_ID >= 50534 && MYSQL_VERSION_ID < 50600) \
+	|| (MYSQL_VERSION_ID >= 50614 &&  MYSQL_VERSION_ID < 50709)
+ 		return sctx->get_host()->ptr();
+#else
+		// interface changed again in 5.7
+		return sctx->host().str;
 #endif
+#endif // ! defined(MARIADB_BASE_VERSION)
 		}
         return *(const char **) (((unsigned char *) sctx)
                 + Audit_formatter::thd_offsets.sec_ctx_host);
@@ -240,11 +269,20 @@ public:
 		if(!Audit_formatter::thd_offsets.sec_ctx_ip) //no offsets use compiled in header
 		{
 //interface changed in 5.5.34 and 5.6.14 and up host changed to get_ip()
-#if !defined(MARIADB_BASE_VERSION) && ( (MYSQL_VERSION_ID >= 50534 && MYSQL_VERSION_ID < 50600) || (MYSQL_VERSION_ID >= 50614) )
+#if defined(MARIADB_BASE_VERSION) 
+		return sctx->ip;
+#else
+		// MySQL
+#if  MYSQL_VERSION_ID < 50534 || (MYSQL_VERSION_ID >= 50600 && MYSQL_VERSION_ID < 50614)
+		return sctx->ip;
+#elif (MYSQL_VERSION_ID >= 50534 && MYSQL_VERSION_ID < 50600) \
+	|| (MYSQL_VERSION_ID >= 50614 &&  MYSQL_VERSION_ID < 50709)
 		return sctx->get_ip()->ptr();
 #else
-		return sctx->ip;
-#endif					
+		// interface changed again in 5.7
+		return sctx->ip().str;
+#endif
+#endif // ! defined(MARIADB_BASE_VERSION)
 		}		
         return *(const char **) (((unsigned char *) sctx)
                 + Audit_formatter::thd_offsets.sec_ctx_ip);
@@ -255,7 +293,11 @@ public:
 		Security_context * sctx = thd_inst_main_security_ctx(thd);
 		if(!Audit_formatter::thd_offsets.sec_ctx_priv_user) //no offsets use compiled in header
 		{
-			return sctx->priv_user;
+#if defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID < 50709
+ 			return sctx->priv_user;
+#else
+			return sctx->priv_user().str;
+#endif
 		}		
 #if MYSQL_VERSION_ID < 50505 
 		//in 5.1.x priv_user is a pointer

@@ -35,15 +35,20 @@ This will create configure script. Then run:
 CXX='gcc -static-libgcc' CC='gcc -static-libgcc' ./configure --with-mysql=mysql-5.1.40
 
 
-==== MySQL 5.5 / 5.6 ======
+==== MySQL 5.5 / 5.6 / 5.7 ======
 
-Extract MySQL 5.5 or 5.6 source code
+Extract MySQL 5.5, 5.6, or 5.7 source code
 
 go to mysql-src dir and run:
 
-cd mysql-5.5.x or mysql-5.6.x
+cd mysql-5.5.x or mysql-5.6.x or mysql-5.7.x
 cmake .
 make
+
+Note: MySQL 5.7 requires Boost 1.59. You may have to install that
+first (see www.boost.org). In such a case, use:
+
+	cmake -DWITH_BOOST=/path/to/boost_1_59_0 .
 
 Note: For MariaDB use:  cmake . -DBUILD_CONFIG=mysql_release
 

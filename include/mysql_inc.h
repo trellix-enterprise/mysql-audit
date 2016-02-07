@@ -14,17 +14,27 @@
 
 #include <my_config.h>
 #include <mysql_version.h>
+
+#if MYSQL_VERSION_ID < 50505
+#include <mysql_priv.h>
+#else
+
 //version 5.5.x doesn't contain mysql_priv.h . We need to add the includes provided by it.
-
-
 #if MYSQL_VERSION_ID >= 50505
+
+// These two are not present in 5.7.9
+#if MYSQL_VERSION_ID < 50709
 #include <my_pthread.h>
 #include <sql_priv.h>
+#endif
+
 #include <mysql/plugin.h>
+
 #if MYSQL_VERSION_ID >= 50600
-//in 5.6 we use the audit plugin interface
+// From 5.6 we use the audit plugin interface
 #include <mysql/plugin_audit.h>
 #endif
+
 #include <sql_parse.h>
 #include <sql_class.h>
 #include <my_global.h>
@@ -41,9 +51,14 @@
 #define pthread_mutex_destroy mysql_mutex_destroy
 #define pthread_mutex_t mysql_mutex_t
 */
+#endif /* ! if MYSQL_VERSION_ID >= 50505 */
+#endif /* ! if MYSQL_VERSION_ID < 50505 */
 
-#else
-#include <mysql_priv.h>
+#if MYSQL_VERSION_ID >= 50709
+#include <sql/log.h>
+#if ! defined(MARIADB_BASE_VERSION)
+#include <sql/auth/auth_common.h>
+#endif
 #endif
 
 #include <violite.h>

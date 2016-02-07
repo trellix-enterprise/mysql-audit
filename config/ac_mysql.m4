@@ -27,8 +27,13 @@ AC_DEFUN([MYSQL_SRC_TEST], [
          AC_MSG_ERROR([Failed to find required header file $file in $withval, check the path and make sure you've run './configure ..<options>.. && cd include && make' in MySQL 5.1 sources dir or 'cmake . && make' in MySQL 5.5 sources dir.])
       fi
     done 
+dnl binary_log_types.h included by mysql_com.h included by mysql_inc.h -
+dnl is found in libbinlogevents/export.
+dnl
+dnl table_id.h included from table.h included by mysql_inc.h is
+dnl in libbinlogevents/include.
     AC_DEFINE([MYSQL_SRC], [1], [Source directory for MySQL])
-    MYSQL_INC="-I$withval/sql -I$withval/include -I$withval/regex -I$withval"
+    MYSQL_INC="-I$withval/sql -I$withval/libbinlogevents/export -I$withval/libbinlogevents/include -I$withval/include -I$withval/regex -I$withval"
     AC_MSG_RESULT(["$withval"])
   ],
   [
