@@ -43,13 +43,13 @@ extern void MD5_Init(MD5_CTX *ctx);
 extern void MD5_Update(MD5_CTX *ctx, void *data, unsigned long size);
 extern void MD5_Final(unsigned char *result, MD5_CTX *ctx);
 
-//define the my_MD5* functions
+// define the my_MD5* functions
 #define my_MD5Context MD5_CTX
 #define my_MD5Init MD5_Init
 #define my_MD5Update MD5_Update
 #define my_MD5Final MD5_Final
 
 
-#endif //#if MYSQL_VERSION_ID >= 50600 
+#endif // #if MYSQL_VERSION_ID >= 50600 
  
 #endif
