@@ -40,13 +40,11 @@
     fprintf(f, __VA_ARGS__);\
 } while (0)
 
-// regex flags used in compilation
-static const int regex_flags = PCRE_DOTALL | PCRE_UTF8 | PCRE_CASELESS | PCRE_DUPNAMES;
 
 // initialize static stuff
 ThdOffsets Audit_formatter::thd_offsets = { 0 };
 Audit_handler *Audit_handler::m_audit_handler_list[Audit_handler::MAX_AUDIT_HANDLERS_NUM];
-const char * Audit_json_formatter::DEF_MSG_DELIMITER = "\\n";
+const char *Audit_json_formatter::DEF_MSG_DELIMITER = "\\n";
 
 #if MYSQL_VERSION_ID < 50709
 #define C_STRING_WITH_LEN(X) ((char *) (X)), ((size_t) (sizeof(X) - 1))
@@ -263,7 +261,8 @@ bool Audit_io_handler::handler_start_internal()
 	}
 	ssize_t res = m_formatter->start_msg_format(this);
 	/*
-	 * Sanity check of writing to the log. If we fail, we print an erorr and disable this handler.
+	 * Sanity check of writing to the log. If we fail, we print an
+	 * error and disable this handler.
 	 */
 	if (res < 0)
 	{
@@ -495,7 +494,7 @@ extern "C" {
 
 static const char *thd_query_str(THD *thd, size_t *len)
 {
-	MYSQL_LEX_STRING * str = thd_query_string(thd);
+	MYSQL_LEX_STRING *str = thd_query_string(thd);
 	if (str)
 	{
 		*len = str->length;
@@ -879,6 +878,9 @@ pcre *Audit_json_formatter::regex_compile(const char *str)
 {
 	const char *error;
 	int erroffset;
+	static const int regex_flags =
+		PCRE_DOTALL | PCRE_UTF8 | PCRE_CASELESS | PCRE_DUPNAMES;
+
 	pcre *re = pcre_compile(str, regex_flags, &error, &erroffset, NULL);
 	if (!re)
 	{

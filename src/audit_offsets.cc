@@ -22,6 +22,12 @@
 const ThdOffsets thd_offsets_arr[] =
 {
 	/* +++ MYSQL 64 OFFSETS GO HERE +++ */
+	//offsets for: /mysqlrpm/5.7.12/usr/sbin/mysqld (5.7.12)
+	{"5.7.12","f2061aef037c01412ecf9142fe627572", 7800, 7848, 3624, 4776, 456, 360, 0, 32, 64, 160, 536, 7964},
+	//offsets for: /mysqlrpm/5.5.49/usr/sbin/mysqld (5.5.49)
+	{"5.5.49","bae752665a4ebcff87a5933350cc1cbf", 6144, 6192, 3816, 4312, 88, 2592, 96, 0, 32, 104, 120, 6264},
+	//offsets for: /mysqlrpm/5.6.30/usr/sbin/mysqld (5.6.30)
+	{"5.6.30","84dd43523b638e4b2817ca9b53f204fe", 6992, 7040, 4000, 4520, 72, 2704, 96, 0, 32, 104, 136, 7128},
 	//offsets for: /mysqlrpm/5.5.48/usr/sbin/mysqld (5.5.48)
 	{"5.5.48","69b209f0c08027a501b1cb7a20e6e582", 6144, 6192, 3816, 4312, 88, 2592, 96, 0, 32, 104, 120, 6264},
 	//offsets for: /mysqlrpm/5.6.29/usr/sbin/mysqld (5.6.29)
@@ -425,6 +431,12 @@ const ThdOffsets thd_offsets_arr[] =
 const ThdOffsets thd_offsets_arr[] =
 {
 	/* +++ MYSQL 32 OFFSETS GO HERE +++ */
+	//offsets for: /mysqlrpm/5.7.12/usr/sbin/mysqld (5.7.12)
+	{"5.7.12","c544b5ccfc52a7e4667e0766fbad0909", 5072, 5100, 2208, 3028, 296, 200, 0, 20, 40, 100, 340, 5188},
+	//offsets for: /mysqlrpm/5.5.49/usr/sbin/mysqld (5.5.49)
+	{"5.5.49","3fbac9ee400e5ca56e0b328f23c38b54", 3872, 3900, 2368, 2748, 44, 1656, 60, 0, 20, 64, 60, 3956},
+	//offsets for: /mysqlrpm/5.6.30/usr/sbin/mysqld (5.6.30)
+	{"5.6.30","bcf06179a987910bff85ee0482f8391f", 4676, 4704, 2660, 3052, 36, 1748, 60, 0, 20, 64, 72, 4776},
 	//offsets for: /mysqlrpm/5.5.48/usr/sbin/mysqld (5.5.48)
 	{"5.5.48","731f6399029830b0b9ffa151541ed474", 3872, 3900, 2368, 2748, 44, 1656, 60, 0, 20, 64, 60, 3956},
 	//offsets for: /mysqlrpm/5.6.29/usr/sbin/mysqld (5.6.29)

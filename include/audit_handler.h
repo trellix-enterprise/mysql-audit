@@ -39,17 +39,17 @@ typedef struct _QueryTableInf {
 	int num_of_elem;
 	char *db[MAX_NUM_QUERY_TABLE_ELEM];
 	char *table_name[MAX_NUM_QUERY_TABLE_ELEM];
-	const char *object_type [MAX_NUM_QUERY_TABLE_ELEM];
-} QueryTableInf; 
+	const char *object_type[MAX_NUM_QUERY_TABLE_ELEM];
+} QueryTableInf;
 
 #define MAX_NUM_QUEUE_ELEM 1024
 typedef struct _THDPRINTED {
-    size_t cur_index;
-    char is_thd_printed_queue [MAX_NUM_QUEUE_ELEM];
+	size_t cur_index;
+	char is_thd_printed_queue[MAX_NUM_QUEUE_ELEM];
 } THDPRINTED;
 
 #define MAX_COMMAND_CHAR_NUMBERS 40
-const char *retrieve_command(THD *thd, bool & is_sql_cmd);
+const char *retrieve_command(THD *thd, bool& is_sql_cmd);
 typedef size_t OFFSET;
 
 #define MAX_COM_STATUS_VARS_RECORDS 512
@@ -106,13 +106,13 @@ public:
 	}
 	// return 0 on success
 	virtual int open(const char *io_dest, bool log_errors) = 0;
-	virtual void close() = 0;	
+	virtual void close() = 0;
 };
 
 class ThdSesData {
 public:
 	// enum indicating from where the object list came from
-	enum ObjectIterType {OBJ_NONE, OBJ_DB, OBJ_QUERY_CACHE, OBJ_TABLE_LIST};
+	enum ObjectIterType { OBJ_NONE, OBJ_DB, OBJ_QUERY_CACHE, OBJ_TABLE_LIST };
 	ThdSesData(THD *pTHD);
 	THD *getTHD() { return m_pThd;}
 	const char *getCmdName() { return m_CmdName; }
@@ -122,7 +122,8 @@ public:
 	 */
 	bool startGetObjects();
 	/**
-	 * Get next object. Return true if populated. False if there isn't an object available.
+	 * Get next object. Return true if populated. False if there isn't an
+	 * object available.
 	 * Will point the passed pointers to point to db, name and type.
 	 * obj_type is optional and may be null.
 	 */
@@ -146,7 +147,7 @@ protected:
 	ThdSesData(const ThdSesData&);
 	ThdSesData &operator =(const ThdSesData&);
 };
- 
+
 /**
  * Base for audit formatter
  */
@@ -155,29 +156,32 @@ public:
 	virtual ~Audit_formatter() {}
 
 	/**
-	 * static offsets to use for fetching THD data. Set by the audit plugin during startup.
+	 * static offsets to use for fetching THD data.
+	 * Set by the audit plugin during startup.
 	 */
 	static ThdOffsets thd_offsets;
 
 	/**
-	 * Format an audit event from the passed THD. Will write out its output using the audit_write_func.
+	 * Format an audit event from the passed THD.
+	 * Will write out its output using the audit_write_func.
 	 *
 	 * @return -1 on a failure
 	 */
-	virtual ssize_t event_format(ThdSesData *pThdData, IWriter *writer) =0;
+	virtual ssize_t event_format(ThdSesData *pThdData, IWriter *writer) = 0;
 	/**
-	 * format a message when handler is started
+	 * Format a message when handler is started
 	 * @return -1 on a failure
 	 */
 	virtual ssize_t start_msg_format(IWriter *writer) { return 0; }
 	/**
-	 * format a message when handler is stopped
+	 * Format a message when handler is stopped
 	 * @return -1 on a failure
 	 */
 	virtual ssize_t stop_msg_format(IWriter *writer) { return 0; }
 
 	static const char *retrieve_object_type(TABLE_LIST *pObj);
 	static QueryTableInf *getQueryCacheTableList1(THD *thd);
+
 	// utility functions for fetching thd stuff
 	static inline my_thread_id thd_inst_thread_id(THD *thd)
 	{
@@ -196,7 +200,7 @@ public:
 	}
 
 	static inline const char *thd_db(THD *thd)
-	{		
+	{
 		if (! Audit_formatter::thd_offsets.db) // no offsets use compiled in header
 		{
 #if defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID < 50709
@@ -206,17 +210,17 @@ public:
 #endif
 		}
 		return *(const char **) (((unsigned char *) thd)
-				+ Audit_formatter::thd_offsets.db);        
+				+ Audit_formatter::thd_offsets.db);
 	}
 
 	static inline int thd_killed(THD *thd)
-	{		
+	{
 		if (! Audit_formatter::thd_offsets.killed) // no offsets use thd_killed function
 		{
 			return ::thd_killed(thd);
 		}
 		return *(int *) (((unsigned char *) thd)
-				+ Audit_formatter::thd_offsets.killed);        
+				+ Audit_formatter::thd_offsets.killed);
 	}
 
 	static inline const char *thd_inst_main_security_ctx_user(THD *thd)
@@ -229,7 +233,7 @@ public:
 #else
 			return sctx->user().str;
 #endif
-		}		
+		}
 		return *(const char **) (((unsigned char *) sctx)
 				+ Audit_formatter::thd_offsets.sec_ctx_user);
 	}
@@ -241,7 +245,7 @@ public:
 		{
 			// interface changed in 5.5.34 and 5.6.14 and up host changed to get_host()
 			// see: http://bazaar.launchpad.net/~mysql/mysql-server/5.5/revision/4407.1.1/sql/sql_class.h
-#if defined(MARIADB_BASE_VERSION) 
+#if defined(MARIADB_BASE_VERSION)
 			return sctx->host;
 #else
 			// MySQL
@@ -266,7 +270,7 @@ public:
 		if (! Audit_formatter::thd_offsets.sec_ctx_ip) // no offsets use compiled in header
 		{
 			// interface changed in 5.5.34 and 5.6.14 and up host changed to get_ip()
-#if defined(MARIADB_BASE_VERSION) 
+#if defined(MARIADB_BASE_VERSION)
 			return sctx->ip;
 #else
 			// MySQL
@@ -280,7 +284,7 @@ public:
 			return sctx->ip().str;
 #endif
 #endif // ! defined(MARIADB_BASE_VERSION)
-		}		
+		}
 		return *(const char **) (((unsigned char *) sctx)
 				+ Audit_formatter::thd_offsets.sec_ctx_ip);
 	}
@@ -295,8 +299,8 @@ public:
 #else
 			return sctx->priv_user().str;
 #endif
-		}		
-#if MYSQL_VERSION_ID < 50505 
+		}
+#if MYSQL_VERSION_ID < 50505
 		// in 5.1.x priv_user is a pointer
 		return *(const char **) (((unsigned char *) sctx)
 				+ Audit_formatter::thd_offsets.sec_ctx_priv_user);
@@ -317,7 +321,8 @@ public:
 		return *(LEX **) (((unsigned char *) thd) + Audit_formatter::thd_offsets.lex);
 	}
 
-	// we don't use get_db_name() as when we call it view may be not null and it may return an invalid value for view_db 
+	// we don't use get_db_name() as when we call it view may be not null
+	// and it may return an invalid value for view_db
 	static inline const char *table_get_db_name(TABLE_LIST *table)
 	{
 		return table->db;
@@ -328,7 +333,7 @@ public:
 		return table->table_name;
 	}
 
-	static inline bool table_is_view(TABLE_LIST *table)	
+	static inline bool table_is_view(TABLE_LIST *table)
 	{
 		return table->view_tables != 0;
 	}
@@ -342,28 +347,33 @@ class Audit_json_formatter: public Audit_formatter {
 public:
 	static const char *DEF_MSG_DELIMITER;
 
-	Audit_json_formatter(): m_msg_delimiter(NULL), m_write_start_msg(true), m_password_mask_regex_preg(NULL),
-		m_password_mask_regex_compiled(false), m_perform_password_masking(NULL)
+	Audit_json_formatter()
+		: m_msg_delimiter(NULL),
+		m_write_start_msg(true),
+		m_password_mask_regex_preg(NULL),
+		m_password_mask_regex_compiled(false),
+		m_perform_password_masking(NULL)
 	{
 		config.beautify = 0;
 		config.indentString = NULL;
 	}
 
-	virtual ~Audit_json_formatter() 
+	virtual ~Audit_json_formatter()
 	{
 		if (m_password_mask_regex_preg)
 		{
 			m_password_mask_regex_compiled = false;
 			pcre_free(m_password_mask_regex_preg);
-			m_password_mask_regex_preg = NULL;			
+			m_password_mask_regex_preg = NULL;
 		}
 	}
 
 	virtual ssize_t event_format(ThdSesData *pThdData, IWriter *writer);
-	virtual ssize_t start_msg_format(IWriter *writer);		
+	virtual ssize_t start_msg_format(IWriter *writer);
 
 	/**
-	 * Utility method used to compile a regex program. Will compile and log errors if necessary.
+	 * Utility method used to compile a regex program.
+	 * Will compile and log errors if necessary.
 	 * Return null if fails
 	 */
 	static pcre *regex_compile(const char *str);
@@ -378,7 +388,7 @@ public:
 	 * Boolean indicating if to log start msg.
 	 * Public so sysvar can update.
 	 */
-	my_bool m_write_start_msg;		
+	my_bool m_write_start_msg;
 
 
 	/**
@@ -387,7 +397,8 @@ public:
 	my_bool (*m_perform_password_masking)(const char *cmd);
 
 	/**
-	 * Message delimiter. Should point to a valid json string (supporting the json escapping format).
+	 * Message delimiter. Should point to a valid json string
+	 * (supporting the json escapping format).
 	 * Will only be checked at the start. Public so can be set by sysvar.
 	 *
 	 * We only support a delimiter up to 32 chars
@@ -452,10 +463,12 @@ public:
 	}
 
 	/**
-	 * Should be called to initialize. We don't init in constructor in order to provide indication if
+	 * Should be called to initialize.
+	 * We don't init in constructor in order to provide indication if
 	 * pthread stuff failed init.
 	 *
-	 * @frmt the formatter to use in this handler (does not manage distruction of this object)
+	 * @frmt the formatter to use in this handler (does not manage
+	 * destruction of this object)
 	 * @return 0 on success
 	 */
 	int init(Audit_formatter *frmt)
@@ -465,16 +478,19 @@ public:
 		{
 			return 0;
 		}
+
 		int res = my_rwlock_init(&LOCK_audit, NULL);
 		if (res)
 		{
 			return res;
 		}
+
 		res = pthread_mutex_init(&LOCK_io, MY_MUTEX_INIT_SLOW);;
 		if (res)
 		{
 			return res;
 		}
+
 		m_initialized = true;
 		return res;
 	}
@@ -499,7 +515,7 @@ public:
 	/**
 	 * Will get relevant shared lock and call internal method of handler
 	 */
-	void log_audit(ThdSesData *pThdData);		
+	void log_audit(ThdSesData *pThdData);
 
 	/**
 	 * Public so can be configured via sysvar
@@ -511,7 +527,7 @@ protected:
 	virtual void handler_start();
 	// wiil call internal method and set failed as needed
 	bool handler_start_nolock();
-	virtual void handler_stop();    
+	virtual void handler_stop();
 	virtual bool handler_start_internal() = 0;
 	virtual void handler_stop_internal() = 0;
 	virtual bool handler_log_audit(ThdSesData *pThdData) =0;
@@ -519,7 +535,7 @@ protected:
 	bool m_enabled;
 	bool m_failed;
 	bool m_log_io_errors;
-	time_t m_last_retry_sec_ts;	    
+	time_t m_last_retry_sec_ts;
 	inline void set_failed()
 	{
 		time(&m_last_retry_sec_ts);
@@ -528,12 +544,13 @@ protected:
 	}
 	inline bool is_failed_now()
 	{
-		return m_failed && (m_retry_interval < 0 || 
+		return m_failed && (m_retry_interval < 0 ||
 				difftime(time(NULL), m_last_retry_sec_ts) > m_retry_interval);
 	}
-	// override default assignment and copy to protect against creating additional instances
+	// override default assignment and copy to protect against
+	// creating additional instances
 	Audit_handler & operator=(const Audit_handler&);
-	Audit_handler(const Audit_handler&);	
+	Audit_handler(const Audit_handler&);
 private:
 	// bool indicating if to print offset errors to log or not
 	bool m_print_offset_err;
@@ -565,8 +582,8 @@ public:
 	{
 	}
 
-	virtual ~Audit_io_handler() 
-	{        
+	virtual ~Audit_io_handler()
+	{
 	}
 
 
@@ -604,7 +621,8 @@ public:
 	unsigned int m_sync_period;
 
 	/**
-	 * The buf size used by the file stream. 0 = use default, negative or 1 = no buffering
+	 * The buf size used by the file stream. 0 = use default,
+	 * negative or 1 = no buffering
 	 */
 	long m_bufsize;
 
@@ -618,7 +636,8 @@ public:
 	int open(const char *io_dest, bool m_log_errors);
 	// static void print_sleep(THD *thd, int delay_ms);
 protected:
-	// override default assignment and copy to protect against creating additional instances
+	// override default assignment and copy to protect against creating
+	// additional instances
 	Audit_file_handler & operator=(const Audit_file_handler&);
 	Audit_file_handler(const Audit_file_handler&);
 
@@ -661,7 +680,7 @@ public:
 protected:
 	// override default assignment and copy to protect against creating additional instances
 	Audit_socket_handler & operator=(const Audit_socket_handler&);
-	Audit_socket_handler(const Audit_socket_handler&);        
+	Audit_socket_handler(const Audit_socket_handler&);
 
 	/**
 	 * Will acquire locks and call handler_write
@@ -669,7 +688,7 @@ protected:
 	virtual bool handler_log_audit(ThdSesData *pThdData);
 	// Vio we write to
 	// define as void* so we don't access members directly
-	void *m_vio;    
+	void *m_vio;
 };
 
 #endif /* AUDIT_HANDLER_H_ */

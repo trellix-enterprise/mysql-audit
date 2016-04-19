@@ -28,7 +28,7 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 
-INCLUDES = $(YAJL_INC)
+AM_CPPFLAGS = $(YAJL_INC)
 
 noinst_LTLIBRARIES =  libyajl.la
 libyajl_la_SOURCES =  yajl_alloc.c  yajl_buf.c  yajl.c  yajl_encode.c  yajl_gen.c  yajl_lex.c  yajl_parser.c  yajl_version.c

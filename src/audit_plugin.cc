@@ -53,7 +53,7 @@ static my_bool offsets_by_version_enable = FALSE;
 static my_bool validate_offsets_extended_enable = FALSE;
 static char *offsets_string = NULL;
 static char *checksum_string = NULL;
-static int delay_ms_val =0;
+static int delay_ms_val = 0;
 static char *delay_cmds_string = NULL;
 static char delay_cmds_buff[4096] = {0};
 static char *whitelist_cmds_string = NULL;
@@ -1604,7 +1604,8 @@ static int audit_plugin_init(void *p)
 		DBUG_RETURN(1);
 	}
 
-	// enable according to what we have in *file_handler_enable (this is set accordingly by sysvar functionality)
+	// enable according to what we have in *file_handler_enable
+	// (this is set accordingly by sysvar functionality)
 	json_file_handler.set_enable(json_file_handler_enable);
 	json_socket_handler.set_enable(json_socket_handler_enable);
 	Audit_handler::m_audit_handler_list[Audit_handler::JSON_FILE_HANDLER] = &json_file_handler;

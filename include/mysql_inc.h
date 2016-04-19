@@ -8,8 +8,10 @@
 #define MYSQL_DYNAMIC_PLUGIN 1
 #define MYSQL_SERVER 1
 
-// Fix for VIO. We don't want to using method mapping as then a change in the struct will cause the offsets compiled with to 
-// be wrong. As is the case with ndb which uses a version of Vio with support for ipv6 similar to 5.5 but different from 5.1
+// Fix for VIO. We don't want to using method mapping as then a change in
+// the struct will cause the offsets compiled with to be wrong.
+// As is the case with ndb which uses a version of Vio with support for
+// ipv6 similar to 5.5 but different from 5.1
 #define DONT_MAP_VIO
 
 #include <my_config.h>
@@ -62,7 +64,7 @@
 #endif
 
 #include <violite.h>
-#include <events.h>		
+#include <events.h>
 #include <my_md5.h>
 #include <my_dir.h>
 #include <my_sys.h>

@@ -16,7 +16,7 @@
 $(top_srcdir)/pcre/libpcre.la:
 	cd $(top_srcdir)/pcre && $(MAKE) $(AM_MAKEFLAGS) libpcre.la
 
-INCLUDES = $(MYSQL_INC) $(YAJL_INC) $(UDIS_INC) -I$(top_srcdir)/pcre
+AM_CPPFLAGS = $(MYSQL_INC) $(YAJL_INC) $(UDIS_INC) -I$(top_srcdir)/pcre
 			
 pkgplugindir =  $(MYSQL_PLUGIN_DIR)
 

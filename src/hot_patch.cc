@@ -171,7 +171,7 @@ static void WriteJump(void *pAddress, ULONG_PTR JumpTo)
 	BYTE *pCur = (BYTE *) pAddress;
 #ifndef __x86_64__
 
-	BYTE * pbJmpSrc = pCur + 5;
+	BYTE *pbJmpSrc = pCur + 5;
 	*pCur++ = 0xE9;   // jmp +imm32
 	*((ULONG_PTR *)pCur) = JumpTo - (ULONG_PTR)pbJmpSrc;
 
@@ -288,7 +288,7 @@ static void UnhookFunction(ULONG_PTR Function, ULONG_PTR trampolineFunction, uns
 	{
 		sql_print_error(
 				"%s Unhook not able to unprotect function page: %p. Aborting.",
-				log_prefix, (void * )FunctionPage);
+				log_prefix, (void *) FunctionPage);
 		return;
 	}
 	memcpy((void *) Function, (void*)trampolineFunction,trampolinesize);
