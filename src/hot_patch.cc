@@ -146,19 +146,6 @@ static DATATYPE_ADDRESS get_page_address(void *pointer)
 }
 
 //
-// This function  retrieves the necessary size for the jump
-//
-
-unsigned int jump_size()
-{
-#ifndef __x86_64__
-    return 5;
-#else
-    return 14;
-#endif
-}
-
-//
 // This function writes unconditional jumps
 // both for x86 and x64
 //
@@ -189,11 +176,57 @@ static void WriteJump(void *pAddress, ULONG_PTR JumpTo)
 	protect((void*)AddressPage, PAGE_SIZE);
 }
 
+#ifndef __x86_64__
+
+#define JUMP_SIZE 5
+
+#else
+
+#define JUMP_SIZE 14 // jump size of WriteJump()
+#define JUMP_SIZE2 6 // jump size of WriteJump2()
+#define ADDR_SIZE 8
+
+static bool CanUseWriteJump2(void *pAddress, ULONG_PTR AddrPos)
+{
+	int64_t diff = AddrPos - ((ULONG_PTR)pAddress + JUMP_SIZE2);
+	if (INT32_MIN <= diff && diff <= INT32_MAX)
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+static void WriteJump2(void *pAddress, ULONG_PTR AddrPos, ULONG_PTR JumpTo)
+{
+	DATATYPE_ADDRESS AddressPage = get_page_address(pAddress);
+	unprotect((void*)AddressPage, PAGE_SIZE);
+
+	BYTE *pCur = (BYTE *) pAddress;
+	*pCur = 0xff;       // jmp [rip+addr]
+	*(++pCur) = 0x25;
+	int64_t diff = AddrPos - ((ULONG_PTR)pAddress + JUMP_SIZE2);
+	*((DWORD *) ++pCur) = (DWORD)diff;
+
+	protect((void*)AddressPage, PAGE_SIZE);
+
+	DATATYPE_ADDRESS AddrPosPage = get_page_address((void*)AddrPos);
+	unprotect((void*)AddrPosPage, PAGE_SIZE);
+
+	*((ULONG_PTR *)AddrPos) = JumpTo;
+
+	protect((void*)AddrPosPage, PAGE_SIZE);
+}
+
+#endif
+
 //
 // Hooks a function
 //
 static bool HookFunction(ULONG_PTR targetFunction, ULONG_PTR newFunction, ULONG_PTR trampolineFunction,
-	unsigned int *trampolinesize)
+	unsigned int *trampolinesize, unsigned int *usedsize)
 {
 #define MAX_INSTRUCTIONS 100
 	uint8_t raw[MAX_INSTRUCTIONS];
@@ -203,6 +236,7 @@ static bool HookFunction(ULONG_PTR targetFunction, ULONG_PTR newFunction, ULONG_
 #define ASM_MODE 32
 #else
 #define ASM_MODE 64
+	bool useWriteJump2 = false;
 #endif
 	memcpy(raw, (void*)targetFunction, MAX_INSTRUCTIONS);
 	ud_t ud_obj;
@@ -250,11 +284,20 @@ static bool HookFunction(ULONG_PTR targetFunction, ULONG_PTR newFunction, ULONG_
 
 		uCurrentSize += ud_insn_len (&ud_obj);
 		InstrSize += ud_insn_len (&ud_obj);
-		if (InstrSize >= jump_size()) // we have enough space so break
+		if (InstrSize >= JUMP_SIZE) // we have enough space so break
 		{
 			disassemble_valid = true;
 			break;
 		}
+#ifdef __x86_64__
+		if (InstrSize >= JUMP_SIZE2 &&
+			CanUseWriteJump2((void *)targetFunction, trampolineFunction + uCurrentSize + JUMP_SIZE))
+		{
+			disassemble_valid = true;
+			useWriteJump2 = true;
+			break;
+		}
+#endif
 	}
 
 	if (protect((void*)trampolineFunctionPage, PAGE_SIZE)) // 0 valid return
@@ -271,7 +314,20 @@ static bool HookFunction(ULONG_PTR targetFunction, ULONG_PTR newFunction, ULONG_
 	}
 
 	WriteJump((BYTE*)trampolineFunction + uCurrentSize, targetFunction + InstrSize);
+	*usedsize = uCurrentSize + JUMP_SIZE;
+#ifndef __x86_64__
 	WriteJump((void *) targetFunction, newFunction);
+#else
+	if (useWriteJump2)
+	{
+		WriteJump2((void *)targetFunction, trampolineFunction + uCurrentSize + JUMP_SIZE, newFunction);
+		*usedsize += ADDR_SIZE;
+	}
+	else
+	{
+		WriteJump((void *)targetFunction, newFunction);
+	}
+#endif
 	*trampolinesize = uCurrentSize;
 	return true;
 }
@@ -312,12 +368,12 @@ static void UnhookFunction(ULONG_PTR Function, ULONG_PTR trampolineFunction, uns
  * @Return 0 on success otherwise failure
  * @See MS Detours paper: http:// research.microsoft.com/pubs/68568/huntusenixnt99.pdf for some background info.
  */
-int hot_patch_function(void *targetFunction, void *newFunction, void *trampolineFunction, unsigned int *trampolinesize, bool info_print)
+int hot_patch_function(void *targetFunction, void *newFunction, void *trampolineFunction, unsigned int *trampolinesize, unsigned int *usedsize, bool info_print)
 {
 	DATATYPE_ADDRESS trampolinePage = get_page_address(trampolineFunction);
 	cond_info_print(info_print, "%s hot patching function: %p, trampolineFunction: %p trampolinePage: %p",log_prefix, (void *)targetFunction, (void *)trampolineFunction, (void *)trampolinePage);
 	if (HookFunction((ULONG_PTR) targetFunction, (ULONG_PTR) newFunction,
-				(ULONG_PTR) trampolineFunction, trampolinesize))
+				(ULONG_PTR) trampolineFunction, trampolinesize, usedsize))
 	{
 		return 0;
 	}

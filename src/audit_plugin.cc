@@ -1317,8 +1317,9 @@ static int do_hot_patch(void ** trampoline_func_pp, unsigned int * trampoline_si
 	*trampoline_func_pp = (void*)(addrs & ~0x0F);
 
 	// hot patch functions
+	unsigned int used_size;
 	int res = hot_patch_function(target_function, audit_function,
-			*trampoline_func_pp, trampoline_size, true);
+			*trampoline_func_pp, trampoline_size, &used_size, true);
 	if (res != 0)
 	{
 		// hot patch failed.
@@ -1327,9 +1328,9 @@ static int do_hot_patch(void ** trampoline_func_pp, unsigned int * trampoline_si
 		return 1;
 	}
 	sql_print_information(
-			"%s hot patch for: %s (%p) complete. Audit func: %p, Trampoline address: %p size: %u.",
-			log_prefix, func_name, target_function, audit_function, *trampoline_func_pp, *trampoline_size);
-	trampoline_mem_free = (void *)(((DATATYPE_ADDRESS)*trampoline_func_pp) + *trampoline_size + jump_size());
+			"%s hot patch for: %s (%p) complete. Audit func: %p, Trampoline address: %p, size: %u, used: %u.",
+			log_prefix, func_name, target_function, audit_function, *trampoline_func_pp, *trampoline_size, used_size);
+	trampoline_mem_free = (void *)(((DATATYPE_ADDRESS)*trampoline_func_pp) + used_size);
 	return 0;
 }
 
@@ -1614,7 +1615,22 @@ static int audit_plugin_init(void *p)
 	// align our trampoline mem on its own page
 	const unsigned long page_size = GETPAGESIZE();
 	const unsigned long std_page_size = 4096;
-	if (page_size <= std_page_size)
+	bool use_static_memory = (page_size <= std_page_size);
+	int mmap_flags = MAP_PRIVATE|MAP_ANONYMOUS;
+
+#ifdef __x86_64__
+	size_t func_in_mysqld = (size_t)log_slow_statement;
+	size_t func_in_plugin = (size_t)trampoline_dummy_func_for_mem;
+	if (func_in_mysqld < INT_MAX && func_in_plugin > INT_MAX)
+	{
+		// When the distance from a hot patch function to trampoline_mem is within 2GB,
+		// the minimum size of hot patching is reduced from 14 to 6.
+		mmap_flags |= MAP_32BIT;
+		use_static_memory = false;
+	}
+#endif
+
+	if (use_static_memory)
 	{
 		// use static executable memory we alocated via trampoline_dummy_func_for_mem
 		DATATYPE_ADDRESS addrs = (DATATYPE_ADDRESS)trampoline_dummy_func_for_mem + (page_size - 1);
@@ -1625,7 +1641,7 @@ static int audit_plugin_init(void *p)
 	}
 	else // big pages for some reason. allocate mem using mmap
 	{
-		trampoline_mem = mmap(NULL, page_size, PROT_READ|PROT_EXEC,  MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+		trampoline_mem = mmap(NULL, page_size, PROT_READ|PROT_EXEC, mmap_flags, -1, 0);
 		if (MAP_FAILED == trampoline_mem)
 		{
 			sql_print_error("%s unable to mmap memory size: %lu, errno: %d. Aborting.",
