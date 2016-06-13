@@ -48,8 +48,26 @@ if [ $? = 0 ]; then
     DB=m_db
 fi
 
-echo "set logging on" > offsets.gdb
-echo 'printf "{\"'$MYVER'\",\"'$MYMD5'\", %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d}", ((size_t)&((THD *)log_slow_statement)->query_id) - (size_t)log_slow_statement, ((size_t)&((THD *)log_slow_statement)->'$THREAD_ID') - (size_t)log_slow_statement, ((size_t)&((THD *)log_slow_statement)->'$SEC_CONTEXT') - (size_t)log_slow_statement, ((size_t)&((THD *)log_slow_statement)->'$COMMAND_MEMBER') - (size_t)log_slow_statement, ((size_t)&((THD *)log_slow_statement)->lex) - (size_t)log_slow_statement, (size_t)&((LEX*)log_slow_statement)->comment - (size_t)  log_slow_statement, ((size_t)&((Security_context *)log_slow_statement)->'$USER') - (size_t)log_slow_statement, ((size_t)&((Security_context *)log_slow_statement)->'$HOST') - (size_t)log_slow_statement, ((size_t)&((Security_context *)log_slow_statement)->'$IP') - (size_t)log_slow_statement, ((size_t)&((Security_context *)log_slow_statement)->'$PRIV_USER') - (size_t)log_slow_statement, ((size_t)&((THD *)log_slow_statement)->'$DB') - (size_t)log_slow_statement, ((size_t)&((THD *)log_slow_statement)->killed) - (size_t)log_slow_statement' >> offsets.gdb
+cat <<EOF > offsets.gdb
+set logging on
+define print_offset
+  printf ", %d", (size_t)&((\$arg0*)0)->\$arg1
+end
+printf "{\"$MYVER\",\"$MYMD5\""
+print_offset THD query_id
+print_offset THD $THREAD_ID
+print_offset THD $SEC_CONTEXT
+print_offset THD $COMMAND_MEMBER
+print_offset THD lex
+print_offset LEX comment
+print_offset Security_context $USER
+print_offset Security_context $HOST
+print_offset Security_context $IP
+print_offset Security_context $PRIV_USER
+print_offset THD $DB
+print_offset THD killed
+printf "}"
+EOF
 
 SYMPARAM=""
 if [ -n "$2" ]; then
