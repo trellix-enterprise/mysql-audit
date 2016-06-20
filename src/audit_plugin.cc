@@ -1623,8 +1623,7 @@ static int audit_plugin_init(void *p)
 	size_t func_in_plugin = (size_t)trampoline_dummy_func_for_mem;
 	if (func_in_mysqld < INT_MAX && func_in_plugin > INT_MAX)
 	{
-		// When the distance from a hot patch function to trampoline_mem is within 2GB,
-		// the minimum size of hot patching is reduced from 14 to 6.
+		// See comment about IndirectJump in hot_patch.cc.
 		mmap_flags |= MAP_32BIT;
 		use_static_memory = false;
 	}

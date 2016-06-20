@@ -228,15 +228,20 @@ static bool HookFunction(ULONG_PTR targetFunction, ULONG_PTR newFunction, ULONG_
 #else
 #define ASM_MODE 64
 	enum {
-		// overwrite 14 bytes in targetFunction.
-		// jump to newFunction by WriteJump().
+		// Jump64 overwrites 14 bytes in targetFunction.
+		// This is used when the next two jump types are not available.
 		Jump64,
-		// overwrite 5 bytes in targetFunction.
-		// jump to newFunction by WriteJump32().
+		// Jump32 overwrites 5 bytes in targetFunction.
+		// This is used when mysqld is a Position Independent Executable(PIE).
+		// The mysqld would be loaded near dynamically loaded shared libraries
 		Jump32,
-		// overwrite 5 bytes in targetFunction.
-		// jump to a region in trampolineFunction by WriteJump32()
-		// and then jump to newFunction by WriteJump().
+		// IndirectJump overwrites 5 bytes in targetFunction and uses
+		// extra 14 bytes in the region of trampolineFunction.
+		// This is used when mysqld isn't a Position Independent Executable(PIE).
+		// The mysqld is loaded at the fixed position 0x00400000.
+		// The region of trampolineFunction is located near the mysqld
+		// because it is allocated in audit_plugin_init() with the MAP_32BIT
+		// flag if mysqld isn't a PIE.
 		IndirectJump,
 	} jumpType = Jump64;
 #endif
