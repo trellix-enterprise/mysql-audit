@@ -146,19 +146,6 @@ static DATATYPE_ADDRESS get_page_address(void *pointer)
 }
 
 //
-// This function  retrieves the necessary size for the jump
-//
-
-unsigned int jump_size()
-{
-#ifndef __x86_64__
-    return 5;
-#else
-    return 14;
-#endif
-}
-
-//
 // This function writes unconditional jumps
 // both for x86 and x64
 //
@@ -189,11 +176,48 @@ static void WriteJump(void *pAddress, ULONG_PTR JumpTo)
 	protect((void*)AddressPage, PAGE_SIZE);
 }
 
+#ifndef __x86_64__
+
+#define JUMP_SIZE 5
+
+#else
+
+#define JUMP_SIZE 14 // jump size of WriteJump()
+#define JUMP32_SIZE 5 // jump size of WriteJump32()
+
+static bool CanUseJump32(void *pAddress, ULONG_PTR JumpTo)
+{
+	int64_t diff = JumpTo - ((ULONG_PTR)pAddress + JUMP32_SIZE);
+	if (INT32_MIN <= diff && diff <= INT32_MAX)
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+static void WriteJump32(void *pAddress, ULONG_PTR JumpTo)
+{
+	int64_t diff = JumpTo - ((ULONG_PTR)pAddress + JUMP32_SIZE);
+	DATATYPE_ADDRESS AddressPage = get_page_address(pAddress);
+	unprotect((void*)AddressPage, PAGE_SIZE);
+
+	BYTE *pCur = (BYTE *) pAddress;
+	*pCur++ = 0xE9;   // jmp +imm32
+	*(DWORD *)pCur = (DWORD)diff;
+
+	protect((void*)AddressPage, PAGE_SIZE);
+}
+
+#endif
+
 //
 // Hooks a function
 //
 static bool HookFunction(ULONG_PTR targetFunction, ULONG_PTR newFunction, ULONG_PTR trampolineFunction,
-	unsigned int *trampolinesize)
+	unsigned int *trampolinesize, unsigned int *usedsize)
 {
 #define MAX_INSTRUCTIONS 100
 	uint8_t raw[MAX_INSTRUCTIONS];
@@ -203,6 +227,23 @@ static bool HookFunction(ULONG_PTR targetFunction, ULONG_PTR newFunction, ULONG_
 #define ASM_MODE 32
 #else
 #define ASM_MODE 64
+	enum {
+		// Jump64 overwrites 14 bytes in targetFunction.
+		// This is used when the next two jump types are not available.
+		Jump64,
+		// Jump32 overwrites 5 bytes in targetFunction.
+		// This is used when mysqld is a Position Independent Executable(PIE).
+		// The mysqld would be loaded near dynamically loaded shared libraries
+		Jump32,
+		// IndirectJump overwrites 5 bytes in targetFunction and uses
+		// extra 14 bytes in the region of trampolineFunction.
+		// This is used when mysqld isn't a Position Independent Executable(PIE).
+		// The mysqld is loaded at the fixed position 0x00400000.
+		// The region of trampolineFunction is located near the mysqld
+		// because it is allocated in audit_plugin_init() with the MAP_32BIT
+		// flag if mysqld isn't a PIE.
+		IndirectJump,
+	} jumpType = Jump64;
 #endif
 	memcpy(raw, (void*)targetFunction, MAX_INSTRUCTIONS);
 	ud_t ud_obj;
@@ -250,11 +291,28 @@ static bool HookFunction(ULONG_PTR targetFunction, ULONG_PTR newFunction, ULONG_
 
 		uCurrentSize += ud_insn_len (&ud_obj);
 		InstrSize += ud_insn_len (&ud_obj);
-		if (InstrSize >= jump_size()) // we have enough space so break
+		if (InstrSize >= JUMP_SIZE) // we have enough space so break
 		{
 			disassemble_valid = true;
 			break;
 		}
+#ifdef __x86_64__
+		if (InstrSize >= JUMP32_SIZE)
+		{
+			if (CanUseJump32((void *)targetFunction, newFunction))
+			{
+				disassemble_valid = true;
+				jumpType = Jump32;
+				break;
+			}
+			if (CanUseJump32((void *)targetFunction, trampolineFunction + uCurrentSize + JUMP_SIZE))
+			{
+				disassemble_valid = true;
+				jumpType = IndirectJump;
+				break;
+			}
+		}
+#endif
 	}
 
 	if (protect((void*)trampolineFunctionPage, PAGE_SIZE)) // 0 valid return
@@ -271,7 +329,26 @@ static bool HookFunction(ULONG_PTR targetFunction, ULONG_PTR newFunction, ULONG_
 	}
 
 	WriteJump((BYTE*)trampolineFunction + uCurrentSize, targetFunction + InstrSize);
+	*usedsize = uCurrentSize + JUMP_SIZE;
+#ifndef __x86_64__
 	WriteJump((void *) targetFunction, newFunction);
+#else
+	switch (jumpType) {
+		ULONG_PTR addr;
+	case Jump64:
+		WriteJump((void *)targetFunction, newFunction);
+		break;
+	case Jump32:
+		WriteJump32((void *)targetFunction, newFunction);
+		break;
+	case IndirectJump:
+		addr = trampolineFunction + uCurrentSize + JUMP_SIZE;
+		WriteJump32((void *)targetFunction, addr);
+		WriteJump((void*)addr, newFunction);
+		*usedsize += JUMP_SIZE;
+		break;
+	}
+#endif
 	*trampolinesize = uCurrentSize;
 	return true;
 }
@@ -312,12 +389,12 @@ static void UnhookFunction(ULONG_PTR Function, ULONG_PTR trampolineFunction, uns
  * @Return 0 on success otherwise failure
  * @See MS Detours paper: http:// research.microsoft.com/pubs/68568/huntusenixnt99.pdf for some background info.
  */
-int hot_patch_function(void *targetFunction, void *newFunction, void *trampolineFunction, unsigned int *trampolinesize, bool info_print)
+int hot_patch_function(void *targetFunction, void *newFunction, void *trampolineFunction, unsigned int *trampolinesize, unsigned int *usedsize, bool info_print)
 {
 	DATATYPE_ADDRESS trampolinePage = get_page_address(trampolineFunction);
 	cond_info_print(info_print, "%s hot patching function: %p, trampolineFunction: %p trampolinePage: %p",log_prefix, (void *)targetFunction, (void *)trampolineFunction, (void *)trampolinePage);
 	if (HookFunction((ULONG_PTR) targetFunction, (ULONG_PTR) newFunction,
-				(ULONG_PTR) trampolineFunction, trampolinesize))
+				(ULONG_PTR) trampolineFunction, trampolinesize, usedsize))
 	{
 		return 0;
 	}
