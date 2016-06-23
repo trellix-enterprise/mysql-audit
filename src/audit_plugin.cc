@@ -1164,7 +1164,7 @@ const char *retrieve_command(THD *thd, bool &is_sql_cmd)
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100108
 	if (command == COM_QUERY && sql_command >= 0 && sql_command < SQLCOM_END)
 #else
-	if (sql_command >=0 && sql_command < MAX_COM_STATUS_VARS_RECORDS )
+	if (sql_command >= 0 && sql_command < MAX_COM_STATUS_VARS_RECORDS)
 #endif
 	{
 		is_sql_cmd = true;
