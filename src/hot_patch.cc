@@ -2,6 +2,17 @@
 #include "udis86.h"
 #include <ctype.h>
 
+#include <stdint.h>
+
+// Temporary hack to get htings to build: these two lines should work but don't
+#ifndef INT32_MIN
+# define INT32_MIN              (-2147483647-1)
+#endif
+
+#ifndef INT32_MAM
+# define INT32_MAX              (2147483647)
+#endif
+
 #define UINT unsigned int
 #define DWORD uint32_t
 #define BYTE unsigned char
