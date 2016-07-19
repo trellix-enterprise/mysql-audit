@@ -9,7 +9,7 @@
 # define INT32_MIN              (-2147483647-1)
 #endif
 
-#ifndef INT32_MAM
+#ifndef INT32_MAX
 # define INT32_MAX              (2147483647)
 #endif
 
