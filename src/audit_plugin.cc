@@ -396,11 +396,11 @@ static int  audit_send_result_to_client(Query_cache *pthis, THD *thd, const LEX_
 #endif
 {
 	int res;
-	void *pList = thd_alloc (thd, sizeof (QueryTableInf));
+	void *pList = thd_alloc(thd, sizeof (QueryTableInf));
 
 	if (pList)
 	{
-		memset (pList,0,sizeof (QueryTableInf));
+		memset(pList,0,sizeof (QueryTableInf));
 		THDVAR(thd, query_cache_table_list) =(ulong)pList;
 	}
 
@@ -411,8 +411,8 @@ static int  audit_send_result_to_client(Query_cache *pthis, THD *thd, const LEX_
 #endif
 	if (res)
 	{
-		ThdSesData thd_data (thd);
-		audit (&thd_data);
+		ThdSesData thd_data(thd);
+		audit(&thd_data);
 	}
 	THDVAR(thd, query_cache_table_list) = 0;
 	return res;
@@ -502,8 +502,8 @@ static int audit_notify(THD *thd, mysql_event_class_t event_class,
 		// only audit for connect and change_user. disconnect is caught by general event
 		if (event_connection->event_subclass != MYSQL_AUDIT_CONNECTION_DISCONNECT)
 		{
-			ThdSesData ThdData (thd);
-			audit (&ThdData);
+			ThdSesData ThdData(thd);
+			audit(&ThdData);
 		}
 	}
 #if ! defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50709
@@ -617,7 +617,7 @@ int is_remove_patches(ThdSesData *pThdData)
 	const char *cmd = pThdData->getCmdName();
 	const char *sUninstallPlugin = "uninstall_plugin";
 	LEX *pLex = Audit_formatter::thd_lex(pThdData->getTHD());
-	if (pThdData->getTHD() && pLex!=NULL && strncasecmp(cmd, sUninstallPlugin, strlen(sUninstallPlugin)) == 0)
+	if (pThdData->getTHD() && pLex != NULL && strncasecmp(cmd, sUninstallPlugin, strlen(sUninstallPlugin)) == 0)
 	{
 		LEX_STRING Lex_comment = *(LEX_STRING*)(((unsigned char *) pLex) + Audit_formatter::thd_offsets.lex_comment);
 		if (strncasecmp(Lex_comment.str, "AUDIT", 5) == 0)
@@ -778,7 +778,7 @@ static bool parse_thd_offsets_string (char *poffsets_string)
 
 	for (size_t j = 0; j < len; j++)
 	{
-		if (!((poffset_str[j] >= '0' && poffset_str[j] <= '9') || poffset_str[j] == ' ' || poffset_str[j] == ','))
+		if (! (isdigit(poffset_str[j]) || poffset_str[j] == ' ' || poffset_str[j] == ','))
 		{
 			return false;
 		}
@@ -1050,7 +1050,7 @@ static int setup_offsets()
 	if (offsets_by_version_enable)
 	{
 		bool server_is_ndb = strstr(server_version, "ndb") != NULL;
-		for (size_t i=0; i < arr_size; i++)
+		for (size_t i = 0; i < arr_size; i++)
 		{
 			offset = thd_offsets_arr + i;
 			const char *version = offset->version;
@@ -1430,7 +1430,8 @@ static void json_socket_name_update(THD *thd, struct st_mysql_sys_var *var, void
 	}
 
 	const char *str = str_val;
-	const size_t buff_len = array_elements( json_socket_name_buff) -1;
+	const size_t buff_len = array_elements(json_socket_name_buff) - 1;
+
 	// copy str to buffer only if str is not pointing to buff
 	if (NULL == str)
 	{
@@ -1438,11 +1439,12 @@ static void json_socket_name_update(THD *thd, struct st_mysql_sys_var *var, void
 	}
 	else if (str != json_socket_name_buff)
 	{
-		strncpy( json_socket_name_buff , str, buff_len);
+		strncpy(json_socket_name_buff, str, buff_len);
 	}
+
 	if (strlen(json_socket_name_buff) == 0 && (mysqld_port > 0 || mysqld_unix_port)) // set default
 	{
-		const char *name_prefix = "/tmp/mysql.audit_";
+		const char *name_prefix = "/var/run/db-audit/mysql.audit_";
 
 		size_t indx = strlen(name_prefix); // count how much to move forward the buff
 		strncpy(json_socket_name_buff, name_prefix, buff_len);
@@ -1830,7 +1832,7 @@ static MYSQL_SYSVAR_STR(json_log_file, json_file_handler.m_io_dest,
         NULL, NULL, "mysql-audit.json");
 static MYSQL_SYSVAR_LONG(json_file_bufsize, json_file_handler.m_bufsize,
         PLUGIN_VAR_RQCMDARG,
-        "AUDIT plugin json log file buffer size. Buffer size in bytes (lager size may improve performance). 0 = use default size, 1 = no buffering. If changed during runtime need to perform a flush for the new value to take affect.",
+        "AUDIT plugin json log file buffer size. Buffer size in bytes (larger size may improve performance). 0 = use default size, 1 = no buffering. If changed during runtime need to perform a flush for the new value to take affect.",
         NULL, NULL, 0, 1, 262144, 0);
 
 static MYSQL_SYSVAR_UINT(json_file_sync, json_file_handler.m_sync_period,
@@ -1922,7 +1924,7 @@ static MYSQL_SYSVAR_STR(password_masking_cmds, password_masking_cmds_string,
 			PLUGIN_VAR_RQCMDARG,
 			"AUDIT plugin commands to apply password masking regex to, comma separated",
 			NULL, password_masking_cmds_string_update,
-			// set passowrd is recoreded as set_option
+			// set password is recorded as set_option
 			"CREATE_USER,GRANT,SET_OPTION,SLAVE_START,CREATE_SERVER,ALTER_SERVER,CHANGE_MASTER");
 static MYSQL_SYSVAR_STR(whitelist_users, whitelist_users_string,
 			PLUGIN_VAR_RQCMDARG,

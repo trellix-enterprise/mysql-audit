@@ -26,6 +26,7 @@
 #include "static_assert.h"
 
 // utility macro to log also with a date as a prefix
+// FIXME: This is no longer used. Remove?
 #define log_with_date(f, ...) do {\
     struct tm tm_tmp;\
     time_t result = time(NULL);\
@@ -44,7 +45,7 @@
 // initialize static stuff
 ThdOffsets Audit_formatter::thd_offsets = { 0 };
 Audit_handler *Audit_handler::m_audit_handler_list[Audit_handler::MAX_AUDIT_HANDLERS_NUM];
-const char *Audit_json_formatter::DEF_MSG_DELIMITER = "\\n";
+const char *Audit_json_formatter::DEF_MSG_DELIMITER = "\\n";	// FIXME: This is used ...
 
 #if MYSQL_VERSION_ID < 50709
 #define C_STRING_WITH_LEN(X) ((char *) (X)), ((size_t) (sizeof(X) - 1))
@@ -233,7 +234,7 @@ int Audit_file_handler::open(const char *io_dest, bool log_errors)
 	if (res)
 	{
 		sql_print_error(
-				"%s unable to set bufzie [%zd (%ld)] for file %s: %s.",
+				"%s unable to set bufsize [%zd (%ld)] for file %s: %s.",
 				AUDIT_LOG_PREFIX, bufsize, m_bufsize, m_io_dest, strerror(errno));
 	}
 	sql_print_information("%s bufsize for file [%s]: %zd. Value of json_file_bufsize: %ld.", AUDIT_LOG_PREFIX, m_io_dest,
@@ -830,7 +831,7 @@ bool ThdSesData::getNextObject(const char **db_name, const char **obj_name, cons
 	case OBJ_QUERY_CACHE:
 	{
 		if (m_index < m_tableInf->num_of_elem &&
-				m_index< MAX_NUM_QUERY_TABLE_ELEM)
+				m_index < MAX_NUM_QUERY_TABLE_ELEM)
 		{
 			*db_name = m_tableInf->db[m_index];
 			*obj_name = m_tableInf->table_name[m_index];

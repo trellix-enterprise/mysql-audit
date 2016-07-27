@@ -530,7 +530,7 @@ protected:
 	virtual void handler_stop();
 	virtual bool handler_start_internal() = 0;
 	virtual void handler_stop_internal() = 0;
-	virtual bool handler_log_audit(ThdSesData *pThdData) =0;
+	virtual bool handler_log_audit(ThdSesData *pThdData) = 0;
 	bool m_initialized;
 	bool m_enabled;
 	bool m_failed;
