@@ -285,23 +285,65 @@ static bool HookFunction(ULONG_PTR targetFunction, ULONG_PTR newFunction, ULONG_
 			break;
 		}
 
+		BYTE *pCurInstr;
+
 		// make sure there isn't a jmp/call (or similar operand) as these use
 		// relative addressing and if we copy as is we will mess up the jmp/call target
 		if (ud_obj.mnemonic == UD_Ijmp || ud_obj.mnemonic == UD_Icall ||
 				ud_obj.operand[0].type == UD_OP_JIMM)
 		{
-			sql_print_error(
+			bool cannot_disassemble = true;
+
+#ifdef __i386__
+			const BYTE *pc = (const BYTE *)targetFunction + InstrSize;
+			if (*pc == 0xe8)
+			{
+				const BYTE *callee = pc + 5 + *(DWORD*)(pc + 1);
+				if (memcmp(callee, "\x8b\x1c\x24\xc3", 4) == 0)
+				{
+					// If the current instruction is "call callee"
+					// and the callee is "movl (%esp), %ebx; ret",
+					// use "movl pc + 5, %ebx" instead.
+					BYTE *dest = (BYTE *)trampolineFunction + uCurrentSize;
+					*dest = 0xbb;
+					*(DWORD*)(dest + 1) = (DWORD)(pc + 5);
+					uCurrentSize += 5; // size of "mov pc + 5, %ebx"
+					InstrSize += 5;    // size of "call callee"
+					cannot_disassemble = false;
+				}
+				else if (memcmp(callee, "\x8b\x0c\x24\xc3", 4) == 0)
+				{
+					// If the current instruction is "call callee"
+					// and the callee is "movl (%esp), %ecx; ret",
+					// use "movl pc + 5, %ecx" instead.
+					BYTE *dest = (BYTE *)trampolineFunction + uCurrentSize;
+					*dest = 0xb9;
+					*(DWORD*)(dest + 1) = (DWORD)(pc + 5);
+					uCurrentSize += 5; // size of "movl pc + 5, %ecx"
+					InstrSize += 5;    // size of "call callee"
+					cannot_disassemble = false;
+				}
+			}
+
+#endif
+			if (cannot_disassemble)
+			{
+				sql_print_error(
 					"%s unable to disassemble at address: 0x%p. Found relative addressing for instruction: [%s]. Aborting.",
 					log_prefix, (void *)(InstrSize + targetFunction), ud_insn_asm(&ud_obj));
-			break;
+				break;
+			}
+		}
+		else
+		{
+			pCurInstr = (BYTE *) (InstrSize + (ULONG_PTR) targetFunction);
+			memcpy((BYTE*)trampolineFunction + uCurrentSize,
+					(void *) pCurInstr, ud_insn_len (&ud_obj));
+
+			uCurrentSize += ud_insn_len (&ud_obj);
+			InstrSize += ud_insn_len (&ud_obj);
 		}
 
-		BYTE *pCurInstr = (BYTE *) (InstrSize + (ULONG_PTR) targetFunction);
-		memcpy((BYTE*)trampolineFunction + uCurrentSize,
-				(void *) pCurInstr, ud_insn_len (&ud_obj));
-
-		uCurrentSize += ud_insn_len (&ud_obj);
-		InstrSize += ud_insn_len (&ud_obj);
 		if (InstrSize >= JUMP_SIZE) // we have enough space so break
 		{
 			disassemble_valid = true;
