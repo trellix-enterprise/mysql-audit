@@ -51,8 +51,6 @@ POSSIBILITY OF SUCH DAMAGE.
 
 #include "pcre_internal.h"
 
-#define PCRE_BUG 0x80000000
-
 /*
  Letter characters:
    \xe6\x92\xad = 0x64ad = 25773 (kanji)
@@ -69,6 +67,9 @@ POSSIBILITY OF SUCH DAMAGE.
       \xc3\x89 = 0xc9 = 201 (E')
    \xc3\xa1 = 0xe1 = 225 (a')
       \xc3\x81 = 0xc1 = 193 (A')
+   \x53 = 0x53 = S
+     \x73 = 0x73 = s
+     \xc5\xbf = 0x17f = 383 (long S)
    \xc8\xba = 0x23a = 570
       \xe2\xb1\xa5 = 0x2c65 = 11365
    \xe1\xbd\xb8 = 0x1f78 = 8056
@@ -78,6 +79,10 @@ POSSIBILITY OF SUCH DAMAGE.
    \xc7\x84 = 0x1c4 = 452
      \xc7\x85 = 0x1c5 = 453
      \xc7\x86 = 0x1c6 = 454
+ Caseless sets:
+   ucp_Armenian - \x{531}-\x{556} -> \x{561}-\x{586}
+   ucp_Coptic - \x{2c80}-\x{2ce3} -> caseless: XOR 0x1
+   ucp_Latin - \x{ff21}-\x{ff3a} -> \x{ff41]-\x{ff5a}
 
  Mark property:
    \xcc\x8d = 0x30d = 781
@@ -177,6 +182,7 @@ static struct regression_test_case regression_test_cases[] = {
 	{ CMUAP, 0, "\xf0\x90\x90\x80{2}", "\xf0\x90\x90\x80#\xf0\x90\x90\xa8\xf0\x90\x90\x80" },
 	{ CMUAP, 0, "\xf0\x90\x90\xa8{2}", "\xf0\x90\x90\x80#\xf0\x90\x90\xa8\xf0\x90\x90\x80" },
 	{ CMUAP, 0, "\xe1\xbd\xb8\xe1\xbf\xb8", "\xe1\xbf\xb8\xe1\xbd\xb8" },
+	{ MA, 0, "[3-57-9]", "5" },
 
 	/* Assertions. */
 	{ MUA, 0, "\\b[^A]", "A_B#" },
@@ -236,13 +242,17 @@ static struct regression_test_case regression_test_cases[] = {
 	{ MA, 0, "a\\z", "aaa" },
 	{ MA, 0 | F_NOMATCH, "a\\z", "aab" },
 
-	/* Brackets. */
+	/* Brackets and alternatives. */
 	{ MUA, 0, "(ab|bb|cd)", "bacde" },
 	{ MUA, 0, "(?:ab|a)(bc|c)", "ababc" },
 	{ MUA, 0, "((ab|(cc))|(bb)|(?:cd|efg))", "abac" },
 	{ CMUA, 0, "((aB|(Cc))|(bB)|(?:cd|EFg))", "AcCe" },
 	{ MUA, 0, "((ab|(cc))|(bb)|(?:cd|ebg))", "acebebg" },
 	{ MUA, 0, "(?:(a)|(?:b))(cc|(?:d|e))(a|b)k", "accabdbbccbk" },
+	{ MUA, 0, "\xc7\x82|\xc6\x82", "\xf1\x83\x82\x82\xc7\x82\xc7\x83" },
+	{ MUA, 0, "=\xc7\x82|#\xc6\x82", "\xf1\x83\x82\x82=\xc7\x82\xc7\x83" },
+	{ MUA, 0, "\xc7\x82\xc7\x83|\xc6\x82\xc6\x82", "\xf1\x83\x82\x82\xc7\x82\xc7\x83" },
+	{ MUA, 0, "\xc6\x82\xc6\x82|\xc7\x83\xc7\x83|\xc8\x84\xc8\x84", "\xf1\x83\x82\x82\xc8\x84\xc8\x84" },
 
 	/* Greedy and non-greedy ? operators. */
 	{ MUA, 0, "(?:a)?a", "laab" },
@@ -312,6 +322,14 @@ static struct regression_test_case regression_test_cases[] = {
 	{ CMUA, 0, "[^\xe1\xbd\xb8][^\xc3\xa9]", "\xe1\xbd\xb8\xe1\xbf\xb8\xc3\xa9\xc3\x89#" },
 	{ MUA, 0, "[^\xe1\xbd\xb8][^\xc3\xa9]", "\xe1\xbd\xb8\xe1\xbf\xb8\xc3\xa9\xc3\x89#" },
 	{ MUA, 0, "[^\xe1\xbd\xb8]{3,}?", "##\xe1\xbd\xb8#\xe1\xbd\xb8#\xc3\x89#\xe1\xbd\xb8" },
+	{ MUA, 0, "\\d+123", "987654321,01234" },
+	{ MUA, 0, "abcd*|\\w+xy", "aaaaa,abxyz" },
+	{ MUA, 0, "(?:abc|((?:amc|\\b\\w*xy)))", "aaaaa,abxyz" },
+	{ MUA, 0, "a(?R)|([a-z]++)#", ".abcd.abcd#."},
+	{ MUA, 0, "a(?R)|([a-z]++)#", ".abcd.mbcd#."},
+	{ MUA, 0, ".[ab]*.", "xx" },
+	{ MUA, 0, ".[ab]*a", "xxa" },
+	{ MUA, 0, ".[ab]?.", "xx" },
 
 	/* Bracket repeats with limit. */
 	{ MUA, 0, "(?:(ab){2}){5}M", "abababababababababababM" },
@@ -568,6 +586,16 @@ static struct regression_test_case regression_test_cases[] = {
 	{ MUA, 0, "(?:(?=.)??[a-c])+m", "abacdcbacacdcaccam" },
 	{ MUA, 0, "((?!a)?(?!([^a]))?)+$", "acbab" },
 	{ MUA, 0, "((?!a)?\?(?!([^a]))?\?)+$", "acbab" },
+	{ MUA, 0, "a(?=(?C)\\B)b", "ab" },
+	{ MUA, 0, "a(?!(?C)\\B)bb|ab", "abb" },
+	{ MUA, 0, "a(?=\\b|(?C)\\B)b", "ab" },
+	{ MUA, 0, "a(?!\\b|(?C)\\B)bb|ab", "abb" },
+	{ MUA, 0, "c(?(?=(?C)\\B)ab|a)", "cab" },
+	{ MUA, 0, "c(?(?!(?C)\\B)ab|a)", "cab" },
+	{ MUA, 0, "c(?(?=\\b|(?C)\\B)ab|a)", "cab" },
+	{ MUA, 0, "c(?(?!\\b|(?C)\\B)ab|a)", "cab" },
+	{ MUA, 0, "a(?=)b", "ab" },
+	{ MUA, 0 | F_NOMATCH, "a(?!)b", "ab" },
 
 	/* Not empty, ACCEPT, FAIL */
 	{ MUA | PCRE_NOTEMPTY, 0 | F_NOMATCH, "a*", "bcx" },
@@ -626,6 +654,9 @@ static struct regression_test_case regression_test_cases[] = {
 	{ MUA, 0, "(?P<Name>a)?(?P<Name2>b)?(?(Name)c|d)+?dd", "bcabcacdb bdddd" },
 	{ MUA, 0, "(?P<Name>a)?(?P<Name2>b)?(?(Name)c|d)+l", "ababccddabdbccd abcccl" },
 	{ MUA, 0, "((?:a|aa)(?(1)aaa))x", "aax" },
+	{ MUA, 0, "(?(?!)a|b)", "ab" },
+	{ MUA, 0, "(?(?!)a)", "ab" },
+	{ MUA, 0 | F_NOMATCH, "(?(?!)a|b)", "ac" },
 
 	/* Set start of match. */
 	{ MUA, 0, "(?:\\Ka)*aaaab", "aaaaaaaa aaaaaaabb" },
@@ -655,6 +686,7 @@ static struct regression_test_case regression_test_cases[] = {
 	{ PCRE_MULTILINE | PCRE_UTF8 | PCRE_NEWLINE_CRLF | PCRE_FIRSTLINE, 1, ".", "\r\n" },
 	{ PCRE_FIRSTLINE | PCRE_NEWLINE_LF | PCRE_DOTALL, 0 | F_NOMATCH, "ab.", "ab" },
 	{ MUA | PCRE_FIRSTLINE, 1 | F_NOMATCH, "^[a-d0-9]", "\nxx\nd" },
+	{ PCRE_NEWLINE_ANY | PCRE_FIRSTLINE | PCRE_DOTALL, 0, "....a", "012\n0a" },
 
 	/* Recurse. */
 	{ MUA, 0, "(a)(?1)", "aa" },
@@ -789,6 +821,9 @@ static struct regression_test_case regression_test_cases[] = {
 
 	/* (*SKIP) verb. */
 	{ MUA, 0 | F_NOMATCH, "(?=a(*SKIP)b)ab|ad", "ad" },
+	{ MUA, 0, "(\\w+(*SKIP)#)", "abcd,xyz#," },
+	{ MUA, 0, "\\w+(*SKIP)#|mm", "abcd,xyz#," },
+	{ MUA, 0 | F_NOMATCH, "b+(?<=(*SKIP)#c)|b+", "#bbb" },
 
 	/* (*THEN) verb. */
 	{ MUA, 0, "((?:a(*THEN)|aab)(*THEN)c|a+)+m", "aabcaabcaabcaabcnacm" },
@@ -944,7 +979,7 @@ static void setstack16(pcre16_extra *extra)
 
 	pcre16_assign_jit_stack(extra, callback16, getstack16());
 }
-#endif /* SUPPORT_PCRE8 */
+#endif /* SUPPORT_PCRE16 */
 
 #ifdef SUPPORT_PCRE32
 static pcre32_jit_stack *stack32;
@@ -967,7 +1002,7 @@ static void setstack32(pcre32_extra *extra)
 
 	pcre32_assign_jit_stack(extra, callback32, getstack32());
 }
-#endif /* SUPPORT_PCRE8 */
+#endif /* SUPPORT_PCRE32 */
 
 #ifdef SUPPORT_PCRE16
 
@@ -1177,7 +1212,7 @@ static int regression_tests(void)
 #elif defined SUPPORT_PCRE16
 	pcre16_config(PCRE_CONFIG_UTF16, &utf);
 	pcre16_config(PCRE_CONFIG_UNICODE_PROPERTIES, &ucp);
-#elif defined SUPPORT_PCRE16
+#elif defined SUPPORT_PCRE32
 	pcre32_config(PCRE_CONFIG_UTF32, &utf);
 	pcre32_config(PCRE_CONFIG_UNICODE_PROPERTIES, &ucp);
 #endif
@@ -1525,10 +1560,10 @@ static int regression_tests(void)
 							is_successful = 0;
 						}
 #endif
-#if defined SUPPORT_PCRE16 && defined SUPPORT_PCRE16
-						if (ovector16_1[i] != ovector16_2[i] || ovector16_1[i] != ovector16_1[i] || ovector16_1[i] != ovector16_2[i]) {
-							printf("\n16 and 16 bit: Ovector[%d] value differs(J16:%d,I16:%d,J32:%d,I32:%d): [%d] '%s' @ '%s' \n",
-								i, ovector16_1[i], ovector16_2[i], ovector16_1[i], ovector16_2[i],
+#if defined SUPPORT_PCRE16 && defined SUPPORT_PCRE32
+						if (ovector16_1[i] != ovector16_2[i] || ovector16_1[i] != ovector32_1[i] || ovector16_1[i] != ovector32_2[i]) {
+							printf("\n16 and 32 bit: Ovector[%d] value differs(J16:%d,I16:%d,J32:%d,I32:%d): [%d] '%s' @ '%s' \n",
+								i, ovector16_1[i], ovector16_2[i], ovector32_1[i], ovector32_2[i],
 								total, current->pattern, current->input);
 							is_successful = 0;
 						}

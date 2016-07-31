@@ -4831,4 +4831,14 @@
 /[ab]{2,}?/
     aaaa    
 
+'\A(?:[^\"]++|\"(?:[^\"]*+|\"\")*+\")++'
+    NON QUOTED \"QUOT\"\"ED\" AFTER \"NOT MATCHED
+
+'\A(?:[^\"]++|\"(?:[^\"]++|\"\")*+\")++'
+    NON QUOTED \"QUOT\"\"ED\" AFTER \"NOT MATCHED
+
+/(?(?!)a|b)/
+    bbb
+    aaa 
+
 /-- End of testinput8 --/

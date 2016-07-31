@@ -354,8 +354,7 @@ public:
 		m_password_mask_regex_compiled(false),
 		m_perform_password_masking(NULL)
 	{
-		config.beautify = 0;
-		config.indentString = NULL;
+
 	}
 
 	virtual ~Audit_json_formatter()
@@ -404,11 +403,6 @@ public:
 	 * We only support a delimiter up to 32 chars
 	 */
 	char *m_msg_delimiter;
-
-	/**
-	 * Configuration of yajl. Leave public so sysvar can update this directly.
-	 */
-	yajl_gen_config config;
 
 protected:
 

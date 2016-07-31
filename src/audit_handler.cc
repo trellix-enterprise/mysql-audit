@@ -541,7 +541,7 @@ ssize_t Audit_json_formatter::start_msg_format(IWriter *writer)
 	}
 
 	// initialize yajl
-	yajl_gen gen = yajl_gen_alloc(&config, NULL);
+	yajl_gen gen = yajl_gen_alloc(NULL);
 	yajl_gen_map_open(gen);
 	yajl_add_string_val(gen, "msg-type", "header");
 	uint64 ts = my_getsystime() / (10000);
@@ -559,7 +559,7 @@ ssize_t Audit_json_formatter::start_msg_format(IWriter *writer)
 	if (stat == yajl_gen_status_ok) // all is good write the buffer out
 	{
 		const unsigned char *text = NULL;
-		unsigned int len = 0;
+		size_t len = 0;
 		yajl_gen_get_buf(gen, &text, &len);
 		// print the json
 		res = writer->write((const char *)text, len);
@@ -615,7 +615,7 @@ ssize_t Audit_json_formatter::event_format(ThdSesData *pThdData, IWriter *writer
 	query_id_t qid = thd_inst_query_id(thd);
 
 	// initialize yajl
-	yajl_gen gen = yajl_gen_alloc(&config, NULL);
+	yajl_gen gen = yajl_gen_alloc(NULL);
 	yajl_gen_map_open(gen);
 	yajl_add_string_val(gen, "msg-type", "activity");
 	// TODO: get the start date from THD (but it is not in millis. Need to think about how we handle this)
@@ -744,7 +744,7 @@ ssize_t Audit_json_formatter::event_format(ThdSesData *pThdData, IWriter *writer
 	if (stat == yajl_gen_status_ok) // all is good write the buffer out
 	{
 		const unsigned char *text = NULL;
-		unsigned int len = 0;
+		size_t len = 0;
 		yajl_gen_get_buf(gen, &text, &len);
 		// print the json
 		res = writer->write((const char *)text, len);
