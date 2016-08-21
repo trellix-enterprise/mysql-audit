@@ -108,6 +108,9 @@ static const char default_pw_masking_regex[] =
 // socket name
 static char json_socket_name_buff[1024] = {0};
 
+// Define default port in case user configured out port and socket in my.cnf (bug 1151389)
+#define MYSQL_DEFAULT_PORT 3306
+
 /**
  * The trampoline functions we use. Will be set to point to allocated mem.
  */
@@ -1442,7 +1445,7 @@ static void json_socket_name_update(THD *thd, struct st_mysql_sys_var *var, void
 		strncpy(json_socket_name_buff, str, buff_len);
 	}
 
-	if (strlen(json_socket_name_buff) == 0 && (mysqld_port > 0 || mysqld_unix_port)) // set default
+	if (strlen(json_socket_name_buff) == 0) // set default
 	{
 		const char *name_prefix = "/var/run/db-audit/mysql.audit_";
 
@@ -1463,14 +1466,20 @@ static void json_socket_name_update(THD *thd, struct st_mysql_sys_var *var, void
 
 		if (indx < buff_len)
 		{
-			if (mysqld_port > 0)
+			if (! opt_disable_networking)
 			{
-				snprintf(json_socket_name_buff + indx, buff_len - indx, "%u", mysqld_port);
+				unsigned int port = (mysqld_port > 0 ? mysqld_port : MYSQL_DEFAULT_PORT);
+				snprintf(json_socket_name_buff + indx, buff_len - indx, "%u", port);
 			}
-			else
+			else if (mysqld_unix_port != NULL && mysqld_unix_port[0] != '\0')
 			{
 				strncpy(json_socket_name_buff + indx,  mysqld_unix_port, buff_len  - indx);
 				replace_char(json_socket_name_buff + indx, '/', '_');
+			}
+			else
+			{
+				sql_print_error("%s MySQL configured without networking and without UNIX-domain socket!",
+					log_prefix);
 			}
 		}
 		else // should never happen
