@@ -359,13 +359,24 @@ QueryTableInf *Audit_formatter::getQueryCacheTableList1(THD *thd)
 	return (QueryTableInf*)	THDVAR(thd, query_cache_table_list);
 }
 
-static bool (*trampoline_check_table_access)(THD *thd, ulong want_access,TABLE_LIST *tables,  uint number, bool no_errors) = NULL;
+static bool (*trampoline_check_table_access)(THD *thd, ulong want_access,TABLE_LIST *tables,
+#if defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID >= 50505
+						bool any_combination_of_privileges_will_do,
+#endif
+						uint number, bool no_errors) = NULL;
 
 static bool audit_check_table_access(THD *thd, ulong want_access,TABLE_LIST *tables,
+#if defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID >= 50505
+		bool any_combination_of_privileges_will_do,
+#endif
 		uint number, bool no_errors)
 {
 	TABLE_LIST *pTables;
-	bool res = trampoline_check_table_access (thd, want_access, tables, number, no_errors);
+	bool res = trampoline_check_table_access(thd, want_access, tables,
+#if defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID >= 50505
+						any_combination_of_privileges_will_do,
+#endif
+						number, no_errors);
 	if (!res &&  tables)
 	{
 		pTables = tables;
@@ -374,14 +385,17 @@ static bool audit_check_table_access(THD *thd, ulong want_access,TABLE_LIST *tab
 		{
 			while (pTables)
 			{
-				if (pQueryTableInf->num_of_elem < MAX_NUM_QUERY_TABLE_ELEM && pQueryTableInf->num_of_elem>=0)
+				if (pQueryTableInf->num_of_elem < MAX_NUM_QUERY_TABLE_ELEM && pQueryTableInf->num_of_elem >= 0)
 				{
-					pQueryTableInf->db[pQueryTableInf->num_of_elem] = (char*) thd_alloc (thd, strlen(Audit_formatter::table_get_db_name(pTables))+1);
-					strcpy (pQueryTableInf->db[pQueryTableInf->num_of_elem],Audit_formatter::table_get_db_name(pTables));
-					pQueryTableInf->table_name[pQueryTableInf->num_of_elem] = (char*) thd_alloc (thd, strlen(Audit_formatter::table_get_name(pTables)) +1);
-					strcpy (pQueryTableInf->table_name[pQueryTableInf->num_of_elem],Audit_formatter::table_get_name(pTables));
-					pQueryTableInf->object_type[pQueryTableInf->num_of_elem] = Audit_formatter::retrieve_object_type ( pTables);
-					pQueryTableInf->num_of_elem ++;
+					pQueryTableInf->db[pQueryTableInf->num_of_elem] = (char*) thd_alloc(thd, strlen(Audit_formatter::table_get_db_name(pTables)) + 1);
+					strcpy(pQueryTableInf->db[pQueryTableInf->num_of_elem], Audit_formatter::table_get_db_name(pTables));
+
+					pQueryTableInf->table_name[pQueryTableInf->num_of_elem] = (char*) thd_alloc(thd, strlen(Audit_formatter::table_get_name(pTables)) + 1);
+					strcpy(pQueryTableInf->table_name[pQueryTableInf->num_of_elem], Audit_formatter::table_get_name(pTables));
+
+					pQueryTableInf->object_type[pQueryTableInf->num_of_elem] = Audit_formatter::retrieve_object_type(pTables);
+
+					pQueryTableInf->num_of_elem++;
 				}
 				pTables = pTables->next_global;
 			}
@@ -846,7 +860,7 @@ static bool validate_offsets(const ThdOffsets *offset)
 	if (res != thread_id_test_val)
 	{
 		sql_print_error(
-				"%s Offsets: %s (%s) match thread validation check fails with value: %lu. Skipping offest.",
+				"%s Offsets: %s (%s) match thread validation check fails with value: %lu. Skipping offset.",
 				log_prefix, offset->version, offset->md5digest,
 				(unsigned long) res);
 		return false;
@@ -882,7 +896,7 @@ static bool validate_offsets(const ThdOffsets *offset)
 		if (strstr(buffer, " 789") == NULL || strstr(buffer, user_test_val) == NULL)
 		{
 			sql_print_error(
-					"%s Offsets: %s (%s) sec context validation check fails with value: %s. Skipping offest.",
+					"%s Offsets: %s (%s) sec context validation check fails with value: %s. Skipping offset.",
 					log_prefix, offset->version, offset->md5digest, buffer);
 			return false;
 		}
@@ -1707,6 +1721,8 @@ static int audit_plugin_init(void *p)
 		DBUG_RETURN(1);
 	}
 #endif
+
+
 #if defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID < 50709
 	int (Query_cache::*pf_send_result_to_client)(THD *,char *, uint) = &Query_cache::send_result_to_client;
 #else
