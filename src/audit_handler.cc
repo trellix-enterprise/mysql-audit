@@ -45,11 +45,58 @@
 // initialize static stuff
 ThdOffsets Audit_formatter::thd_offsets = { 0 };
 Audit_handler *Audit_handler::m_audit_handler_list[Audit_handler::MAX_AUDIT_HANDLERS_NUM];
-const char *Audit_json_formatter::DEF_MSG_DELIMITER = "\\n";	// FIXME: This is used ...
 
 #if MYSQL_VERSION_ID < 50709
 #define C_STRING_WITH_LEN(X) ((char *) (X)), ((size_t) (sizeof(X) - 1))
 #endif
+
+//////////////////////////////////////////////
+// Yajl alloc funcs based upon thd_alloc
+static void * yajl_thd_malloc(void *ctx, size_t sz)
+{
+    THD *thd = (THD*)ctx;
+	//we allocate plus sizeof(size_t) and stored the alloced size at the start of the pointer (for support of realloc)
+	size_t * ptr = (size_t *)thd_alloc(thd, sz + sizeof(size_t));
+	if(ptr) 
+	{
+		*ptr = sz; //set the size at the start of the memory
+		ptr++;
+	}
+    return ptr;
+}
+
+static void * yajl_thd_realloc(void *ctx, void * previous,
+                                    size_t sz)
+{
+    THD *thd = (THD*)ctx;
+	void *ptr;
+    if ((ptr= yajl_thd_malloc(thd,sz)))
+	{
+		if(previous)
+		{
+			//copy only the previous allocated size (which is stored just before the pointer passed in)
+			size_t prev_sz = *(((size_t *)previous) - 1);			
+			memcpy(ptr,previous, prev_sz);
+		}
+	}
+    return ptr;
+}
+
+static void yajl_thd_free(void *ctx, void * ptr)
+{
+    //do nothing as thd_alloc deosn't require free
+	return;
+}
+
+static void yajl_set_thd_alloc_funcs(THD * thd, yajl_alloc_funcs * yaf)
+{
+	yaf->malloc = yajl_thd_malloc;
+    yaf->free = yajl_thd_free;
+    yaf->realloc = yajl_thd_realloc;
+    yaf->ctx = thd;
+}
+
+//////////////////////////////////////////////
 
 const char *Audit_formatter::retrieve_object_type(TABLE_LIST *pObj)
 {
@@ -148,8 +195,7 @@ void Audit_handler::log_audit(ThdSesData *pThdData)
 	else
 	{
 		// offsets are good
-		m_print_offset_err = true; // mark to print offset err to log in case we encounter in the future
-		pthread_mutex_lock(&LOCK_io);
+		m_print_offset_err = true; // mark to print offset err to log in case we encounter in the future		
 		// check if failed
 		bool do_log = true;
 		if (m_failed)
@@ -159,18 +205,35 @@ void Audit_handler::log_audit(ThdSesData *pThdData)
 				difftime(time(NULL), m_last_retry_sec_ts) > m_retry_interval;
 			if (retry)
 			{
-				do_log = handler_start_nolock();
+				pthread_mutex_lock(&LOCK_io);
+				//get the io lock. After acquiring the lock do another check that we really need to start (maybe another thread did this already)
+				if(!m_failed)
+				{
+					do_log = true;
+				}
+				else if(m_retry_interval > 0 &&
+					difftime(time(NULL), m_last_retry_sec_ts) > m_retry_interval)
+				{
+					do_log = handler_start_nolock();
+				}
+				pthread_mutex_unlock(&LOCK_io);
+				
 			}
 		}
 		if (do_log)
 		{
 			if (! handler_log_audit(pThdData))
 			{
-				set_failed();
-				handler_stop_internal();
+				//failure - acquire io lock to set failed and do stop
+				pthread_mutex_lock(&LOCK_io);
+				if(!m_failed) //make sure someone else didn't set this already 
+				{
+					set_failed();
+					handler_stop_internal();
+				}
+				pthread_mutex_unlock(&LOCK_io);
 			}
-		}
-		pthread_mutex_unlock(&LOCK_io);
+		}		
 	}
 	unlock();
 }
@@ -184,13 +247,30 @@ void Audit_file_handler::close()
 	m_log_file = NULL;
 }
 
-ssize_t Audit_file_handler::write(const char *data, size_t size)
-{
-	ssize_t res = my_fwrite(m_log_file, (uchar *) data, size, MYF(0));
-	if (res < 0) // log the error
+ssize_t Audit_file_handler::write_no_lock(const char *data, size_t size)
+{	
+	ssize_t res = -1;
+	if(m_log_file)
 	{
-		sql_print_error("%s failed writing to file: %s. Err: %s",
-				AUDIT_LOG_PREFIX, m_io_dest, strerror(errno));
+		res = my_fwrite(m_log_file, (uchar *) data, size, MYF(0));
+		if (res && m_sync_period && ++m_sync_counter >= m_sync_period)
+		{
+			m_sync_counter = 0;
+			// Note fflush() only flushes the user space buffers provided by the C library.
+			// To ensure that the data is physically stored on disk the kernel buffers must be flushed too,
+			// e.g. with sync(2) or fsync(2).
+			res = (fflush(m_log_file) == 0);
+			if (res)
+			{
+				int fd = fileno(m_log_file);
+				res = (my_sync(fd, MYF(MY_WME)) == 0);
+			}
+		}
+		if (res < 0) // log the error
+		{
+			sql_print_error("%s failed writing to file: %s. Err: %s",
+					AUDIT_LOG_PREFIX, m_io_dest, strerror(errno));
+		}		
 	}
 	return res;
 }
@@ -280,6 +360,10 @@ bool Audit_io_handler::handler_start_internal()
 	return true;
 }
 
+bool Audit_io_handler::handler_log_audit(ThdSesData *pThdData)	{
+	return (m_formatter->event_format(pThdData, this) >= 0);
+}
+
 void Audit_io_handler::handler_stop_internal()
 {
 	if (! m_failed)
@@ -299,6 +383,7 @@ bool Audit_handler::handler_start_nolock()
 	else
 	{
 		set_failed();
+		handler_stop_internal();
 	}
 	return res;
 }
@@ -318,25 +403,6 @@ void Audit_handler::handler_stop()
 	pthread_mutex_unlock(&LOCK_io);
 }
 
-bool Audit_file_handler::handler_log_audit(ThdSesData *pThdData)
-{
-	bool res = (m_formatter->event_format(pThdData, this) >= 0);
-	if (res && m_sync_period && ++m_sync_counter >= m_sync_period)
-	{
-		m_sync_counter = 0;
-		// Note fflush() only flushes the user space buffers provided by the C library.
-		// To ensure that the data is physically stored on disk the kernel buffers must be flushed too,
-		// e.g. with sync(2) or fsync(2).
-		res = (fflush(m_log_file) == 0);
-		if (res)
-		{
-			int fd = fileno(m_log_file);
-			res = (my_sync(fd, MYF(MY_WME)) == 0);
-		}
-	}
-	return res;
-}
-
 /////////////////// Audit_socket_handler //////////////////////////////////
 
 void Audit_socket_handler::close()
@@ -349,13 +415,17 @@ void Audit_socket_handler::close()
 	m_vio = NULL;
 }
 
-ssize_t Audit_socket_handler::write(const char *data, size_t size)
-{
-	ssize_t res = vio_write((Vio*)m_vio, (const uchar *) data, size);
-	if (res < 0) // log the error
+ssize_t Audit_socket_handler::write_no_lock(const char *data, size_t size)
+{	
+	ssize_t res = -1;
+	if (m_vio)
 	{
-		sql_print_error("%s failed writing to socket: %s. Err: %s",
-				AUDIT_LOG_PREFIX, m_io_dest, strerror(vio_errno((Vio*)m_vio)));
+		res = vio_write((Vio*)m_vio, (const uchar *) data, size);
+		if (res < 0) // log the error
+		{
+			sql_print_error("%s failed writing to socket: %s. Err: %s",
+					AUDIT_LOG_PREFIX, m_io_dest, strerror(vio_errno((Vio*)m_vio)));
+		}
 	}
 	return res;
 }
@@ -399,11 +469,6 @@ int Audit_socket_handler::open(const char *io_dest, bool log_errors)
 		return -2;
 	}
 	return 0;
-}
-
-bool Audit_socket_handler::handler_log_audit(ThdSesData *pThdData)
-{
-	return (m_formatter->event_format(pThdData, this) >= 0);
 }
 
 //////////////////////// Audit Socket handler end ///////////////////////////////////////////
@@ -558,17 +623,13 @@ ssize_t Audit_json_formatter::start_msg_format(IWriter *writer)
 	yajl_gen_status stat = yajl_gen_map_close(gen); // close the object
 	if (stat == yajl_gen_status_ok) // all is good write the buffer out
 	{
+		//will add the delimiter to the buffer
+		yajl_gen_reset(gen, "\n");
 		const unsigned char *text = NULL;
 		size_t len = 0;
 		yajl_gen_get_buf(gen, &text, &len);
-		// print the json
-		res = writer->write((const char *)text, len);
-		if (res >= 0)
-		{
-			// TODO: use the msg_delimiter
-			res = writer->write("\n", 1);
-		}
-		// my_fwrite(log_file, (uchar *) b.data, json_size(&b), MYF(0));
+		// no need for lock as it was acquired before as part of the connect
+		res = writer->write_no_lock((const char *)text, len);		
 	}
 	yajl_gen_free(gen); // free the generator
 	return res;
@@ -615,7 +676,9 @@ ssize_t Audit_json_formatter::event_format(ThdSesData *pThdData, IWriter *writer
 	query_id_t qid = thd_inst_query_id(thd);
 
 	// initialize yajl
-	yajl_gen gen = yajl_gen_alloc(NULL);
+	yajl_alloc_funcs alloc_funcs;
+	yajl_set_thd_alloc_funcs(thd, &alloc_funcs);
+	yajl_gen gen = yajl_gen_alloc(&alloc_funcs);
 	yajl_gen_map_open(gen);
 	yajl_add_string_val(gen, "msg-type", "activity");
 	// TODO: get the start date from THD (but it is not in millis. Need to think about how we handle this)
@@ -743,17 +806,13 @@ ssize_t Audit_json_formatter::event_format(ThdSesData *pThdData, IWriter *writer
 	yajl_gen_status stat = yajl_gen_map_close(gen); // close the object
 	if (stat == yajl_gen_status_ok) // all is good write the buffer out
 	{
+		//will add the delimiter to the buffer
+		yajl_gen_reset(gen, "\n");
 		const unsigned char *text = NULL;
 		size_t len = 0;
 		yajl_gen_get_buf(gen, &text, &len);
 		// print the json
-		res = writer->write((const char *)text, len);
-		if (res >= 0)
-		{
-			// TODO: use the msg_delimiter
-			res = writer->write("\n", 1);
-		}
-		// my_fwrite(log_file, (uchar *) b.data, json_size(&b), MYF(0));
+		res = writer->write((const char *)text, len);		
 	}
 	yajl_gen_free(gen); // free the generator
 	return res;
@@ -798,8 +857,13 @@ bool ThdSesData::startGetObjects()
 		return false;
 	}
 	// only return query tables if command is COM_QUERY
-	// TODO: check if other commands can also generate query tables such as "show fields"
-	if (pLex && command == COM_QUERY && pLex->query_tables)
+	// TODO: check if other commands can also generate query tables
+	// such as "show fields"
+	if (   pLex
+	    && (   command == COM_QUERY
+	        || command == COM_STMT_PREPARE
+	        || command == COM_STMT_EXECUTE)
+	    && pLex->query_tables)
 	{
 		m_tables = pLex->query_tables;
 		m_objIterType = OBJ_TABLE_LIST;

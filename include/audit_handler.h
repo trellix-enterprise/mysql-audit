@@ -100,10 +100,7 @@ public:
 	virtual ~IWriter() {}
 	// return negative on fail
 	virtual ssize_t write(const char *data, size_t size) = 0;
-	inline ssize_t write_str(const char *str)
-	{
-		return write(str, strlen(str));
-	}
+	virtual ssize_t write_no_lock(const char *str, size_t size) = 0;
 	// return 0 on success
 	virtual int open(const char *io_dest, bool log_errors) = 0;
 	virtual void close() = 0;
@@ -545,11 +542,11 @@ protected:
 	// creating additional instances
 	Audit_handler & operator=(const Audit_handler&);
 	Audit_handler(const Audit_handler&);
+	// lock io 
+	pthread_mutex_t LOCK_io;
 private:
 	// bool indicating if to print offset errors to log or not
-	bool m_print_offset_err;
-	// lock io
-	pthread_mutex_t LOCK_io;
+	bool m_print_offset_err;	
 	// audit (enable) lock
 	rw_lock_t LOCK_audit;
 	inline void lock_shared()
@@ -585,8 +582,20 @@ public:
 	 * target we write to (socket/file). Public so we update via sysvar
 	 */
 	char *m_io_dest;
+	
+	inline ssize_t write(const char *data, size_t size) 
+	{
+		pthread_mutex_lock(&LOCK_io);
+		ssize_t res = write_no_lock(data, size);
+		pthread_mutex_unlock(&LOCK_io);	//release the IO lock
+		return res;
+	}		
 
 protected:
+	/**
+	 * Will format using the writer
+	 */
+	virtual bool handler_log_audit(ThdSesData *pThdData);
 	virtual bool handler_start_internal();
 	virtual void handler_stop_internal();
 	// used for logging messages
@@ -623,7 +632,7 @@ public:
 	/**
 	 * Write function we pass to formatter
 	 */
-	ssize_t write(const char *data, size_t size);
+	ssize_t write_no_lock(const char *data, size_t size);
 
 	void close();
 
@@ -634,11 +643,7 @@ protected:
 	// additional instances
 	Audit_file_handler & operator=(const Audit_file_handler&);
 	Audit_file_handler(const Audit_file_handler&);
-
-	/**
-	 * Will acquire locks and call handler_write
-	 */
-	virtual bool handler_log_audit(ThdSesData *pThdData);
+	
 	FILE *m_log_file;
 	// the period to use for syncing
 	unsigned int m_sync_counter;
@@ -666,7 +671,7 @@ public:
 	/**
 	 * Write function we pass to formatter
 	 */
-	ssize_t write(const char *data, size_t size);
+	ssize_t write_no_lock(const char *data, size_t size);
 
 	void close();
 
@@ -675,11 +680,7 @@ protected:
 	// override default assignment and copy to protect against creating additional instances
 	Audit_socket_handler & operator=(const Audit_socket_handler&);
 	Audit_socket_handler(const Audit_socket_handler&);
-
-	/**
-	 * Will acquire locks and call handler_write
-	 */
-	virtual bool handler_log_audit(ThdSesData *pThdData);
+	
 	// Vio we write to
 	// define as void* so we don't access members directly
 	void *m_vio;
