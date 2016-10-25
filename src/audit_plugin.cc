@@ -511,6 +511,33 @@ static int audit_notify(THD *thd, mysql_event_class_t event_class,
 		{
 			audit_post_execute(thd);
 		}
+		else if (MYSQL_AUDIT_GENERAL_ERROR == event_general->event_subclass)
+		{
+			ThdSesData ThdData(thd);
+
+			// Prior to MySQL 5.6.32 and 5.7.14, we could detect failed
+			// logins for existing users with bad passwords in the code
+			// for MYSQL_AUDIT_CONNECTION class (in the retrive_command
+			// function, called from the ThdSesData constructor).
+			//
+			// From those versions, we only get access denied indications in
+			// this auditing class with MYSQL_AUDIT_GENERAL_ERROR.  Therefore
+			// we build the failed login message here for all cases, since
+			// we get such an indication for both non-existant users and
+			// existing users but with a bad password.
+			switch (event_general->general_error_code) {
+			case ER_ACCESS_DENIED_ERROR:
+			case ER_ACCESS_DENIED_NO_PASSWORD_ERROR:
+#ifdef ER_ACCOUNT_HAS_BEEN_LOCKED
+			case ER_ACCOUNT_HAS_BEEN_LOCKED:
+#endif
+				ThdData.setCmdName("Failed Login");
+				audit(&ThdData);
+				break;
+			default:
+				break;
+			}
+		}
 	}
 	else if (MYSQL_AUDIT_CONNECTION_CLASS == event_class)
 	{
@@ -1183,7 +1210,7 @@ const char *retrieve_command(THD *thd, bool &is_sql_cmd)
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100108
 	if (command == COM_QUERY && sql_command >= 0 && sql_command < SQLCOM_END)
 #else
-	if (sql_command >= 0 && sql_command < MAX_COM_STATUS_VARS_RECORDS)
+	if (command != COM_STMT_PREPARE && sql_command >= 0 && sql_command < MAX_COM_STATUS_VARS_RECORDS)
 #endif
 	{
 		is_sql_cmd = true;
@@ -1195,6 +1222,7 @@ const char *retrieve_command(THD *thd, bool &is_sql_cmd)
 		cmd = command_name[command].str;
 	}
 
+#if MYSQL_VERSION_ID < 50600
 	const char *user = Audit_formatter::thd_inst_main_security_ctx_user(thd);
 	const char *priv_user = Audit_formatter::thd_inst_main_security_ctx_priv_user(thd);
 	if (strcmp(cmd, "Connect") == 0 &&
@@ -1203,6 +1231,7 @@ const char *retrieve_command(THD *thd, bool &is_sql_cmd)
 	{
 		cmd = "Failed Login";
 	}
+#endif
 	return cmd;
 }
 

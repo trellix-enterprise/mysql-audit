@@ -113,6 +113,7 @@ public:
 	ThdSesData(THD *pTHD);
 	THD *getTHD() { return m_pThd;}
 	const char *getCmdName() { return m_CmdName; }
+	void setCmdName(const char *cmd) { m_CmdName = cmd; }
 	const char *getUserName() { return m_UserName; }
 	/**
 	 * Start fetching objects. Return true if there are objects available.

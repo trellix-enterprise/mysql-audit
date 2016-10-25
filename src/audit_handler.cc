@@ -861,8 +861,7 @@ bool ThdSesData::startGetObjects()
 	// such as "show fields"
 	if (   pLex
 	    && (   command == COM_QUERY
-	        || command == COM_STMT_PREPARE
-	        || command == COM_STMT_EXECUTE)
+	        || (command == COM_STMT_EXECUTE && strcmp(cmd, "Execute") != 0))
 	    && pLex->query_tables)
 	{
 		m_tables = pLex->query_tables;
