@@ -54,46 +54,48 @@ Audit_handler *Audit_handler::m_audit_handler_list[Audit_handler::MAX_AUDIT_HAND
 // Yajl alloc funcs based upon thd_alloc
 static void * yajl_thd_malloc(void *ctx, size_t sz)
 {
-    THD *thd = (THD*)ctx;
-	//we allocate plus sizeof(size_t) and stored the alloced size at the start of the pointer (for support of realloc)
-	size_t * ptr = (size_t *)thd_alloc(thd, sz + sizeof(size_t));
-	if(ptr) 
+	THD *thd = (THD*) ctx;
+	// we allocate plus sizeof(size_t) and stored the alloced size
+	// at the start of the pointer (for support of realloc)
+	size_t *ptr = (size_t *) thd_alloc(thd, sz + sizeof(size_t));
+	if (ptr) 
 	{
 		*ptr = sz; //set the size at the start of the memory
 		ptr++;
 	}
-    return ptr;
+	return ptr;
 }
 
 static void * yajl_thd_realloc(void *ctx, void * previous,
-                                    size_t sz)
+		size_t sz)
 {
-    THD *thd = (THD*)ctx;
+	THD *thd = (THD*)ctx;
 	void *ptr;
-    if ((ptr= yajl_thd_malloc(thd,sz)))
+	if ((ptr = yajl_thd_malloc(thd,sz)))
 	{
-		if(previous)
+		if (previous)
 		{
-			//copy only the previous allocated size (which is stored just before the pointer passed in)
+			// copy only the previous allocated size (which is
+			// stored just before the pointer passed in)
 			size_t prev_sz = *(((size_t *)previous) - 1);			
 			memcpy(ptr,previous, prev_sz);
 		}
 	}
-    return ptr;
+	return ptr;
 }
 
 static void yajl_thd_free(void *ctx, void * ptr)
 {
-    //do nothing as thd_alloc deosn't require free
+	//do nothing as thd_alloc deosn't require free
 	return;
 }
 
 static void yajl_set_thd_alloc_funcs(THD * thd, yajl_alloc_funcs * yaf)
 {
 	yaf->malloc = yajl_thd_malloc;
-    yaf->free = yajl_thd_free;
-    yaf->realloc = yajl_thd_realloc;
-    yaf->ctx = thd;
+	yaf->free = yajl_thd_free;
+	yaf->realloc = yajl_thd_realloc;
+	yaf->ctx = thd;
 }
 
 //////////////////////////////////////////////

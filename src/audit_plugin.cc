@@ -441,8 +441,8 @@ static unsigned int trampoline_send_result_to_client_size = 0;
 static bool audit_open_tables(THD *thd, const DDL_options_st &options, TABLE_LIST **start, uint *counter, uint flags,
                 Prelocking_strategy *prelocking_strategy)
 {
-    bool res;
-    res = trampoline_open_tables (thd, options, start, counter, flags, prelocking_strategy);
+	bool res;
+	res = trampoline_open_tables (thd, options, start, counter, flags, prelocking_strategy);
 #elif MYSQL_VERSION_ID > 50505
 static bool audit_open_tables(THD *thd, TABLE_LIST **start, uint *counter, uint flags,
                 Prelocking_strategy *prelocking_strategy)
@@ -967,7 +967,7 @@ static bool calc_file_md5(const char *file_name, char *digest_str)
 		{
 			my_MD5Update(&context, file_buff, res);
 		}
-    }
+	}
 	while (res > 0);
 
 	if (res == 0) // reached end of file
