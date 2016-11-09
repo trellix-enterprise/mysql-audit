@@ -144,7 +144,7 @@ static MYSQL_THDVAR_ULONG(is_thd_printed_list,
 static MYSQL_THDVAR_ULONG(query_cache_table_list,
 	PLUGIN_VAR_READONLY | PLUGIN_VAR_NOSYSVAR | PLUGIN_VAR_NOCMDOPT,
 	"Pointer to query cache table list.",
-	NULL, NULL,0,0,
+	NULL, NULL, 0, 0,
 #ifdef __x86_64__
 	0xffffffffffffff,
 #else
@@ -159,7 +159,7 @@ THDPRINTED *GetThdPrintedList(THD *thd)
 	{
 		return pThdPrintedList;
 	}
-	THDVAR(thd,is_thd_printed_list) =0;
+	THDVAR(thd, is_thd_printed_list) = 0;
 	return NULL;
 }
 
