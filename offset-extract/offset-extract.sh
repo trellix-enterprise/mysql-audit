@@ -30,12 +30,15 @@ HOST=host
 IP=ip
 PRIV_USER=priv_user
 DB=db
+CLIENT_CAPS="print_offset THD client_capabilities"
 
 #in 5.6 command member is named m_command
 echo $MYVER | grep -P '^(5\.6|5\.7|10\.)' > /dev/null
 if [ $? = 0 ]; then
 	COMMAND_MEMBER=m_command
+  HAS_CONNECT_ATTRS=yes
 fi
+CONNECT_ATTRS_CS=m_session_connect_attrs_cs
 #in 5.7 thread_id changed to m_thread_id. main_security_ctx changed to m_main_security_ctx
 echo $MYVER | grep -P '^(5\.7)' > /dev/null
 if [ $? = 0 ]; then
@@ -46,10 +49,31 @@ if [ $? = 0 ]; then
     IP=m_ip
     PRIV_USER=m_priv_user    
     DB=m_db
+    #client capabilities has moved out THD in 5.7. Set to 0
+    CLIENT_CAPS='print_offset THD m_protocol'      
+    
+fi
+
+#in 5.6.15 and up, 5.7 and mariabdb 10.0.11 and up, mariadb 10.1 
+#m_session_connect_attrs_cs changed to m_session_connect_attrs_cs_number
+echo $MYVER | grep -P '^(5\.7|10\.1|5\.6\.(1[5-9]|[2-9][0-9])|10.0.(1[1-9]|[2-9][0-9]))' > /dev/null
+if [ $? = 0 ]; then
+  CONNECT_ATTRS_CS=m_session_connect_attrs_cs_number
+fi
+
+CONNECT_ATTRS=""
+if [ -n "$HAS_CONNECT_ATTRS" ]; then  
+  CONNECT_ATTRS="print_offset PFS_thread m_session_connect_attrs
+print_offset PFS_thread m_session_connect_attrs_length
+print_offset PFS_thread $CONNECT_ATTRS_CS
+"
+else
+  CONNECT_ATTRS='printf ", 0, 0, 0"'
 fi
 
 cat <<EOF > offsets.gdb
 set logging on
+set width 0
 define print_offset
   printf ", %d", (size_t)&((\$arg0*)0)->\$arg1
 end
@@ -66,6 +90,8 @@ print_offset Security_context $IP
 print_offset Security_context $PRIV_USER
 print_offset THD $DB
 print_offset THD killed
+$CLIENT_CAPS
+$CONNECT_ATTRS
 printf "}"
 EOF
 

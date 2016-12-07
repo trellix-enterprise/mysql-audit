@@ -544,7 +544,12 @@ static int audit_notify(THD *thd, mysql_event_class_t event_class,
 		const struct mysql_event_connection *event_connection =
 			(const struct mysql_event_connection *) event;
 		// only audit for connect and change_user. disconnect is caught by general event
-		if (event_connection->event_subclass != MYSQL_AUDIT_CONNECTION_DISCONNECT)
+		if (event_connection->event_subclass != MYSQL_AUDIT_CONNECTION_DISCONNECT
+#if !defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50709
+		    // in pre-authenticate, user info etc is empty. don't log it
+		    && event_connection->event_subclass != MYSQL_AUDIT_CONNECTION_PRE_AUTHENTICATE
+#endif
+		    )
 		{
 			ThdSesData ThdData(thd);
 			audit(&ThdData);
@@ -1040,7 +1045,7 @@ static int setup_offsets()
 
 		if (parse_thd_offsets_string (offsets_string))
 		{
-			sql_print_information ("%s setup_offsets Audit_formatter::thd_offsets values: %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu", log_prefix,
+			sql_print_information ("%s setup_offsets Audit_formatter::thd_offsets values: %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu", log_prefix,
 					Audit_formatter::thd_offsets.query_id,
 					Audit_formatter::thd_offsets.thread_id,
 					Audit_formatter::thd_offsets.main_security_ctx,
@@ -1052,7 +1057,12 @@ static int setup_offsets()
 					Audit_formatter::thd_offsets.sec_ctx_ip,
 					Audit_formatter::thd_offsets.sec_ctx_priv_user,
 					Audit_formatter::thd_offsets.db,
-					Audit_formatter::thd_offsets.killed);
+					Audit_formatter::thd_offsets.killed,
+					Audit_formatter::thd_offsets.client_capabilities,
+					Audit_formatter::thd_offsets.pfs_connect_attrs,
+					Audit_formatter::thd_offsets.pfs_connect_attrs_length,
+					Audit_formatter::thd_offsets.pfs_connect_attrs_cs            
+                            );
 
 			if (! validate_offsets(&Audit_formatter::thd_offsets))
 			{
@@ -1134,10 +1144,18 @@ static int setup_offsets()
 						decoffsets.thread_id -= dec;
 						decoffsets.main_security_ctx -= dec;
 						decoffsets.command -= dec;
+            if(decoffsets.killed)
+            {
+              decoffsets.killed -= dec;            
+            }
+            if(decoffsets.client_capabilities)
+            {
+              decoffsets.client_capabilities -= dec;  
+            }            
 						if (validate_offsets(&decoffsets))
 						{
 							Audit_formatter::thd_offsets = decoffsets;
-							sql_print_information("%s Using decrement (%zu) offsets from offset version: %s (%s) values: %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu",
+							sql_print_information("%s Using decrement (%zu) offsets from offset version: %s (%s) values: %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu",
 									log_prefix, dec, offset->version, offset->md5digest,
 									Audit_formatter::thd_offsets.query_id,
 									Audit_formatter::thd_offsets.thread_id,
@@ -1148,7 +1166,9 @@ static int setup_offsets()
 									Audit_formatter::thd_offsets.sec_ctx_user,
 									Audit_formatter::thd_offsets.sec_ctx_host,
 									Audit_formatter::thd_offsets.sec_ctx_ip,
-									Audit_formatter::thd_offsets.sec_ctx_priv_user);
+									Audit_formatter::thd_offsets.sec_ctx_priv_user,
+                  Audit_formatter::thd_offsets.killed,
+                  Audit_formatter::thd_offsets.client_capabilities);
 
 							DBUG_RETURN(0);
 						}
@@ -1607,6 +1627,22 @@ static int audit_plugin_init(void *p)
 	{
 		DBUG_RETURN(1);
 	}
+  if(!Audit_formatter::thd_offsets.client_capabilities)
+  {
+    sql_print_error(
+				"%s offsets for client_capabilities not defined. client_capabilities will not be logged.",
+				log_prefix);
+  }
+#ifdef HAVE_SESS_CONNECT_ATTRS
+  if(!Audit_formatter::thd_offsets.pfs_connect_attrs ||
+     !Audit_formatter::thd_offsets.pfs_connect_attrs_length ||
+     !Audit_formatter::thd_offsets.pfs_connect_attrs_cs)
+  {
+    sql_print_error(
+				"%s offsets for sess_connect_attrs not defined. sess_connect_attrs will not be logged.",
+				log_prefix);
+  }
+#endif
 	if (delay_cmds_string != NULL)
 	{
 		delay_cmds_string_update(NULL, NULL, NULL, &delay_cmds_string);
@@ -1671,8 +1707,9 @@ static int audit_plugin_init(void *p)
 	// align our trampoline mem on its own page
 	const unsigned long page_size = GETPAGESIZE();
 	const unsigned long std_page_size = 4096;
-	bool use_static_memory = (page_size <= std_page_size);
+	bool use_static_memory = (page_size <= std_page_size);	
 	int mmap_flags = MAP_PRIVATE|MAP_ANONYMOUS;
+	trampoline_mem = NULL;
 
 #ifdef __x86_64__
 	size_t func_in_mysqld = (size_t)log_slow_statement;
@@ -1680,33 +1717,47 @@ static int audit_plugin_init(void *p)
 	if (func_in_mysqld < INT_MAX && func_in_plugin > INT_MAX)
 	{
 		// See comment about IndirectJump in hot_patch.cc.
-		mmap_flags |= MAP_32BIT;
-		use_static_memory = false;
-	}
-#endif
-
-	if (use_static_memory)
-	{
-		// use static executable memory we alocated via trampoline_dummy_func_for_mem
-		DATATYPE_ADDRESS addrs = (DATATYPE_ADDRESS)trampoline_dummy_func_for_mem + (page_size - 1);
-		trampoline_mem = (void*)(addrs & ~(page_size - 1));
-		sql_print_information(
-				"%s mem func addr: %p mem start addr: %p page size: %ld",
-				log_prefix, trampoline_dummy_func_for_mem, trampoline_mem, page_size);
-	}
-	else // big pages for some reason. allocate mem using mmap
-	{
-		trampoline_mem = mmap(NULL, page_size, PROT_READ|PROT_EXEC, mmap_flags, -1, 0);
+		//mmap_flags |= MAP_32BIT;		
+		trampoline_mem = mmap(NULL, page_size, PROT_READ|PROT_EXEC, mmap_flags | MAP_32BIT, -1, 0);
 		if (MAP_FAILED == trampoline_mem)
 		{
-			sql_print_error("%s unable to mmap memory size: %lu, errno: %d. Aborting.",
-					log_prefix, page_size, errno);
-			DBUG_RETURN(1);
+			trampoline_mem = NULL;
+			sql_print_information("%s unable to mmap 32bit memory size: %lu, errno: %d. This may happen when 32bit address space is used up. Will try static and regular mmap...",
+					log_prefix, page_size, errno);				
 		}
 		else
 		{
 			sql_print_information(
-					"%s mem via mmap: %p page size: %ld", log_prefix, trampoline_mem, page_size);
+					"%s mem via 32bit mmap: %p page size: %ld", log_prefix, trampoline_mem, page_size);
+		}
+	}
+#endif	
+	if (!trampoline_mem)
+	{
+		if (use_static_memory)
+		{
+			// use static executable memory we alocated via trampoline_dummy_func_for_mem
+			DATATYPE_ADDRESS addrs = (DATATYPE_ADDRESS)trampoline_dummy_func_for_mem + (page_size - 1);
+			trampoline_mem = (void*)(addrs & ~(page_size - 1));
+			sql_print_information(
+					"%s mem func addr: %p mem start addr: %p page size: %ld",
+					log_prefix, trampoline_dummy_func_for_mem, trampoline_mem, page_size);
+		}
+		else // big pages allocate mem using mmap
+		{
+			trampoline_mem = mmap(NULL, page_size, PROT_READ|PROT_EXEC, mmap_flags , -1, 0);
+			if (MAP_FAILED == trampoline_mem)
+			{
+				trampoline_mem = NULL;
+				sql_print_error("%s unable to mmap 32bit memory size: %lu, errno: %d. Abborting",
+						log_prefix, page_size, errno);				
+				DBUG_RETURN(1);
+			}
+			else
+			{
+				sql_print_information(
+						"%s mem via mmap: %p page size: %ld", log_prefix, trampoline_mem, page_size);
+			}
 		}
 	}
 	trampoline_mem_free = trampoline_mem;
@@ -1872,6 +1923,16 @@ static void json_log_socket_enable(THD *thd, struct st_mysql_sys_var *var,
 
 // setup sysvars which update directly the relevant plugins
 
+static MYSQL_SYSVAR_BOOL(client_capabilities, json_formatter.m_write_client_capabilities,
+             PLUGIN_VAR_RQCMDARG,
+        "AUDIT log client capabilities. Enable|Disable. Default enabled.", NULL, NULL, 1);
+  
+#ifdef HAVE_SESS_CONNECT_ATTRS
+static MYSQL_SYSVAR_BOOL(sess_connect_attrs, json_formatter.m_write_sess_connect_attrs,
+             PLUGIN_VAR_RQCMDARG,
+        "AUDIT log session connect attributes (see: performance_schema.session_connect_attrs table). Enable|Disable. Default enabled.", NULL, NULL, 1);
+#endif
+		
 static MYSQL_SYSVAR_BOOL(header_msg, json_formatter.m_write_start_msg,
              PLUGIN_VAR_RQCMDARG,
         "AUDIT write header message at start of logging or file flush Enable|Disable. Default enabled.", NULL, NULL, 1);
@@ -1995,6 +2056,10 @@ static MYSQL_SYSVAR_STR(record_objs, record_objs_string,
  */
 static struct st_mysql_sys_var* audit_system_variables[] =
 {
+#ifdef HAVE_SESS_CONNECT_ATTRS
+	MYSQL_SYSVAR(sess_connect_attrs),
+#endif	
+  MYSQL_SYSVAR(client_capabilities),
 	MYSQL_SYSVAR(header_msg),
 	MYSQL_SYSVAR(force_record_logins),
 	MYSQL_SYSVAR(json_log_file),

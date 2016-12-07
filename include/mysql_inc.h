@@ -94,4 +94,9 @@ extern "C"  char *thd_security_context(MYSQL_THD thd, char *buffer, unsigned int
 
 #endif
 
+//Define HAVE_SESS_CONNECT_ATTRS. We define it for mysql 5.6 and above
+#if (!defined(MARIADB_BASE_VERSION)) && MYSQL_VERSION_ID >= 50600
+#define HAVE_SESS_CONNECT_ATTRS 1
+#endif
+
 #endif // MYSQL_INCL_H

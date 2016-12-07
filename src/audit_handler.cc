@@ -178,7 +178,7 @@ void Audit_handler::log_audit(ThdSesData *pThdData)
 		return;
 	}
 	// sanity check that offsets match
-	// we can also consider using secutiry context function to do some sanity checks
+	// we can also consider using security context function to do some sanity checks
 	//  char buffer[2048];
 	//  thd_security_context(thd, buffer, 2048, 2000);
 	//  fprintf(log_file, "info from security context: %s\n", buffer);
@@ -209,11 +209,11 @@ void Audit_handler::log_audit(ThdSesData *pThdData)
 			{
 				pthread_mutex_lock(&LOCK_io);
 				//get the io lock. After acquiring the lock do another check that we really need to start (maybe another thread did this already)
-				if(!m_failed)
+				if (!m_failed)
 				{
 					do_log = true;
 				}
-				else if(m_retry_interval > 0 &&
+				else if (m_retry_interval > 0 &&
 					difftime(time(NULL), m_last_retry_sec_ts) > m_retry_interval)
 				{
 					do_log = handler_start_nolock();
@@ -362,7 +362,8 @@ bool Audit_io_handler::handler_start_internal()
 	return true;
 }
 
-bool Audit_io_handler::handler_log_audit(ThdSesData *pThdData)	{
+bool Audit_io_handler::handler_log_audit(ThdSesData *pThdData)
+{
 	return (m_formatter->event_format(pThdData, this) >= 0);
 }
 
@@ -671,6 +672,97 @@ static const char *replace_in_string(THD *thd,
 	return new_str;
 }
 
+#ifdef HAVE_SESS_CONNECT_ATTRS
+#include <storage/perfschema/pfs_instr.h>
+
+//declare the function: parse_length_encoded_string from: storage/perfschema/table_session_connect.cc
+bool parse_length_encoded_string(const char **ptr,
+                 char *dest, uint dest_size,
+                 uint *copied_len,
+                 const char *start_ptr, uint input_length,
+                 bool copy_data,
+                 const CHARSET_INFO *from_cs,
+                 uint nchars_max);
+
+/**
+ * Code based upon read_nth_attribute of storage/perfschema/table_session_connect.cc
+ * Only difference we do once loop and write out the attributes
+ */ 
+static void log_session_connect_attrs(yajl_gen gen, THD *thd)
+{
+  PFS_thread * pfs = PFS_thread::get_current_thread();
+  const char * connect_attrs = Audit_formatter::pfs_connect_attrs(pfs);
+  const uint connect_attrs_length = Audit_formatter::pfs_connect_attrs_length(pfs);
+  const CHARSET_INFO *connect_attrs_cs = Audit_formatter::pfs_connect_attrs_cs(pfs);  
+    
+  //sanity max attributes
+  const uint max_idx = 32;
+  uint idx;
+  const char *ptr;  
+  bool array_start = false;
+  if(!connect_attrs || !connect_attrs_length || !connect_attrs_cs)
+  {
+    //either offsets are wrong or not set
+    return;
+  }
+  for (ptr= connect_attrs, idx= 0;
+       (uint)(ptr - connect_attrs) < connect_attrs_length && idx <= max_idx;
+      idx++)
+  {
+    const uint MAX_COPY_CHARS_NAME = 32;
+    const uint MAX_COPY_CHARS_VAL = 256;
+    //time 6 (max udf8 char length)
+    char attr_name[MAX_COPY_CHARS_NAME*6];
+    char attr_value[MAX_COPY_CHARS_VAL *6];
+    uint copy_length, attr_name_length, attr_value_length;
+    /* always do copying */
+    bool fill_in_attr_name= true;
+    bool fill_in_attr_value= true;
+
+    /* read the key */
+    copy_length = 0;
+    if (parse_length_encoded_string(&ptr,
+                                    attr_name, array_elements(attr_name), &copy_length,
+                                    connect_attrs,
+                                    connect_attrs_length,
+                                    fill_in_attr_name,
+                                    connect_attrs_cs, MAX_COPY_CHARS_NAME) || !copy_length)
+    {
+      //something went wrong or we are done
+      break;
+    }
+            
+    attr_name_length = copy_length;                
+    /* read the value */
+    copy_length = 0;
+    if (parse_length_encoded_string(&ptr,
+                                    attr_value, array_elements(attr_value), &copy_length,
+                                    connect_attrs,
+                                    connect_attrs_length,
+                                    fill_in_attr_value,
+                                    connect_attrs_cs, MAX_COPY_CHARS_VAL) || !copy_length)
+    {
+      break;
+    }          
+    attr_value_length= copy_length;
+    if(!array_start)
+    {
+      yajl_add_string(gen, "connect_attrs");
+		  yajl_gen_map_open(gen);
+      array_start = true;
+    }
+    yajl_gen_string(gen, (const unsigned char*)attr_name, attr_name_length);
+    yajl_gen_string(gen, (const unsigned char*)attr_value, attr_value_length);
+    
+  } //close for loop
+  if(array_start)
+  {
+    yajl_gen_map_close(gen);
+  }
+  return;
+}
+#endif
+
 ssize_t Audit_json_formatter::event_format(ThdSesData *pThdData, IWriter *writer)
 {
 	THD *thd = pThdData->getTHD();
@@ -692,8 +784,31 @@ ssize_t Audit_json_formatter::event_format(ThdSesData *pThdData, IWriter *writer
 	yajl_add_uint64(gen, "query-id", qid);
 	yajl_add_string_val(gen, "user", pThdData->getUserName());
 	yajl_add_string_val(gen, "priv_user", Audit_formatter::thd_inst_main_security_ctx_priv_user(thd));
-	yajl_add_string_val(gen, "host", Audit_formatter::thd_inst_main_security_ctx_host(thd));
 	yajl_add_string_val(gen, "ip", Audit_formatter::thd_inst_main_security_ctx_ip(thd));
+
+	// Don't send host unless there's a real value
+	const char *host = Audit_formatter::thd_inst_main_security_ctx_host(thd);
+	if (host != NULL && *host != '\0')
+	{
+		yajl_add_string_val(gen, "host", host);
+	}
+
+	if (m_write_client_capabilities)
+	{
+		ulong caps = Audit_formatter::thd_client_capabilities(thd);
+		if (caps)
+		{
+			yajl_add_uint64(gen, "capabilities", caps);
+		}
+	}
+
+#ifdef HAVE_SESS_CONNECT_ATTRS
+	if (m_write_sess_connect_attrs)
+	{
+		log_session_connect_attrs(gen, thd);
+	}
+#endif
+
 	const char *cmd = pThdData->getCmdName();
 	yajl_add_string_val(gen, "cmd", cmd);
 

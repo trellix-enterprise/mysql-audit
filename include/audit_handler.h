@@ -78,6 +78,10 @@ typedef struct ThdOffsets {
 	OFFSET sec_ctx_priv_user;
 	OFFSET db;
 	OFFSET killed;
+	OFFSET client_capabilities;
+	OFFSET pfs_connect_attrs;
+	OFFSET pfs_connect_attrs_length;
+	OFFSET pfs_connect_attrs_cs;
 } ThdOffsets;
 
 /*
@@ -318,7 +322,100 @@ public:
 	{
 		return *(LEX **) (((unsigned char *) thd) + Audit_formatter::thd_offsets.lex);
 	}
+  
+  #if !defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50709
+  //in mysql 5.7 capabilities flag moved to protocol. We use the capabilities offset to point to m_protocol
+  //and get from protocol the capabilities flag
+  static inline ulong thd_client_capabilities(THD *thd)
+  {
+    if (! Audit_formatter::thd_offsets.client_capabilities)
+    {
+      //no offsets - return 0
+      return 0;
+    }
+    Protocol * prot = *(Protocol **) (((unsigned char *) thd) + Audit_formatter::thd_offsets.client_capabilities);
+    if(!prot)
+    {
+      return 0;
+    }
+    return prot->get_client_capabilities();
+  }
+  #else
+  static inline ulong thd_client_capabilities(THD *thd)
+  {
+    if (! Audit_formatter::thd_offsets.client_capabilities)
+    {
+      //no offsets - return 0
+      return 0;
+    }
+    return *(ulong *) (((unsigned char *) thd) + Audit_formatter::thd_offsets.client_capabilities);
+  }
+  #endif
+  
+  
+  
+  static inline const char * pfs_connect_attrs(void * pfs)
+  {
+    if (! Audit_formatter::thd_offsets.pfs_connect_attrs)
+    {
+      //no offsets - return null
+      return NULL;
+    }
+    return *(const char **) (((unsigned char *) pfs) + Audit_formatter::thd_offsets.pfs_connect_attrs);
+  }
+  
+  static inline uint pfs_connect_attrs_length(void * pfs)
+  {
+    if (! Audit_formatter::thd_offsets.pfs_connect_attrs_length)
+    {
+      //no offsets - return 0
+      return 0;
+    }
+    return *(uint *) (((unsigned char *) pfs) + Audit_formatter::thd_offsets.pfs_connect_attrs_length);
+  }
+  
+static inline const CHARSET_INFO * pfs_connect_attrs_cs(void * pfs)
+{
+	if (! Audit_formatter::thd_offsets.pfs_connect_attrs_cs)
+	{
+		//no offsets - return null
+		return NULL;
+	}    
+#if (!defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50600) || (defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100010)
+	/**
+	 * m_session_connect_attrs_cs changed to: m_session_connect_attrs_cs_number
+	 * in 5.6.15 and up, 5.7 and mariadb 10.0.11 and up, and 10.1.
+	 * see: storage/perfschema/table_session_connect.cc
+	 * and: storage/perfschema/pfs_instr.h
+	 */
+	static bool first = true;
+	static int major, minor, patch;
 
+	if (first)
+	{
+		sscanf(server_version, "%d.%d.%d", & major, & minor, & patch);
+		// sql_print_information("Audit_plugin: extracted version: %d.%d.%d",
+		//			major, minor, patch);
+	}
+
+	if (   ( major == 5  && ( (minor == 6 && patch >= 15) || minor >= 7) )		// MySQL
+	    || ( major == 10 && ( (minor == 0 && patch >= 11) || minor >= 1) ) )	// MariaDB
+	{
+		uint cs_number = *(uint *) (((unsigned char *) pfs) + Audit_formatter::thd_offsets.pfs_connect_attrs_cs);
+		if (!cs_number)
+		{
+			return NULL;
+
+		} 
+		return get_charset(cs_number, MYF(0));
+	}
+	else
+#endif
+	{
+		return *(const CHARSET_INFO **) (((unsigned char *) pfs) + Audit_formatter::thd_offsets.pfs_connect_attrs_cs);
+	}
+}
+  
 	// we don't use get_db_name() as when we call it view may be not null
 	// and it may return an invalid value for view_db
 	static inline const char *table_get_db_name(TABLE_LIST *table)
@@ -348,6 +445,8 @@ public:
 	Audit_json_formatter()
 		: m_msg_delimiter(NULL),
 		m_write_start_msg(true),
+		m_write_sess_connect_attrs(true),
+    m_write_client_capabilities(true),
 		m_password_mask_regex_preg(NULL),
 		m_password_mask_regex_compiled(false),
 		m_perform_password_masking(NULL)
@@ -386,6 +485,18 @@ public:
 	 * Public so sysvar can update.
 	 */
 	my_bool m_write_start_msg;
+	
+	/**
+	 * include session oonnect attributes
+	 * Public so sysvar can update
+	 */
+	my_bool m_write_sess_connect_attrs;
+  
+  /**
+   * include client capabilities
+   * Public for sysvar
+   */
+  my_bool m_write_client_capabilities;
 
 
 	/**
