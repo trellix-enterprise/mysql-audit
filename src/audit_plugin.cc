@@ -1925,7 +1925,7 @@ static void json_log_socket_enable(THD *thd, struct st_mysql_sys_var *var,
 
 static MYSQL_SYSVAR_BOOL(client_capabilities, json_formatter.m_write_client_capabilities,
              PLUGIN_VAR_RQCMDARG,
-        "AUDIT log client capabilities. Enable|Disable. Default enabled.", NULL, NULL, 1);
+        "AUDIT log client capabilities. Enable|Disable. Default disabled.", NULL, NULL, 0);
   
 #ifdef HAVE_SESS_CONNECT_ATTRS
 static MYSQL_SYSVAR_BOOL(sess_connect_attrs, json_formatter.m_write_sess_connect_attrs,
