@@ -48,10 +48,23 @@ typedef struct _THDPRINTED {
 	char is_thd_printed_queue[MAX_NUM_QUEUE_ELEM];
 } THDPRINTED;
 
-#define MAX_COMMAND_CHAR_NUMBERS 40
+struct PeerInfo {
+	unsigned long pid;
+	enum { MAX_APP_NAME_LEN = 128, MAX_USER_NAME_LEN = 128 };
+	char appName[MAX_APP_NAME_LEN + 1];
+	char osUser[MAX_USER_NAME_LEN + 1];	// allow lots, in case from LDAP or some such
+	PeerInfo() : pid(0) {
+		memset(appName, 0, sizeof appName);
+		memset(osUser, 0, sizeof osUser);
+	}
+};
+
+PeerInfo *retrieve_peerinfo(THD *thd);
+
 const char *retrieve_command(THD *thd, bool& is_sql_cmd);
 typedef size_t OFFSET;
 
+#define MAX_COMMAND_CHAR_NUMBERS 40
 #define MAX_COM_STATUS_VARS_RECORDS 512
 
 // mysql max identifier is 64 so 2*64 + . and null
@@ -82,6 +95,7 @@ typedef struct ThdOffsets {
 	OFFSET pfs_connect_attrs;
 	OFFSET pfs_connect_attrs_length;
 	OFFSET pfs_connect_attrs_cs;
+	OFFSET net;
 } ThdOffsets;
 
 /*
@@ -115,10 +129,14 @@ public:
 	// enum indicating from where the object list came from
 	enum ObjectIterType { OBJ_NONE, OBJ_DB, OBJ_QUERY_CACHE, OBJ_TABLE_LIST };
 	ThdSesData(THD *pTHD);
-	THD *getTHD() { return m_pThd;}
-	const char *getCmdName() { return m_CmdName; }
+	THD *getTHD() const { return m_pThd;}
+	const char *getCmdName() const { return m_CmdName; }
 	void setCmdName(const char *cmd) { m_CmdName = cmd; }
 	const char *getUserName() { return m_UserName; }
+	const unsigned long getPeerPid() const;
+	const char *getAppName() const;
+	const char *getOsUser() const;
+	const int getPort() const { return m_port; }
 	/**
 	 * Start fetching objects. Return true if there are objects available.
 	 */
@@ -144,6 +162,10 @@ private:
 	// used for query cache iter
 	QueryTableInf *m_tableInf;
 	int m_index;
+
+	PeerInfo *m_peerInfo;
+
+	int m_port;	// TCP port of remote side
 
 protected:
 	ThdSesData(const ThdSesData&);
@@ -322,57 +344,57 @@ public:
 	{
 		return *(LEX **) (((unsigned char *) thd) + Audit_formatter::thd_offsets.lex);
 	}
-  
-  #if !defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50709
-  //in mysql 5.7 capabilities flag moved to protocol. We use the capabilities offset to point to m_protocol
-  //and get from protocol the capabilities flag
-  static inline ulong thd_client_capabilities(THD *thd)
-  {
-    if (! Audit_formatter::thd_offsets.client_capabilities)
-    {
-      //no offsets - return 0
-      return 0;
-    }
-    Protocol * prot = *(Protocol **) (((unsigned char *) thd) + Audit_formatter::thd_offsets.client_capabilities);
-    if(!prot)
-    {
-      return 0;
-    }
-    return prot->get_client_capabilities();
-  }
-  #else
-  static inline ulong thd_client_capabilities(THD *thd)
-  {
-    if (! Audit_formatter::thd_offsets.client_capabilities)
-    {
-      //no offsets - return 0
-      return 0;
-    }
-    return *(ulong *) (((unsigned char *) thd) + Audit_formatter::thd_offsets.client_capabilities);
-  }
-  #endif
-  
-  
-  
-  static inline const char * pfs_connect_attrs(void * pfs)
-  {
-    if (! Audit_formatter::thd_offsets.pfs_connect_attrs)
-    {
-      //no offsets - return null
-      return NULL;
-    }
-    return *(const char **) (((unsigned char *) pfs) + Audit_formatter::thd_offsets.pfs_connect_attrs);
-  }
-  
-  static inline uint pfs_connect_attrs_length(void * pfs)
-  {
-    if (! Audit_formatter::thd_offsets.pfs_connect_attrs_length)
-    {
-      //no offsets - return 0
-      return 0;
-    }
-    return *(uint *) (((unsigned char *) pfs) + Audit_formatter::thd_offsets.pfs_connect_attrs_length);
-  }
+
+#if !defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50709
+	//in mysql 5.7 capabilities flag moved to protocol. We use the capabilities offset to point to m_protocol
+	//and get from protocol the capabilities flag
+	static inline ulong thd_client_capabilities(THD *thd)
+	{
+		if (! Audit_formatter::thd_offsets.client_capabilities)
+		{
+			//no offsets - return 0
+			return 0;
+		}
+		Protocol * prot = *(Protocol **) (((unsigned char *) thd) + Audit_formatter::thd_offsets.client_capabilities);
+		if(!prot)
+		{
+			return 0;
+		}
+		return prot->get_client_capabilities();
+	}
+#else
+	static inline ulong thd_client_capabilities(THD *thd)
+	{
+		if (! Audit_formatter::thd_offsets.client_capabilities)
+		{
+			//no offsets - return 0
+			return 0;
+		}
+		return *(ulong *) (((unsigned char *) thd) + Audit_formatter::thd_offsets.client_capabilities);
+	}
+#endif
+
+
+
+	static inline const char * pfs_connect_attrs(void * pfs)
+	{
+		if (! Audit_formatter::thd_offsets.pfs_connect_attrs)
+		{
+			//no offsets - return null
+			return NULL;
+		}
+		return *(const char **) (((unsigned char *) pfs) + Audit_formatter::thd_offsets.pfs_connect_attrs);
+	}
+
+	static inline uint pfs_connect_attrs_length(void * pfs)
+	{
+		if (! Audit_formatter::thd_offsets.pfs_connect_attrs_length)
+		{
+			//no offsets - return 0
+			return 0;
+		}
+		return *(uint *) (((unsigned char *) pfs) + Audit_formatter::thd_offsets.pfs_connect_attrs_length);
+	}
   
 static inline const CHARSET_INFO * pfs_connect_attrs_cs(void * pfs)
 {
@@ -415,7 +437,51 @@ static inline const CHARSET_INFO * pfs_connect_attrs_cs(void * pfs)
 		return *(const CHARSET_INFO **) (((unsigned char *) pfs) + Audit_formatter::thd_offsets.pfs_connect_attrs_cs);
 	}
 }
-  
+	static inline int thd_client_fd(THD *thd)
+	{
+		if (! Audit_formatter::thd_offsets.net)
+		{
+			return -1;
+		}
+		NET *net = ((NET *) (((unsigned char *) thd)
+				+ Audit_formatter::thd_offsets.net));
+		// get the socket for the peer
+		int sock = -1;
+		if (net->vio != NULL)	// MySQL 5.7.17 - this can happen. :-(
+		{
+#if MYSQL_VERSION_ID < 50600
+			sock = net->vio->sd;
+#else
+			sock = net->vio->mysql_socket.fd;
+#endif
+		}
+
+		return sock;
+	}
+
+	static inline int thd_client_port(THD *thd)
+	{
+		if (! Audit_formatter::thd_offsets.net)
+		{
+			return -1;
+		}
+		NET *net = ((NET *) (((unsigned char *) thd)
+				+ Audit_formatter::thd_offsets.net));
+
+		// get the port for the remote end
+		int port = -1;
+
+		if (net->vio != NULL)	// MySQL 5.7.17 - this can happen. :-(
+		{
+			struct sockaddr_in *in;
+			
+			in = (struct sockaddr_in *) & net->vio->remote;
+			port = in->sin_port;
+		}
+
+		return port;
+	}
+
 	// we don't use get_db_name() as when we call it view may be not null
 	// and it may return an invalid value for view_db
 	static inline const char *table_get_db_name(TABLE_LIST *table)
@@ -446,7 +512,8 @@ public:
 		: m_msg_delimiter(NULL),
 		m_write_start_msg(true),
 		m_write_sess_connect_attrs(true),
-    m_write_client_capabilities(true),
+		m_write_client_capabilities(false),
+		m_write_socket_creds(true),
 		m_password_mask_regex_preg(NULL),
 		m_password_mask_regex_compiled(false),
 		m_perform_password_masking(NULL)
@@ -491,13 +558,18 @@ public:
 	 * Public so sysvar can update
 	 */
 	my_bool m_write_sess_connect_attrs;
-  
-  /**
-   * include client capabilities
-   * Public for sysvar
-   */
-  my_bool m_write_client_capabilities;
 
+	/**
+	* include client capabilities
+	* Public for sysvar
+	*/
+	my_bool m_write_client_capabilities;
+
+	/**
+	 * include socket credentials from Unix Domain Socket
+	 * Public for sysvar
+	 */
+	my_bool m_write_socket_creds;
 
 	/**
 	 * Callback function to determine if password masking should be performed

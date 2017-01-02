@@ -23,6 +23,8 @@
 // for definition of sockaddr_un
 #include <sys/un.h>
 #include <stdio_ext.h>
+#include <limits.h>
+#include <unistd.h>
 #include "static_assert.h"
 
 // utility macro to log also with a date as a prefix
@@ -558,7 +560,7 @@ static const char *thd_query_str(THD *thd, size_t *len)
 #elif defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID > 50140
 
 extern "C" {
-    MYSQL_LEX_STRING *thd_query_string(MYSQL_THD thd);
+	MYSQL_LEX_STRING *thd_query_string(MYSQL_THD thd);
 }
 
 static const char *thd_query_str(THD *thd, size_t *len)
@@ -621,6 +623,7 @@ ssize_t Audit_json_formatter::start_msg_format(IWriter *writer)
 	yajl_add_string_val(gen, "mysql-program", my_progname);
 	yajl_add_string_val(gen, "mysql-socket", mysqld_unix_port);
 	yajl_add_uint64(gen, "mysql-port", mysqld_port);
+	yajl_add_uint64(gen, "server_pid", getpid());
 	ssize_t res = -2;
 
 	yajl_gen_status stat = yajl_gen_map_close(gen); // close the object
@@ -677,12 +680,12 @@ static const char *replace_in_string(THD *thd,
 
 //declare the function: parse_length_encoded_string from: storage/perfschema/table_session_connect.cc
 bool parse_length_encoded_string(const char **ptr,
-                 char *dest, uint dest_size,
-                 uint *copied_len,
-                 const char *start_ptr, uint input_length,
-                 bool copy_data,
-                 const CHARSET_INFO *from_cs,
-                 uint nchars_max);
+	char *dest, uint dest_size,
+	uint *copied_len,
+	const char *start_ptr, uint input_length,
+	bool copy_data,
+	const CHARSET_INFO *from_cs,
+	uint nchars_max);
 
 /**
  * Code based upon read_nth_attribute of storage/perfschema/table_session_connect.cc
@@ -690,76 +693,76 @@ bool parse_length_encoded_string(const char **ptr,
  */ 
 static void log_session_connect_attrs(yajl_gen gen, THD *thd)
 {
-  PFS_thread * pfs = PFS_thread::get_current_thread();
-  const char * connect_attrs = Audit_formatter::pfs_connect_attrs(pfs);
-  const uint connect_attrs_length = Audit_formatter::pfs_connect_attrs_length(pfs);
-  const CHARSET_INFO *connect_attrs_cs = Audit_formatter::pfs_connect_attrs_cs(pfs);  
-    
-  //sanity max attributes
-  const uint max_idx = 32;
-  uint idx;
-  const char *ptr;  
-  bool array_start = false;
-  if(!connect_attrs || !connect_attrs_length || !connect_attrs_cs)
-  {
-    //either offsets are wrong or not set
-    return;
-  }
-  for (ptr= connect_attrs, idx= 0;
-       (uint)(ptr - connect_attrs) < connect_attrs_length && idx <= max_idx;
-      idx++)
-  {
-    const uint MAX_COPY_CHARS_NAME = 32;
-    const uint MAX_COPY_CHARS_VAL = 256;
-    //time 6 (max udf8 char length)
-    char attr_name[MAX_COPY_CHARS_NAME*6];
-    char attr_value[MAX_COPY_CHARS_VAL *6];
-    uint copy_length, attr_name_length, attr_value_length;
-    /* always do copying */
-    bool fill_in_attr_name= true;
-    bool fill_in_attr_value= true;
+	PFS_thread * pfs = PFS_thread::get_current_thread();
+	const char * connect_attrs = Audit_formatter::pfs_connect_attrs(pfs);
+	const uint connect_attrs_length = Audit_formatter::pfs_connect_attrs_length(pfs);
+	const CHARSET_INFO *connect_attrs_cs = Audit_formatter::pfs_connect_attrs_cs(pfs);  
 
-    /* read the key */
-    copy_length = 0;
-    if (parse_length_encoded_string(&ptr,
-                                    attr_name, array_elements(attr_name), &copy_length,
-                                    connect_attrs,
-                                    connect_attrs_length,
-                                    fill_in_attr_name,
-                                    connect_attrs_cs, MAX_COPY_CHARS_NAME) || !copy_length)
-    {
-      //something went wrong or we are done
-      break;
-    }
-            
-    attr_name_length = copy_length;                
-    /* read the value */
-    copy_length = 0;
-    if (parse_length_encoded_string(&ptr,
-                                    attr_value, array_elements(attr_value), &copy_length,
-                                    connect_attrs,
-                                    connect_attrs_length,
-                                    fill_in_attr_value,
-                                    connect_attrs_cs, MAX_COPY_CHARS_VAL) || !copy_length)
-    {
-      break;
-    }          
-    attr_value_length= copy_length;
-    if(!array_start)
-    {
-      yajl_add_string(gen, "connect_attrs");
-		  yajl_gen_map_open(gen);
-      array_start = true;
-    }
-    yajl_gen_string(gen, (const unsigned char*)attr_name, attr_name_length);
-    yajl_gen_string(gen, (const unsigned char*)attr_value, attr_value_length);
-    
-  } //close for loop
-  if(array_start)
-  {
-    yajl_gen_map_close(gen);
-  }
-  return;
+	//sanity max attributes
+	const uint max_idx = 32;
+	uint idx;
+	const char *ptr;  
+	bool array_start = false;
+	if(!connect_attrs || !connect_attrs_length || !connect_attrs_cs)
+	{
+		//either offsets are wrong or not set
+		return;
+	}
+	for (ptr= connect_attrs, idx= 0;
+			(uint)(ptr - connect_attrs) < connect_attrs_length && idx <= max_idx;
+			idx++)
+	{
+		const uint MAX_COPY_CHARS_NAME = 32;
+		const uint MAX_COPY_CHARS_VAL = 256;
+		//time 6 (max udf8 char length)
+		char attr_name[MAX_COPY_CHARS_NAME*6];
+		char attr_value[MAX_COPY_CHARS_VAL *6];
+		uint copy_length, attr_name_length, attr_value_length;
+		/* always do copying */
+		bool fill_in_attr_name= true;
+		bool fill_in_attr_value= true;
+
+		/* read the key */
+		copy_length = 0;
+		if (parse_length_encoded_string(&ptr,
+					attr_name, array_elements(attr_name), &copy_length,
+					connect_attrs,
+					connect_attrs_length,
+					fill_in_attr_name,
+					connect_attrs_cs, MAX_COPY_CHARS_NAME) || !copy_length)
+		{
+			//something went wrong or we are done
+			break;
+		}
+
+		attr_name_length = copy_length;                
+		/* read the value */
+		copy_length = 0;
+		if (parse_length_encoded_string(&ptr,
+					attr_value, array_elements(attr_value), &copy_length,
+					connect_attrs,
+					connect_attrs_length,
+					fill_in_attr_value,
+					connect_attrs_cs, MAX_COPY_CHARS_VAL) || !copy_length)
+		{
+			break;
+		}          
+		attr_value_length= copy_length;
+		if(!array_start)
+		{
+			yajl_add_string(gen, "connect_attrs");
+			yajl_gen_map_open(gen);
+			array_start = true;
+		}
+		yajl_gen_string(gen, (const unsigned char*)attr_name, attr_name_length);
+		yajl_gen_string(gen, (const unsigned char*)attr_value, attr_value_length);
+
+	} //close for loop
+	if(array_start)
+	{
+		yajl_gen_map_close(gen);
+	}
+	return;
 }
 #endif
 
@@ -786,12 +789,14 @@ ssize_t Audit_json_formatter::event_format(ThdSesData *pThdData, IWriter *writer
 	yajl_add_string_val(gen, "priv_user", Audit_formatter::thd_inst_main_security_ctx_priv_user(thd));
 	yajl_add_string_val(gen, "ip", Audit_formatter::thd_inst_main_security_ctx_ip(thd));
 
-	// Don't send host unless there's a real value
+	// For backwards compatibility, we always send "host".
+	// If there is no value, send the IP address
 	const char *host = Audit_formatter::thd_inst_main_security_ctx_host(thd);
-	if (host != NULL && *host != '\0')
+	if (host == NULL || *host == '\0')
 	{
-		yajl_add_string_val(gen, "host", host);
+		host = Audit_formatter::thd_inst_main_security_ctx_ip(thd);
 	}
+	yajl_add_string_val(gen, "host", host);
 
 	if (m_write_client_capabilities)
 	{
@@ -808,6 +813,26 @@ ssize_t Audit_json_formatter::event_format(ThdSesData *pThdData, IWriter *writer
 		log_session_connect_attrs(gen, thd);
 	}
 #endif
+
+	if (pThdData->getPeerPid() != 0)	// Unix Domain Socket
+	{
+		if (m_write_socket_creds)
+		{
+			yajl_add_uint64(gen, "pid", pThdData->getPeerPid());
+			if (pThdData->getOsUser() != NULL)
+			{
+				yajl_add_string_val(gen, "os_user", pThdData->getOsUser());
+			}
+			if (pThdData->getAppName() != NULL)
+			{
+				yajl_add_string_val(gen, "appname", pThdData->getAppName());
+			}
+		}
+	}
+	else if (pThdData->getPort() > 0)		// TCP socket
+	{
+		yajl_add_uint64(gen, "client_port", pThdData->getPort());
+	}
 
 	const char *cmd = pThdData->getCmdName();
 	yajl_add_string_val(gen, "cmd", cmd);
@@ -938,10 +963,18 @@ ssize_t Audit_json_formatter::event_format(ThdSesData *pThdData, IWriter *writer
 ThdSesData::ThdSesData(THD *pTHD)
       : m_pThd (pTHD), m_CmdName(NULL), m_UserName(NULL),
         m_objIterType(OBJ_NONE), m_tables(NULL), m_firstTable(true),
-        m_tableInf(NULL), m_index(0), m_isSqlCmd(false)
+        m_tableInf(NULL), m_index(0), m_isSqlCmd(false),
+	m_port(-1)
 {
 	m_CmdName = retrieve_command (m_pThd, m_isSqlCmd);
 	m_UserName = retrieve_user (m_pThd);
+
+	m_peerInfo = retrieve_peerinfo(m_pThd);
+	if (m_peerInfo && m_peerInfo->pid == 0)
+	{
+		// not UDS, get remote port
+		m_port = Audit_formatter::thd_client_port(m_pThd);
+	}
 }
 
 bool ThdSesData::startGetObjects()
@@ -1053,6 +1086,21 @@ bool ThdSesData::getNextObject(const char **db_name, const char **obj_name, cons
 	default:
 		return false;
 	}
+}
+
+const unsigned long ThdSesData::getPeerPid() const
+{
+	return (m_peerInfo != NULL ? m_peerInfo->pid : 0L);
+}
+
+const char *ThdSesData::getAppName() const
+{
+	return (m_peerInfo != NULL ? m_peerInfo->appName : NULL);
+}
+
+const char *ThdSesData::getOsUser() const
+{
+	return (m_peerInfo != NULL ? m_peerInfo->osUser : NULL);
 }
 
 pcre *Audit_json_formatter::regex_compile(const char *str)

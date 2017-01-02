@@ -16,6 +16,7 @@
 #include "hot_patch.h"
 #include <stdlib.h>
 #include <ctype.h>
+#include <pwd.h>
 
 #include "audit_handler.h"
 #include <string.h>
@@ -152,6 +153,32 @@ static MYSQL_THDVAR_ULONG(query_cache_table_list,
 #endif
 	1);
 
+
+static MYSQL_THDVAR_BOOL(set_peer_cred,
+	PLUGIN_VAR_READONLY | PLUGIN_VAR_NOSYSVAR | PLUGIN_VAR_NOCMDOPT,
+	"track if peer credential information is set",
+	NULL, NULL, 0);
+
+static MYSQL_THDVAR_BOOL(peer_is_uds,
+	PLUGIN_VAR_READONLY | PLUGIN_VAR_NOSYSVAR | PLUGIN_VAR_NOCMDOPT,
+	"track if client is connected on Unix Domain Socket",
+	NULL, NULL, 0);
+
+// We use a THDVAR_STR to store the PeerInfo struct for this thread.
+// In order to get MySQL to allocate storage correctly, we have to
+// fool it into thinking that the storage holds a C string. To do so,
+// we create a char array of the right size and use that as the initial
+// value. Then in the constructor routines, below, we initialize the
+// contents to look like a C string with a bunch of '0' characters,
+// terminated by a final '\0'.
+char peer_info_init_value[sizeof(struct PeerInfo) + 4];
+
+static MYSQL_THDVAR_STR(peer_info,
+	PLUGIN_VAR_NOSYSVAR | PLUGIN_VAR_READONLY | /* PLUGIN_VAR_NOCMDOPT | */ PLUGIN_VAR_MEMALLOC,
+	"Info related to client process",
+	NULL, NULL, peer_info_init_value);
+
+
 THDPRINTED *GetThdPrintedList(THD *thd)
 {
 	THDPRINTED *pThdPrintedList= (THDPRINTED*) THDVAR(thd, is_thd_printed_list);
@@ -160,6 +187,153 @@ THDPRINTED *GetThdPrintedList(THD *thd)
 		return pThdPrintedList;
 	}
 	THDVAR(thd, is_thd_printed_list) = 0;
+	return NULL;
+}
+
+static void initializePeerCredentials(THD *pThd)
+{
+	int sock;
+	struct stat sbuf;
+	struct ucred cred;
+	socklen_t cred_len = sizeof(cred);
+	char buf[BUFSIZ];
+	struct passwd pwd, *pwbuf = NULL;
+	char *username = NULL;
+	int fd;
+	PeerInfo *peer;
+
+	// zero out thread local copy of PeerInfo
+	peer = (PeerInfo *) THDVAR(pThd, peer_info);
+	if (peer != NULL)
+	{
+		memset(peer, 0, sizeof(PeerInfo));
+	}
+
+	// get the NET structure
+	sock = Audit_formatter::thd_client_fd(pThd);
+	// These tests are not chained so that we can add
+	// debug prints if necessary.
+	if (sock < 0)
+	{
+		goto done;
+	}
+
+	// Is it a Unix Domain socket?
+	if (fstat(sock, &sbuf) < 0)
+	{
+		goto done;
+	}
+
+	if ((sbuf.st_mode & S_IFMT) != S_IFSOCK)
+	{
+		goto done;
+	}
+
+	// At this point, we know we have a Unix domain socket.
+	if (! json_formatter.m_write_socket_creds)
+	{
+		// We need to set this, so that we don't send the
+		// client port, but we don't bother getting the command
+		// name and user name, since they won't be sent.
+		THDVAR(pThd, peer_is_uds) = TRUE;
+		goto done;
+	}
+
+	// Do a SO_PEERCRED
+	if (getsockopt(sock, SOL_SOCKET, SO_PEERCRED, &cred, &cred_len) < 0)
+	{
+		goto done;
+	}
+
+	if (cred_len != sizeof(cred))
+	{
+		goto done;
+	}
+
+	if (peer == NULL)
+	{
+		goto done;
+	}
+
+	// Set PID
+	peer->pid = cred.pid;
+
+	// Get OS user name
+	getpwuid_r(cred.uid, & pwd, buf, sizeof(buf), & pwbuf);
+	if (pwbuf == NULL)
+	{
+		// no name, send UID
+		snprintf(buf, sizeof(buf) - 1, "%lu", (unsigned long) cred.uid);
+		username = buf;
+	}
+	else
+	{
+		username = pwd.pw_name;
+	}
+
+	strncpy(peer->osUser, username, PeerInfo::MAX_USER_NAME_LEN);
+	peer->osUser[PeerInfo::MAX_USER_NAME_LEN] = '\0';
+
+	// Get the progran name out of /proc
+	snprintf(buf, sizeof(buf) - 1, "/proc/%d/cmdline", cred.pid);
+	fd = open(buf, O_RDONLY);
+	if (fd >= 0)
+	{
+		char data[PATH_MAX+1];
+
+		ssize_t count = read(fd, data, sizeof(data) - 1);
+		if (count > 0)
+		{
+			data[count] = '\0';	// just in case
+
+			if (strlen(data) <= PeerInfo::MAX_APP_NAME_LEN)
+			{
+				strcpy(peer->appName, data);
+			}
+			else
+			{
+				// take last 128 characters, typically will be
+				// .../x/y/appname
+				char *cp = data + strlen(data) - PeerInfo::MAX_APP_NAME_LEN;
+
+				strncpy(peer->appName, cp, PeerInfo::MAX_APP_NAME_LEN);
+				peer->appName[PeerInfo::MAX_APP_NAME_LEN] = '\0';
+			}
+		}
+
+		close(fd);
+	}
+
+	// in case of errors:
+	if (peer->appName[0] == '\0')
+	{
+		snprintf(peer->appName, sizeof(peer->appName) - 1, "pid:%d", cred.pid);
+	}
+
+	// set that we have a UDS, so that THD vars will be used
+	THDVAR(pThd, peer_is_uds) = TRUE;
+
+done:
+	THDVAR(pThd, set_peer_cred) = TRUE;
+}
+
+PeerInfo *retrieve_peerinfo(THD *thd)
+{
+	if (! THDVAR(thd, set_peer_cred))
+	{
+		initializePeerCredentials(thd);
+	}
+
+	if (json_formatter.m_write_socket_creds)
+	{
+		PeerInfo *peer = (PeerInfo *) THDVAR(thd, peer_info);
+
+		if (THDVAR(thd, peer_is_uds) && peer != NULL);
+		{
+			return peer;
+		}
+	}
+
 	return NULL;
 }
 
@@ -1043,9 +1217,9 @@ static int setup_offsets()
 			}
 		}
 
-		if (parse_thd_offsets_string (offsets_string))
+		if (parse_thd_offsets_string(offsets_string))
 		{
-			sql_print_information ("%s setup_offsets Audit_formatter::thd_offsets values: %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu", log_prefix,
+			sql_print_information ("%s setup_offsets Audit_formatter::thd_offsets values: %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu", log_prefix,
 					Audit_formatter::thd_offsets.query_id,
 					Audit_formatter::thd_offsets.thread_id,
 					Audit_formatter::thd_offsets.main_security_ctx,
@@ -1061,8 +1235,9 @@ static int setup_offsets()
 					Audit_formatter::thd_offsets.client_capabilities,
 					Audit_formatter::thd_offsets.pfs_connect_attrs,
 					Audit_formatter::thd_offsets.pfs_connect_attrs_length,
-					Audit_formatter::thd_offsets.pfs_connect_attrs_cs            
-                            );
+					Audit_formatter::thd_offsets.pfs_connect_attrs_cs,
+					Audit_formatter::thd_offsets.net
+			);
 
 			if (! validate_offsets(&Audit_formatter::thd_offsets))
 			{
@@ -1144,18 +1319,22 @@ static int setup_offsets()
 						decoffsets.thread_id -= dec;
 						decoffsets.main_security_ctx -= dec;
 						decoffsets.command -= dec;
-            if(decoffsets.killed)
-            {
-              decoffsets.killed -= dec;            
-            }
-            if(decoffsets.client_capabilities)
-            {
-              decoffsets.client_capabilities -= dec;  
-            }            
+						if(decoffsets.killed)
+						{
+							decoffsets.killed -= dec;            
+						}
+						if(decoffsets.client_capabilities)
+						{
+							decoffsets.client_capabilities -= dec;  
+						}
+						if(decoffsets.net)
+						{
+							decoffsets.net -= dec;  
+						}
 						if (validate_offsets(&decoffsets))
 						{
 							Audit_formatter::thd_offsets = decoffsets;
-							sql_print_information("%s Using decrement (%zu) offsets from offset version: %s (%s) values: %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu",
+							sql_print_information("%s Using decrement (%zu) offsets from offset version: %s (%s) values: %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu",
 									log_prefix, dec, offset->version, offset->md5digest,
 									Audit_formatter::thd_offsets.query_id,
 									Audit_formatter::thd_offsets.thread_id,
@@ -1167,8 +1346,12 @@ static int setup_offsets()
 									Audit_formatter::thd_offsets.sec_ctx_host,
 									Audit_formatter::thd_offsets.sec_ctx_ip,
 									Audit_formatter::thd_offsets.sec_ctx_priv_user,
-                  Audit_formatter::thd_offsets.killed,
-                  Audit_formatter::thd_offsets.client_capabilities);
+									Audit_formatter::thd_offsets.killed,
+									Audit_formatter::thd_offsets.client_capabilities,
+									Audit_formatter::thd_offsets.pfs_connect_attrs,
+									Audit_formatter::thd_offsets.pfs_connect_attrs_length,
+									Audit_formatter::thd_offsets.pfs_connect_attrs_cs,
+									Audit_formatter::thd_offsets.net);
 
 							DBUG_RETURN(0);
 						}
@@ -1185,7 +1368,7 @@ static int setup_offsets()
 					if (validate_offsets(&incoffsets))
 					{
 						Audit_formatter::thd_offsets = incoffsets;
-						sql_print_information("%s Using increment (%zu) offsets from offset version: %s (%s) values: %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu",
+						sql_print_information("%s Using increment (%zu) offsets from offset version: %s (%s) values: %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu",
 								log_prefix, inc, offset->version, offset->md5digest,
 								Audit_formatter::thd_offsets.query_id,
 								Audit_formatter::thd_offsets.thread_id,
@@ -1196,7 +1379,13 @@ static int setup_offsets()
 								Audit_formatter::thd_offsets.sec_ctx_user,
 								Audit_formatter::thd_offsets.sec_ctx_host,
 								Audit_formatter::thd_offsets.sec_ctx_ip,
-								Audit_formatter::thd_offsets.sec_ctx_priv_user);
+								Audit_formatter::thd_offsets.sec_ctx_priv_user,
+								Audit_formatter::thd_offsets.killed,
+								Audit_formatter::thd_offsets.client_capabilities,
+								Audit_formatter::thd_offsets.pfs_connect_attrs,
+								Audit_formatter::thd_offsets.pfs_connect_attrs_length,
+								Audit_formatter::thd_offsets.pfs_connect_attrs_cs,
+								Audit_formatter::thd_offsets.net);
 						DBUG_RETURN(0);
 					}
 				}
@@ -1227,11 +1416,14 @@ const char *retrieve_command(THD *thd, bool &is_sql_cmd)
 	}
 
 	const int sql_command = thd_sql_command(thd);
+
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100108
-	if (command == COM_QUERY && sql_command >= 0 && sql_command < SQLCOM_END)
+#define MAX_SQL_COM_INDEX SQLCOM_END
 #else
-	if (command != COM_STMT_PREPARE && sql_command >= 0 && sql_command < MAX_COM_STATUS_VARS_RECORDS)
+#define MAX_SQL_COM_INDEX MAX_COM_STATUS_VARS_RECORDS
 #endif
+
+	if (command != COM_STMT_PREPARE && sql_command >= 0 && sql_command < MAX_SQL_COM_INDEX)
 	{
 		is_sql_cmd = true;
 		cmd = com_status_vars_array[sql_command].name;
@@ -1365,7 +1557,7 @@ static int string_to_array(const void *save, void *array, int rows, int length)
 
 __attribute__ ((noinline)) static void trampoline_dummy_func_for_mem()
 {
-    TRAMPOLINE_NOP_DEF
+	TRAMPOLINE_NOP_DEF
 }
 
 // holds memory used for trampoline
@@ -1621,28 +1813,35 @@ static int audit_plugin_init(void *p)
 			log_prefix, MYSQL_AUDIT_PLUGIN_VERSION,
 			MYSQL_AUDIT_PLUGIN_REVISION, arch, interface_ver, interface_ver,
 			server_version);
+
 	// setup our offsets.
 
 	if (setup_offsets() != 0)
 	{
 		DBUG_RETURN(1);
 	}
-  if(!Audit_formatter::thd_offsets.client_capabilities)
-  {
-    sql_print_error(
+	if(!Audit_formatter::thd_offsets.client_capabilities)
+	{
+		sql_print_error(
 				"%s offsets for client_capabilities not defined. client_capabilities will not be logged.",
 				log_prefix);
-  }
+	}
 #ifdef HAVE_SESS_CONNECT_ATTRS
-  if(!Audit_formatter::thd_offsets.pfs_connect_attrs ||
-     !Audit_formatter::thd_offsets.pfs_connect_attrs_length ||
-     !Audit_formatter::thd_offsets.pfs_connect_attrs_cs)
-  {
-    sql_print_error(
+	if(!Audit_formatter::thd_offsets.pfs_connect_attrs ||
+			!Audit_formatter::thd_offsets.pfs_connect_attrs_length ||
+			!Audit_formatter::thd_offsets.pfs_connect_attrs_cs)
+	{
+		sql_print_error(
 				"%s offsets for sess_connect_attrs not defined. sess_connect_attrs will not be logged.",
 				log_prefix);
-  }
+	}
 #endif
+	if (!Audit_formatter::thd_offsets.net)
+	{
+		sql_print_error("%s offset for NET structure not defined. peer attributes will not be logged.",
+				log_prefix);
+	}
+
 	if (delay_cmds_string != NULL)
 	{
 		delay_cmds_string_update(NULL, NULL, NULL, &delay_cmds_string);
@@ -1840,6 +2039,8 @@ static int audit_plugin_init(void *p)
 	{
 		DBUG_RETURN(1);
 	}
+
+
 	sql_print_information("%s Init completed successfully.", log_prefix);
 	DBUG_RETURN(0);
 }
@@ -1922,6 +2123,10 @@ static void json_log_socket_enable(THD *thd, struct st_mysql_sys_var *var,
 }
 
 // setup sysvars which update directly the relevant plugins
+
+static MYSQL_SYSVAR_BOOL(socket_creds, json_formatter.m_write_socket_creds,
+             PLUGIN_VAR_RQCMDARG,
+        "AUDIT log socket credentials from Unix Domain Socket. Enable|Disable. Default enabled.", NULL, NULL, 1);
 
 static MYSQL_SYSVAR_BOOL(client_capabilities, json_formatter.m_write_client_capabilities,
              PLUGIN_VAR_RQCMDARG,
@@ -2059,7 +2264,8 @@ static struct st_mysql_sys_var* audit_system_variables[] =
 #ifdef HAVE_SESS_CONNECT_ATTRS
 	MYSQL_SYSVAR(sess_connect_attrs),
 #endif	
-  MYSQL_SYSVAR(client_capabilities),
+	MYSQL_SYSVAR(socket_creds),
+	MYSQL_SYSVAR(client_capabilities),
 	MYSQL_SYSVAR(header_msg),
 	MYSQL_SYSVAR(force_record_logins),
 	MYSQL_SYSVAR(json_log_file),
@@ -2087,6 +2293,9 @@ static struct st_mysql_sys_var* audit_system_variables[] =
 	MYSQL_SYSVAR(record_objs),
 	MYSQL_SYSVAR(checksum),
 	MYSQL_SYSVAR(password_masking_regex),
+	MYSQL_SYSVAR(set_peer_cred),
+	MYSQL_SYSVAR(peer_is_uds),
+	MYSQL_SYSVAR(peer_info),
 
 	NULL
 };
@@ -2130,6 +2339,9 @@ extern "C" void __attribute__ ((constructor)) audit_plugin_so_init(void)
 				"%s mysqld_builtins are null. Plugin will not load unless the mysql version is: %d. \n",
 				log_prefix, audit_plugin.interface_version >> 8);
 	}
+
+	memset(peer_info_init_value, '0', sizeof(peer_info_init_value)-1);
+	peer_info_init_value[sizeof(peer_info_init_value) - 1] = '\0';
 }
 #elif MYSQL_VERSION_ID < 50600
 extern struct st_mysql_plugin *mysql_mandatory_plugins[];
@@ -2140,6 +2352,8 @@ extern "C"  void __attribute__ ((constructor)) audit_plugin_so_init(void)
 			log_prefix, audit_plugin.interface_version,
 			audit_plugin.interface_version >> 8);
 
+	memset(peer_info_init_value, '0', sizeof(peer_info_init_value)-1);
+	peer_info_init_value[sizeof(peer_info_init_value) - 1] = '\0';
 }
 #elif !defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID < 50709
 // Interface version for MySQL 5.6 changed in 5.6.14.
@@ -2155,6 +2369,16 @@ extern "C"  void __attribute__ ((constructor)) audit_plugin_so_init(void)
 	{
 		audit_plugin.interface_version = 0x0301;
 	}
+
+	memset(peer_info_init_value, '0', sizeof(peer_info_init_value)-1);
+	peer_info_init_value[sizeof(peer_info_init_value) - 1] = '\0';
+}
+#else
+// 5.7
+extern "C"  void __attribute__ ((constructor)) audit_plugin_so_init(void)
+{
+	memset(peer_info_init_value, '0', sizeof(peer_info_init_value)-1);
+	peer_info_init_value[sizeof(peer_info_init_value) - 1] = '\0';
 }
 #endif
 

@@ -92,6 +92,7 @@ print_offset THD $DB
 print_offset THD killed
 $CLIENT_CAPS
 $CONNECT_ATTRS
+print_offset THD net
 printf "}"
 EOF
 
