@@ -835,6 +835,31 @@ ssize_t Audit_json_formatter::event_format(ThdSesData *pThdData, IWriter *writer
 	}
 
 	const char *cmd = pThdData->getCmdName();
+	ulonglong rows = 0;
+
+	if (pThdData->getStatementSource() == ThdSesData::SOURCE_QUERY_CACHE)
+	{
+		// from the query cache
+		rows = thd_found_rows(thd);
+	}
+	else if (strcasestr(cmd, "insert") != NULL ||
+		 strcasestr(cmd, "update") != NULL ||
+		 strcasestr(cmd, "delete") != NULL ||
+	         (strcasestr(cmd, "select") != NULL && thd_row_count_func(thd) > 0))
+	{
+		// m_row_count_func will be -1 for most selects but can be > 0, e.g. select into file
+		rows = thd_row_count_func(thd);
+	}
+	else
+	{
+		rows = thd_sent_row_count(thd);
+	}
+
+	if (rows != 0UL)
+	{
+		yajl_add_uint64(gen, "rows", rows);
+	}
+
 	yajl_add_string_val(gen, "cmd", cmd);
 
 	// get objects
@@ -960,11 +985,11 @@ ssize_t Audit_json_formatter::event_format(ThdSesData *pThdData, IWriter *writer
 	return res;
 }
 
-ThdSesData::ThdSesData(THD *pTHD)
+ThdSesData::ThdSesData(THD *pTHD, StatementSource source)
       : m_pThd (pTHD), m_CmdName(NULL), m_UserName(NULL),
         m_objIterType(OBJ_NONE), m_tables(NULL), m_firstTable(true),
         m_tableInf(NULL), m_index(0), m_isSqlCmd(false),
-	m_port(-1)
+	m_port(-1), m_source(source)
 {
 	m_CmdName = retrieve_command (m_pThd, m_isSqlCmd);
 	m_UserName = retrieve_user (m_pThd);

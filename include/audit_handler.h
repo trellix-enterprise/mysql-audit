@@ -96,6 +96,11 @@ typedef struct ThdOffsets {
 	OFFSET pfs_connect_attrs_length;
 	OFFSET pfs_connect_attrs_cs;
 	OFFSET net;
+	OFFSET lex_m_sql_command;
+	OFFSET uninstall_cmd_comment;
+	OFFSET found_rows;
+	OFFSET sent_row_count;
+	OFFSET row_count_func;
 } ThdOffsets;
 
 /*
@@ -128,7 +133,9 @@ class ThdSesData {
 public:
 	// enum indicating from where the object list came from
 	enum ObjectIterType { OBJ_NONE, OBJ_DB, OBJ_QUERY_CACHE, OBJ_TABLE_LIST };
-	ThdSesData(THD *pTHD);
+	// enum indicating source of statement
+	typedef enum { SOURCE_GENERAL, SOURCE_QUERY_CACHE } StatementSource;
+	ThdSesData(THD *pTHD, StatementSource source = SOURCE_GENERAL);
 	THD *getTHD() const { return m_pThd;}
 	const char *getCmdName() const { return m_CmdName; }
 	void setCmdName(const char *cmd) { m_CmdName = cmd; }
@@ -137,6 +144,7 @@ public:
 	const char *getAppName() const;
 	const char *getOsUser() const;
 	const int getPort() const { return m_port; }
+	const StatementSource getStatementSource() const { return m_source; }
 	/**
 	 * Start fetching objects. Return true if there are objects available.
 	 */
@@ -162,6 +170,9 @@ private:
 	// used for query cache iter
 	QueryTableInf *m_tableInf;
 	int m_index;
+
+	// Statement source
+	StatementSource m_source;
 
 	PeerInfo *m_peerInfo;
 
@@ -374,8 +385,6 @@ public:
 	}
 #endif
 
-
-
 	static inline const char * pfs_connect_attrs(void * pfs)
 	{
 		if (! Audit_formatter::thd_offsets.pfs_connect_attrs)
@@ -437,6 +446,7 @@ static inline const CHARSET_INFO * pfs_connect_attrs_cs(void * pfs)
 		return *(const CHARSET_INFO **) (((unsigned char *) pfs) + Audit_formatter::thd_offsets.pfs_connect_attrs_cs);
 	}
 }
+
 	static inline int thd_client_fd(THD *thd)
 	{
 		if (! Audit_formatter::thd_offsets.net)
@@ -481,6 +491,52 @@ static inline const CHARSET_INFO * pfs_connect_attrs_cs(void * pfs)
 
 		return port;
 	}
+
+	static inline ulonglong thd_found_rows(THD *thd)
+	{
+		if (Audit_formatter::thd_offsets.found_rows == 0)
+		{
+			return 0;
+		}
+
+		ulonglong *rows = ((ulonglong *) (((unsigned char *) thd)
+				+ Audit_formatter::thd_offsets.found_rows));
+
+		return  *rows;
+	}
+
+	static inline unsigned long thd_sent_row_count(THD *thd)
+	{
+		if (Audit_formatter::thd_offsets.sent_row_count == 0)
+		{
+			return 0;
+		}
+
+		ha_rows *rows = ((ha_rows *) (((unsigned char *) thd)
+				+ Audit_formatter::thd_offsets.sent_row_count));
+
+		return (unsigned long) *rows;
+	}
+
+	static inline longlong thd_row_count_func(THD *thd)
+	{
+		if (Audit_formatter::thd_offsets.row_count_func == 0)
+		{
+			return -1;
+		}
+
+		longlong *rows = ((longlong *) (((unsigned char *) thd)
+				+ Audit_formatter::thd_offsets.row_count_func));
+
+		return *rows;
+	}
+
+#if !defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50709
+	static inline Sql_cmd_uninstall_plugin* lex_sql_cmd(LEX *lex)
+	{
+		return *(Sql_cmd_uninstall_plugin **) (((unsigned char *) lex) + Audit_formatter::thd_offsets.lex_m_sql_command);
+	}
+#endif
 
 	// we don't use get_db_name() as when we call it view may be not null
 	// and it may return an invalid value for view_db

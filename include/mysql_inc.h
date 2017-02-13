@@ -59,6 +59,7 @@
 #if MYSQL_VERSION_ID >= 50709
 #include <sql/log.h>
 #if ! defined(MARIADB_BASE_VERSION)
+#include <sql/sql_plugin.h>
 #include <sql/auth/auth_common.h>
 #endif
 #endif

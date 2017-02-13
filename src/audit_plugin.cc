@@ -85,6 +85,14 @@ static int num_record_objs = 0;
 static int num_whitelist_users = 0;
 static SHOW_VAR com_status_vars_array [MAX_COM_STATUS_VARS_RECORDS] = {{0}};
 
+enum before_after_enum {
+	AUDIT_AFTER = 0,	// default
+	AUDIT_BEFORE,
+	AUDIT_BOTH
+};
+
+static ulong before_after_mode = AUDIT_AFTER;
+
 // regex stuff
 static char password_masking_regex_check_buff[4096] = {0};
 static char * password_masking_regex_string = NULL;
@@ -173,10 +181,24 @@ static MYSQL_THDVAR_BOOL(peer_is_uds,
 // terminated by a final '\0'.
 char peer_info_init_value[sizeof(struct PeerInfo) + 4];
 
+#if defined(MARIADB_BASE_VERSION)
+static MYSQL_THDVAR_ULONG(peer_info,
+	PLUGIN_VAR_READONLY | PLUGIN_VAR_NOSYSVAR | PLUGIN_VAR_NOCMDOPT,
+	"Pointer to peer info data",
+	NULL, NULL, 0, 0,
+#ifdef __x86_64__
+	0xffffffffffffff,
+#else
+	0xffffffff,
+#endif
+	1);
+#else	// NOT mariadb
 static MYSQL_THDVAR_STR(peer_info,
-	PLUGIN_VAR_NOSYSVAR | PLUGIN_VAR_READONLY | /* PLUGIN_VAR_NOCMDOPT | */ PLUGIN_VAR_MEMALLOC,
+	PLUGIN_VAR_NOSYSVAR | PLUGIN_VAR_READONLY |
+			PLUGIN_VAR_MEMALLOC,
 	"Info related to client process",
 	NULL, NULL, peer_info_init_value);
+#endif
 
 
 THDPRINTED *GetThdPrintedList(THD *thd)
@@ -202,12 +224,32 @@ static void initializePeerCredentials(THD *pThd)
 	int fd;
 	PeerInfo *peer;
 
+#if defined(MARIADB_BASE_VERSION)
+	if (THDVAR(pThd, peer_info) == 0)
+	{
+		peer = (PeerInfo *) malloc(sizeof(PeerInfo));
+		if (peer)
+		{
+			memset(peer, 0, sizeof(PeerInfo));
+			THDVAR(pThd, peer_info) = (ulong) peer;
+		}
+		else
+		{
+			goto done;
+		}
+	}
+	else
+	{
+		peer = (PeerInfo *) THDVAR(pThd, peer_info);
+	}
+#else
 	// zero out thread local copy of PeerInfo
 	peer = (PeerInfo *) THDVAR(pThd, peer_info);
 	if (peer != NULL)
 	{
 		memset(peer, 0, sizeof(PeerInfo));
 	}
+#endif
 
 	// get the NET structure
 	sock = Audit_formatter::thd_client_fd(pThd);
@@ -398,6 +440,23 @@ static my_bool check_do_password_masking(const char * cmd)
 	return false;
 }
 
+static void do_delay(ThdSesData *pThdData)
+{
+	if (delay_ms_val > 0)
+	{
+		const char *cmd = pThdData->getCmdName();
+		const char *cmds[2];
+		cmds[0] = cmd;
+		cmds[1] = NULL;
+		int delay = check_array(cmds, (char *) delay_cmds_array, MAX_COMMAND_CHAR_NUMBERS);
+		if (delay)
+		{
+			// Audit_file_handler::print_sleep(thd,delay_ms_val);
+			my_sleep(delay_ms_val *1000);
+		}
+	}
+}
+
 static void audit(ThdSesData *pThdData)
 {
 	THDPRINTED *pThdPrintedList = GetThdPrintedList(pThdData->getTHD());
@@ -476,7 +535,7 @@ static void audit(ThdSesData *pThdData)
 		}
 	}
 
-	if (pThdPrintedList && pThdPrintedList->cur_index < MAX_NUM_QUEUE_ELEM)
+	if (before_after_mode != AUDIT_BOTH && pThdPrintedList && pThdPrintedList->cur_index < MAX_NUM_QUEUE_ELEM)
 	{
 		// audit the event if we haven't done so yet or in the case of prepare_sql
 		// we audit as the test "test select" doesn't go through mysql_execute_command
@@ -493,20 +552,6 @@ static void audit(ThdSesData *pThdData)
 	else
 	{
 		Audit_handler::log_audit_all(pThdData);
-	}
-
-	if (delay_ms_val > 0)
-	{
-		const char * cmd = pThdData->getCmdName();
-		const char *cmds[2];
-		cmds[0] = cmd;
-		cmds[1] = NULL;
-		int delay = check_array(cmds, (char *) delay_cmds_array, MAX_COMMAND_CHAR_NUMBERS);
-		if (delay)
-		{
-			// Audit_file_handler::print_sleep(thd,delay_ms_val);
-			my_sleep (delay_ms_val *1000);
-		}
 	}
 }
 
@@ -596,13 +641,13 @@ static int  audit_send_result_to_client(Query_cache *pthis, THD *thd, const LEX_
 	}
 
 #if defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID < 50709
-	res = trampoline_send_result_to_client (pthis,thd, sql, query_length);
+	res = trampoline_send_result_to_client(pthis,thd, sql, query_length);
 #else
-	res = trampoline_send_result_to_client (pthis, thd, sql_query);
+	res = trampoline_send_result_to_client(pthis, thd, sql_query);
 #endif
 	if (res)
 	{
-		ThdSesData thd_data(thd);
+		ThdSesData thd_data(thd, ThdSesData::SOURCE_QUERY_CACHE);
 		audit(&thd_data);
 	}
 	THDVAR(thd, query_cache_table_list) = 0;
@@ -630,7 +675,9 @@ static int audit_open_tables(THD *thd, TABLE_LIST **start, uint *counter, uint f
 	res = trampoline_open_tables (thd, start, counter, flags);
 #endif
 	// only log if thread id or query id is non 0 (otherwise this is comming from startup activity)
-	if (Audit_formatter::thd_inst_thread_id(thd) || Audit_formatter::thd_inst_query_id(thd))
+	if (   (before_after_mode == AUDIT_BEFORE || before_after_mode == AUDIT_BOTH)
+	    && (Audit_formatter::thd_inst_thread_id(thd)
+			    || Audit_formatter::thd_inst_query_id(thd)))
 	{
 		ThdSesData thd_data (thd);
 		audit(&thd_data);
@@ -647,14 +694,13 @@ static void audit_post_execute(THD * thd)
 	// query events are audited by mysql execute command
 	if (Audit_formatter::thd_inst_command(thd) != COM_QUERY)
 	{
-		ThdSesData ThdData (thd);
+		ThdSesData ThdData(thd);
 		if (strcasestr(ThdData.getCmdName(), "show_fields") == NULL)
 		{
 			audit(&ThdData);
 		}
 	}
 }
-
 
 
 /*
@@ -723,7 +769,7 @@ static int audit_notify(THD *thd, mysql_event_class_t event_class,
 		    // in pre-authenticate, user info etc is empty. don't log it
 		    && event_connection->event_subclass != MYSQL_AUDIT_CONNECTION_PRE_AUTHENTICATE
 #endif
-		    )
+		)
 		{
 			ThdSesData ThdData(thd);
 			audit(&ThdData);
@@ -765,6 +811,13 @@ static struct st_mysql_audit audit_plugin =
 // some extern definitions which are not in include files
 extern void log_slow_statement(THD *thd);
 extern int mysql_execute_command(THD *thd);
+
+#if defined(MARIADB_BASE_VERSION)
+extern void end_connection(THD *thd);
+static int (*trampoline_end_connection)(THD *thd) = NULL;
+static unsigned int trampoline_end_connection_size = 0;
+#endif
+
 #if MYSQL_VERSION_ID >= 50505
 // in 5.5 builtins is named differently
 #define mysqld_builtins mysql_mandatory_plugins
@@ -828,6 +881,15 @@ void remove_hot_functions()
 	target_function = (void*)
 		(int (*)(THD *thd, bool first_level)) &mysql_execute_command;
 #endif
+
+#if defined(MARIADB_BASE_VERSION)
+	target_function = (void*) end_connection;
+	remove_hot_patch_function(target_function,
+			(void*) trampoline_end_connection,
+			trampoline_end_connection_size, true);
+	trampoline_end_connection_size = 0;
+#endif
+
 	remove_hot_patch_function(target_function,
 			(void*) trampoline_mysql_execute_command,
 			trampoline_mysql_execute_size, true);
@@ -842,7 +904,12 @@ int is_remove_patches(ThdSesData *pThdData)
 	LEX *pLex = Audit_formatter::thd_lex(pThdData->getTHD());
 	if (pThdData->getTHD() && pLex != NULL && strncasecmp(cmd, sUninstallPlugin, strlen(sUninstallPlugin)) == 0)
 	{
+#if defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID < 50709
 		LEX_STRING Lex_comment = *(LEX_STRING*)(((unsigned char *) pLex) + Audit_formatter::thd_offsets.lex_comment);
+#else
+		Sql_cmd_uninstall_plugin *up = Audit_formatter::lex_sql_cmd(pLex);
+		LEX_STRING Lex_comment = *(LEX_STRING*)(((unsigned char *) up) + Audit_formatter::thd_offsets.uninstall_cmd_comment);
+#endif
 		if (strncasecmp(Lex_comment.str, "AUDIT", 5) == 0)
 		{
 			if (! uninstall_plugin_enable)
@@ -898,13 +965,18 @@ static int audit_mysql_execute_command(THD *thd)
 	ThdSesData thd_data(thd);
 	const char *cmd = thd_data.getCmdName();
 
-	if (strcasestr(cmd, "alter") != NULL ||
-	    strcasestr(cmd, "drop") != NULL ||
-	    strcasestr(cmd, "create") != NULL ||
-	    strcasestr(cmd, "truncate") != NULL ||
-	    strcasestr(cmd, "rename") != NULL)
+	do_delay(& thd_data);
+
+	if (before_after_mode == AUDIT_BEFORE || before_after_mode == AUDIT_BOTH)
 	{
-		audit(&thd_data);
+		if (strcasestr(cmd, "alter") != NULL ||
+		    strcasestr(cmd, "drop") != NULL ||
+		    strcasestr(cmd, "create") != NULL ||
+		    strcasestr(cmd, "truncate") != NULL ||
+		    strcasestr(cmd, "rename") != NULL)
+		{
+			audit(&thd_data);
+		}
 	}
 
 	int res;
@@ -938,7 +1010,11 @@ static int audit_mysql_execute_command(THD *thd)
 		}
 	}
 
-	audit(&thd_data);
+
+	if (before_after_mode == AUDIT_AFTER || before_after_mode == AUDIT_BOTH)
+	{
+		audit(&thd_data);
+	}
 
 	if (pThdPrintedList && pThdPrintedList->cur_index > 0)
 	{
@@ -984,6 +1060,24 @@ static bool audit_acl_authenticate(THD *thd, uint connect_errors, uint com_chang
 	audit(&ThdData);
 
 	return (res);
+}
+#endif
+
+#if defined(MARIADB_BASE_VERSION)
+static void audit_end_connection(THD *thd)
+{
+#if MYSQL_VERSION_ID < 50600
+	ThdSesData thd_data(thd);
+	thd_data.setCmdName("Quit");
+	audit(&thd_data);
+#endif
+	PeerInfo *peer = (PeerInfo *) THDVAR(thd, peer_info);
+	if (peer)
+	{
+		free(peer);
+		THDVAR(thd, peer_info) = 0;
+	}
+	trampoline_end_connection(thd);
 }
 #endif
 
@@ -1053,6 +1147,14 @@ static bool parse_thd_offsets_string (char *poffsets_string)
 
 static bool validate_offsets(const ThdOffsets *offset)
 {
+#if !defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50709
+	if (offset->lex_m_sql_command == 0 || offset->uninstall_cmd_comment == 0)
+	{
+		sql_print_error("%s Offsets: missing offsets for checking 'uninstall plugin'", log_prefix);
+		return false;
+	}
+#endif
+
 	// check that offsets are actually correct. We use a buff of memory as a dummy THD (32K is high enough)
 	char buf[32*1024] = {0};
 	THD *thd = (THD *)buf;
@@ -1219,7 +1321,7 @@ static int setup_offsets()
 
 		if (parse_thd_offsets_string(offsets_string))
 		{
-			sql_print_information ("%s setup_offsets Audit_formatter::thd_offsets values: %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu", log_prefix,
+			sql_print_information ("%s setup_offsets Audit_formatter::thd_offsets values: %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu", log_prefix,
 					Audit_formatter::thd_offsets.query_id,
 					Audit_formatter::thd_offsets.thread_id,
 					Audit_formatter::thd_offsets.main_security_ctx,
@@ -1236,7 +1338,12 @@ static int setup_offsets()
 					Audit_formatter::thd_offsets.pfs_connect_attrs,
 					Audit_formatter::thd_offsets.pfs_connect_attrs_length,
 					Audit_formatter::thd_offsets.pfs_connect_attrs_cs,
-					Audit_formatter::thd_offsets.net
+					Audit_formatter::thd_offsets.net,
+					Audit_formatter::thd_offsets.lex_m_sql_command,
+					Audit_formatter::thd_offsets.uninstall_cmd_comment,
+					Audit_formatter::thd_offsets.found_rows,
+					Audit_formatter::thd_offsets.sent_row_count,
+					Audit_formatter::thd_offsets.row_count_func
 			);
 
 			if (! validate_offsets(&Audit_formatter::thd_offsets))
@@ -1331,10 +1438,31 @@ static int setup_offsets()
 						{
 							decoffsets.net -= dec;  
 						}
+						if (decoffsets.lex_m_sql_command)
+						{
+							decoffsets.lex_m_sql_command -= dec;
+						}
+						if (decoffsets.uninstall_cmd_comment)
+						{
+							decoffsets.uninstall_cmd_comment -= dec;
+						}
+						if (decoffsets.found_rows)
+						{
+							decoffsets.found_rows -= dec;
+						}
+						if (decoffsets.sent_row_count)
+						{
+							decoffsets.sent_row_count -= dec;
+						}
+						if (decoffsets.row_count_func)
+						{
+							decoffsets.row_count_func -= dec;
+						}
+
 						if (validate_offsets(&decoffsets))
 						{
 							Audit_formatter::thd_offsets = decoffsets;
-							sql_print_information("%s Using decrement (%zu) offsets from offset version: %s (%s) values: %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu",
+							sql_print_information("%s Using decrement (%zu) offsets from offset version: %s (%s) values: %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu",
 									log_prefix, dec, offset->version, offset->md5digest,
 									Audit_formatter::thd_offsets.query_id,
 									Audit_formatter::thd_offsets.thread_id,
@@ -1351,7 +1479,13 @@ static int setup_offsets()
 									Audit_formatter::thd_offsets.pfs_connect_attrs,
 									Audit_formatter::thd_offsets.pfs_connect_attrs_length,
 									Audit_formatter::thd_offsets.pfs_connect_attrs_cs,
-									Audit_formatter::thd_offsets.net);
+									Audit_formatter::thd_offsets.net,
+									Audit_formatter::thd_offsets.lex_m_sql_command,
+									Audit_formatter::thd_offsets.uninstall_cmd_comment,
+									Audit_formatter::thd_offsets.found_rows,
+									Audit_formatter::thd_offsets.sent_row_count,
+									Audit_formatter::thd_offsets.row_count_func
+							);
 
 							DBUG_RETURN(0);
 						}
@@ -1368,7 +1502,7 @@ static int setup_offsets()
 					if (validate_offsets(&incoffsets))
 					{
 						Audit_formatter::thd_offsets = incoffsets;
-						sql_print_information("%s Using increment (%zu) offsets from offset version: %s (%s) values: %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu",
+						sql_print_information("%s Using increment (%zu) offsets from offset version: %s (%s) values: %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu",
 								log_prefix, inc, offset->version, offset->md5digest,
 								Audit_formatter::thd_offsets.query_id,
 								Audit_formatter::thd_offsets.thread_id,
@@ -1385,7 +1519,13 @@ static int setup_offsets()
 								Audit_formatter::thd_offsets.pfs_connect_attrs,
 								Audit_formatter::thd_offsets.pfs_connect_attrs_length,
 								Audit_formatter::thd_offsets.pfs_connect_attrs_cs,
-								Audit_formatter::thd_offsets.net);
+								Audit_formatter::thd_offsets.net,
+								Audit_formatter::thd_offsets.lex_m_sql_command,
+								Audit_formatter::thd_offsets.uninstall_cmd_comment,
+								Audit_formatter::thd_offsets.found_rows,
+								Audit_formatter::thd_offsets.sent_row_count,
+								Audit_formatter::thd_offsets.row_count_func
+						);
 						DBUG_RETURN(0);
 					}
 				}
@@ -1862,11 +2002,11 @@ static int audit_plugin_init(void *p)
 	{
 		record_objs_string_update_extended(NULL, NULL, NULL, &record_objs_string);
 	}
-	if (NULL != password_masking_cmds_string)
+	if (password_masking_cmds_string != NULL)
 	{
 		password_masking_cmds_string_update(NULL, NULL, NULL, &password_masking_cmds_string);
 	}
-	if (NULL != password_masking_regex_string)
+	if (password_masking_regex_string != NULL)
 	{
 		password_masking_regex_string_update(NULL, NULL, NULL, &password_masking_regex_string);
 	}
@@ -2035,6 +2175,15 @@ static int audit_plugin_init(void *p)
 		DBUG_RETURN(1);
 	}
 
+#if defined(MARIADB_BASE_VERSION)
+	target_function = (void*) end_connection;
+	if (do_hot_patch((void **)&trampoline_end_connection, &trampoline_end_connection_size,
+				(void *)target_function, (void *)audit_end_connection,  "end_connection"))
+	{
+		DBUG_RETURN(1);
+	}
+#endif
+
 	if (set_com_status_vars_array () != 0)
 	{
 		DBUG_RETURN(1);
@@ -2150,6 +2299,7 @@ static MYSQL_SYSVAR_STR(json_log_file, json_file_handler.m_io_dest,
         PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
         "AUDIT plugin json log file name",
         NULL, NULL, "mysql-audit.json");
+
 static MYSQL_SYSVAR_LONG(json_file_bufsize, json_file_handler.m_bufsize,
         PLUGIN_VAR_RQCMDARG,
         "AUDIT plugin json log file buffer size. Buffer size in bytes (larger size may improve performance). 0 = use default size, 1 = no buffering. If changed during runtime need to perform a flush for the new value to take affect.",
@@ -2245,7 +2395,7 @@ static MYSQL_SYSVAR_STR(password_masking_cmds, password_masking_cmds_string,
 			"AUDIT plugin commands to apply password masking regex to, comma separated",
 			NULL, password_masking_cmds_string_update,
 			// set password is recorded as set_option
-			"CREATE_USER,GRANT,SET_OPTION,SLAVE_START,CREATE_SERVER,ALTER_SERVER,CHANGE_MASTER");
+			"CREATE_USER,GRANT,SET_OPTION,SLAVE_START,CREATE_SERVER,ALTER_SERVER,CHANGE_MASTER,UPDATE");
 static MYSQL_SYSVAR_STR(whitelist_users, whitelist_users_string,
 			PLUGIN_VAR_RQCMDARG,
 			"AUDIT plugin whitelisted users whose queries are not recorded, comma separated",
@@ -2255,6 +2405,26 @@ static MYSQL_SYSVAR_STR(record_objs, record_objs_string,
 			PLUGIN_VAR_RQCMDARG,
 			"AUDIT plugin objects to record, comma separated. If set then only queries containing these objects will be recorded.",
 			NULL, record_objs_string_update_extended, NULL);
+
+static const char *before_after_names[] =
+{
+	"after", "before", "both", NullS
+};
+
+
+TYPELIB before_after_typelib =
+{
+	array_elements(before_after_names) - 1,
+	"before_after_typelib",
+	before_after_names,
+	NULL
+};
+
+static MYSQL_SYSVAR_ENUM(before_after, before_after_mode,
+        PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC,
+        "AUDIT plugin log statements before execution, after, or both. Default is 'after'",
+	NULL, NULL, 0,
+	& before_after_typelib);
 
 /*
  * Plugin system vars
@@ -2296,6 +2466,7 @@ static struct st_mysql_sys_var* audit_system_variables[] =
 	MYSQL_SYSVAR(set_peer_cred),
 	MYSQL_SYSVAR(peer_is_uds),
 	MYSQL_SYSVAR(peer_info),
+	MYSQL_SYSVAR(before_after),
 
 	NULL
 };
