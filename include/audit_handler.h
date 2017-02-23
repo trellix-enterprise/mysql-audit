@@ -392,7 +392,13 @@ public:
 			//no offsets - return null
 			return NULL;
 		}
-		return *(const char **) (((unsigned char *) pfs) + Audit_formatter::thd_offsets.pfs_connect_attrs);
+		const char **pfs_pointer = (const char **) (((unsigned char *) pfs) + Audit_formatter::thd_offsets.pfs_connect_attrs);
+		if (pfs_pointer == NULL)
+		{
+			return NULL;
+		}
+
+		return *pfs_pointer;
 	}
 
 	static inline uint pfs_connect_attrs_length(void * pfs)
