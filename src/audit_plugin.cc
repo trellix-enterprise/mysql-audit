@@ -723,6 +723,15 @@ static int audit_notify(THD *thd, mysql_event_class_t event_class,
         const void * event)
 #endif
 {
+	if (thd == NULL)	// can happen in replication setup
+	{
+#if ! defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50709
+		return 0;	// return success, keep MySQL going
+#else
+		return;
+#endif
+	}
+
 	if (MYSQL_AUDIT_GENERAL_CLASS == event_class)
 	{
 		const struct mysql_event_general *event_general =
@@ -2385,7 +2394,7 @@ static MYSQL_SYSVAR_STR(delay_cmds, delay_cmds_string,
 static MYSQL_SYSVAR_STR(whitelist_cmds, whitelist_cmds_string,
 			PLUGIN_VAR_RQCMDARG,
 			"AUDIT plugin whitelisted commands for which queries are not recorded, comma separated",
-			NULL, whitelist_cmds_string_update, "BEGIN,COMMIT");
+			NULL, whitelist_cmds_string_update, "BEGIN,COMMIT,PING");
 static MYSQL_SYSVAR_STR(record_cmds, record_cmds_string,
 			PLUGIN_VAR_RQCMDARG,
 			"AUDIT plugin commands for which queries are recorded, comma separated. If set then only queries of these commands will be recorded.",
