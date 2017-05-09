@@ -27,6 +27,11 @@
 #include <unistd.h>
 #include "static_assert.h"
 
+#if MYSQL_VERSION_ID < 50600
+// for 5.5 and 5.1
+void vio_timeout(Vio *vio,uint which, uint timeout);
+#endif
+
 // utility macro to log also with a date as a prefix
 // FIXME: This is no longer used. Remove?
 #define log_with_date(f, ...) do {\
@@ -473,6 +478,21 @@ int Audit_socket_handler::open(const char *io_dest, bool log_errors)
 		close();
 		return -2;
 	}
+
+	if (m_write_timeout > 0)
+	{
+		int timeout = m_write_timeout / 1000;	// milliseconds to seconds, integer dvision
+		if (timeout == 0)
+		{
+			timeout = 1;	// round up to 1 second
+		}
+		// we don't check the result of this call since in earlier
+		// versions it returns void
+		//
+		// 1 as the 2nd argument means write timeout
+		vio_timeout((Vio*)m_vio, 1, timeout);
+	}
+
 	return 0;
 }
 
@@ -848,7 +868,12 @@ ssize_t Audit_json_formatter::event_format(ThdSesData *pThdData, IWriter *writer
 	         (strcasestr(cmd, "select") != NULL && thd_row_count_func(thd) > 0))
 	{
 		// m_row_count_func will be -1 for most selects but can be > 0, e.g. select into file
-		rows = thd_row_count_func(thd);
+		// thd_row_count_func() returns signed valiue. Don't assign it to rows directly.
+		longlong row_count = thd_row_count_func(thd);
+		if (row_count > 0)
+		{
+			rows = row_count;
+		}
 	}
 	else
 	{

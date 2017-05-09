@@ -899,7 +899,7 @@ class Audit_socket_handler: public Audit_io_handler {
 public:
 
 	Audit_socket_handler() :
-		m_vio(NULL), m_connect_timeout(1)
+		m_vio(NULL), m_connect_timeout(1), m_write_timeout(0)
 	{
 		m_io_type = "socket";
 	}
@@ -922,6 +922,8 @@ public:
 	void close();
 
 	int open(const char *io_dest, bool log_errors);
+
+	unsigned long m_write_timeout; // write timeout in microseconds
 protected:
 	// override default assignment and copy to protect against creating additional instances
 	Audit_socket_handler & operator=(const Audit_socket_handler&);

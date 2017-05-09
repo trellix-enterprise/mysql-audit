@@ -120,6 +120,9 @@ static char json_socket_name_buff[1024] = {0};
 // Define default port in case user configured out port and socket in my.cnf (bug 1151389)
 #define MYSQL_DEFAULT_PORT 3306
 
+// Default value for write timeout in microseconds
+#define DEFAULT_WRITE_TIMEOUT 1000 // milliseconds --> 1 second - MySQL API uses seconds
+
 /**
  * The trampoline functions we use. Will be set to point to allocated mem.
  */
@@ -2343,6 +2346,12 @@ static MYSQL_SYSVAR_STR(json_socket_name, json_socket_handler.m_io_dest,
         "AUDIT plugin json log unix socket name",
         NULL, json_socket_name_update, "");
 
+static MYSQL_SYSVAR_ULONG(json_socket_write_timeout, json_socket_handler.m_write_timeout,
+        PLUGIN_VAR_RQCMDARG,
+        "AUDIT plugin json socket write timeout, in milliseconds (currently must be at least 1000)",
+        NULL, NULL, DEFAULT_WRITE_TIMEOUT,
+        0, UINT_MAX32, 0);
+
 static MYSQL_SYSVAR_STR(offsets, offsets_string,
         PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY  | PLUGIN_VAR_MEMALLOC,
         "AUDIT plugin offsets. Comma separated list of offsets to use for extracting data",
@@ -2476,6 +2485,7 @@ static struct st_mysql_sys_var* audit_system_variables[] =
 	MYSQL_SYSVAR(peer_is_uds),
 	MYSQL_SYSVAR(peer_info),
 	MYSQL_SYSVAR(before_after),
+	MYSQL_SYSVAR(json_socket_write_timeout),
 
 	NULL
 };
