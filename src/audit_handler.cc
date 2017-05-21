@@ -29,7 +29,7 @@
 
 #if MYSQL_VERSION_ID < 50600
 // for 5.5 and 5.1
-void vio_timeout(Vio *vio,uint which, uint timeout);
+extern "C" void vio_timeout(Vio *vio,uint which, uint timeout);
 #endif
 
 // utility macro to log also with a date as a prefix
