@@ -59,7 +59,7 @@ fi
 
 # In 5.6.15 and up, 5.7 and mariabdb 10.0.11 and up, mariadb 10.1 
 # m_session_connect_attrs_cs changed to m_session_connect_attrs_cs_number
-if echo $MYVER | grep -P '^(5\.7|10\.1|5\.6\.(1[5-9]|[2-9][0-9])|10.0.(1[1-9]|[2-9][0-9]))' > /dev/null
+if echo $MYVER | grep -P '^(5\.7|10\.[1-2]|5\.6\.(1[5-9]|[2-9][0-9])|10.0.(1[1-9]|[2-9][0-9]))' > /dev/null
 then
 	CONNECT_ATTRS_CS=m_session_connect_attrs_cs_number
 fi

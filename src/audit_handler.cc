@@ -116,6 +116,49 @@ const char *Audit_formatter::retrieve_object_type(TABLE_LIST *pObj)
 	return "TABLE";
 }
 
+// This routine used to pull the client port out of the thd->net->vio->remote
+// object, but on MySQL 5.7 the port is zero.  So we resort to getting the
+// underlying fd and using getpeername(2) on it.
+
+int Audit_formatter::thd_client_port(THD *thd)
+{
+	int port = -1;
+	int sock = thd_client_fd(thd);
+
+	if (sock < 0)
+	{
+		return port;	// shouldn't happen
+	}
+
+	struct sockaddr_storage addr;
+	socklen_t len = sizeof(addr);
+
+	// get port of the guy on the other end of our connection
+	if (getpeername(sock, (struct sockaddr *) & addr, & len) < 0)
+	{
+		return port;
+	}
+
+
+	if (addr.ss_family == AF_INET)
+	{
+		struct sockaddr_in *sin = (struct sockaddr_in *) & addr;
+		port = ntohs(sin->sin_port);
+	}
+	else
+	{
+		struct sockaddr_in6 *sin = (struct sockaddr_in6 *) & addr;
+		port = ntohs(sin->sin6_port);
+	}
+
+	if (port == 0)	// shouldn't happen
+	{
+		port = -1;
+	}
+
+	return port;
+}
+
 void Audit_handler::stop_all()
 {
 	for (size_t i = 0; i < MAX_AUDIT_HANDLERS_NUM; ++i)
@@ -471,13 +514,30 @@ int Audit_socket_handler::open(const char *io_dest, bool log_errors)
 	{
 		if (log_errors)
 		{
+			sql_print_warning(
+				"%s unable to connect to socket: %s. err: %s.",
+				AUDIT_LOG_PREFIX, m_io_dest, strerror(errno));
+
+			// The next time this occurs, log as an error
+			m_log_with_error_severity = true;
+		}
+		// Only if issue persist also in second retry, report it by using 'error' severity.
+		else if (m_log_with_error_severity)
+		{
 			sql_print_error(
 				"%s unable to connect to socket: %s. err: %s.",
 				AUDIT_LOG_PREFIX, m_io_dest, strerror(errno));
+
+			m_log_with_error_severity = false;
 		}
+
 		close();
 		return -2;
 	}
+
+	// At this point, connected successfully.
+	// Ensure same behavior in case first time failed but second retry was successful
+	m_log_with_error_severity = false;
 
 	if (m_write_timeout > 0)
 	{

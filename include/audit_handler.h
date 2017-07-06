@@ -17,7 +17,7 @@
 
 #include <pcre.h>
 
-#define AUDIT_LOG_PREFIX "Audit Plugin:"
+#define AUDIT_LOG_PREFIX "McAfee Audit Plugin:"
 #define AUDIT_PROTOCOL_VERSION "1.0"
 
 #if !defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50709
@@ -218,6 +218,8 @@ public:
 	static QueryTableInf *getQueryCacheTableList1(THD *thd);
 
 	// utility functions for fetching thd stuff
+	static int thd_client_port(THD *thd);
+
 	static inline my_thread_id thd_inst_thread_id(THD *thd)
 	{
 		return *(my_thread_id *) (((unsigned char *) thd)
@@ -473,29 +475,6 @@ static inline const CHARSET_INFO * pfs_connect_attrs_cs(void * pfs)
 		}
 
 		return sock;
-	}
-
-	static inline int thd_client_port(THD *thd)
-	{
-		if (! Audit_formatter::thd_offsets.net)
-		{
-			return -1;
-		}
-		NET *net = ((NET *) (((unsigned char *) thd)
-				+ Audit_formatter::thd_offsets.net));
-
-		// get the port for the remote end
-		int port = -1;
-
-		if (net->vio != NULL)	// MySQL 5.7.17 - this can happen. :-(
-		{
-			struct sockaddr_in *in;
-			
-			in = (struct sockaddr_in *) & net->vio->remote;
-			port = in->sin_port;
-		}
-
-		return port;
 	}
 
 	static inline ulonglong thd_found_rows(THD *thd)
@@ -899,7 +878,8 @@ class Audit_socket_handler: public Audit_io_handler {
 public:
 
 	Audit_socket_handler() :
-		m_vio(NULL), m_connect_timeout(1), m_write_timeout(0)
+		m_vio(NULL), m_connect_timeout(1), m_write_timeout(0),
+		m_log_with_error_severity(false)
 	{
 		m_io_type = "socket";
 	}
@@ -932,6 +912,9 @@ protected:
 	// Vio we write to
 	// define as void* so we don't access members directly
 	void *m_vio;
+
+	// log using error severity only the second time same issue occurs
+	bool m_log_with_error_severity;
 };
 
 #endif /* AUDIT_HANDLER_H_ */

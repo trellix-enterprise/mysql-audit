@@ -26,6 +26,7 @@
 #include "md5.h"
 #endif
 
+static const char *PLUGIN_NAME = "AUDIT";
 
 
 /*
@@ -263,7 +264,7 @@ static void initializePeerCredentials(THD *pThd)
 		goto done;
 	}
 
-	// Is it a Unix Domain socket?
+	// Is it a socket?
 	if (fstat(sock, &sbuf) < 0)
 	{
 		goto done;
@@ -274,23 +275,30 @@ static void initializePeerCredentials(THD *pThd)
 		goto done;
 	}
 
-	// At this point, we know we have a Unix domain socket.
-	if (! json_formatter.m_write_socket_creds)
-	{
-		// We need to set this, so that we don't send the
-		// client port, but we don't bother getting the command
-		// name and user name, since they won't be sent.
-		THDVAR(pThd, peer_is_uds) = TRUE;
-		goto done;
-	}
-
 	// Do a SO_PEERCRED
+	// Note, this seems to work on any socket, but won't bring valid
+	// info except for a Unix Domain Socket. Sigh.
 	if (getsockopt(sock, SOL_SOCKET, SO_PEERCRED, &cred, &cred_len) < 0)
 	{
 		goto done;
 	}
 
 	if (cred_len != sizeof(cred))
+	{
+		goto done;
+	}
+
+	// At this point, we know we have a socket but we don't know what type.
+	if (! json_formatter.m_write_socket_creds)
+	{
+		// We need to set this, so that we don't send the
+		// client port, but we don't bother getting the command
+		// name and user name, since they won't be sent.
+		THDVAR(pThd, peer_is_uds) = (cred.pid != 0);
+		goto done;
+	}
+
+	if (cred.pid == 0)
 	{
 		goto done;
 	}
@@ -308,7 +316,14 @@ static void initializePeerCredentials(THD *pThd)
 	if (pwbuf == NULL)
 	{
 		// no name, send UID
-		snprintf(buf, sizeof(buf) - 1, "%lu", (unsigned long) cred.uid);
+		if (cred.uid >= 0)
+		{
+			snprintf(buf, sizeof(buf) - 1, "%lu", (unsigned long) cred.uid);
+		}
+		else
+		{
+			strcpy(buf, "[unknown]");
+		}
 		username = buf;
 	}
 	else
@@ -922,7 +937,7 @@ int is_remove_patches(ThdSesData *pThdData)
 		Sql_cmd_uninstall_plugin *up = Audit_formatter::lex_sql_cmd(pLex);
 		LEX_STRING Lex_comment = *(LEX_STRING*)(((unsigned char *) up) + Audit_formatter::thd_offsets.uninstall_cmd_comment);
 #endif
-		if (strncasecmp(Lex_comment.str, "AUDIT", 5) == 0)
+		if (strncasecmp(Lex_comment.str, PLUGIN_NAME, strlen(PLUGIN_NAME)) == 0)
 		{
 			if (! uninstall_plugin_enable)
 			{
@@ -2495,7 +2510,7 @@ mysql_declare_plugin(audit_plugin)
 {
 	plugin_type,
 	&audit_plugin,
-	"AUDIT",
+	PLUGIN_NAME,
 	"McAfee Inc",
 	"AUDIT plugin, creates a file mysql-audit.log to log activity",
 	PLUGIN_LICENSE_GPL,
@@ -2507,6 +2522,25 @@ mysql_declare_plugin(audit_plugin)
 	NULL /* config options                  */
 }
 mysql_declare_plugin_end;
+
+static inline void init_peer_info()
+{
+	memset(peer_info_init_value, '0', sizeof(peer_info_init_value)-1);
+	peer_info_init_value[sizeof(peer_info_init_value) - 1] = '\0';
+}
+
+static inline void set_plugin_name_from_env()
+{
+	char *plugin_name = getenv("MCAFEE_AUDIT_PLUGIN_NAME");
+
+	if (plugin_name != NULL)
+	{
+		PLUGIN_NAME = plugin_name;
+		_mysql_plugin_declarations_[0].name = plugin_name;
+		sql_print_information(
+				"%s using plugin name %s from environtment", log_prefix, plugin_name);
+	}
+}
 
 #if MYSQL_VERSION_ID < 50505
 /**
@@ -2530,8 +2564,8 @@ extern "C" void __attribute__ ((constructor)) audit_plugin_so_init(void)
 				log_prefix, audit_plugin.interface_version >> 8);
 	}
 
-	memset(peer_info_init_value, '0', sizeof(peer_info_init_value)-1);
-	peer_info_init_value[sizeof(peer_info_init_value) - 1] = '\0';
+	init_peer_info();
+	set_plugin_name_from_env();
 }
 #elif MYSQL_VERSION_ID < 50600
 extern struct st_mysql_plugin *mysql_mandatory_plugins[];
@@ -2542,8 +2576,8 @@ extern "C"  void __attribute__ ((constructor)) audit_plugin_so_init(void)
 			log_prefix, audit_plugin.interface_version,
 			audit_plugin.interface_version >> 8);
 
-	memset(peer_info_init_value, '0', sizeof(peer_info_init_value)-1);
-	peer_info_init_value[sizeof(peer_info_init_value) - 1] = '\0';
+	init_peer_info();
+	set_plugin_name_from_env();
 }
 #elif !defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID < 50709
 // Interface version for MySQL 5.6 changed in 5.6.14.
@@ -2560,15 +2594,15 @@ extern "C"  void __attribute__ ((constructor)) audit_plugin_so_init(void)
 		audit_plugin.interface_version = 0x0301;
 	}
 
-	memset(peer_info_init_value, '0', sizeof(peer_info_init_value)-1);
-	peer_info_init_value[sizeof(peer_info_init_value) - 1] = '\0';
+	init_peer_info();
+	set_plugin_name_from_env();
 }
 #else
 // 5.7
 extern "C"  void __attribute__ ((constructor)) audit_plugin_so_init(void)
 {
-	memset(peer_info_init_value, '0', sizeof(peer_info_init_value)-1);
-	peer_info_init_value[sizeof(peer_info_init_value) - 1] = '\0';
+	init_peer_info();
+	set_plugin_name_from_env();
 }
 #endif
 
