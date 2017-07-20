@@ -278,7 +278,9 @@ public:
 	static inline const char *thd_inst_main_security_ctx_host(THD *thd)
 	{
 		Security_context *sctx = thd_inst_main_security_ctx(thd);
-		if (! Audit_formatter::thd_offsets.sec_ctx_ip) // check ip to understand if set as host is first and may actually be set to 0
+		// check ip to understand if set, as host is first in the struct and may actually be set to 0
+		// we expect to have offsets for both ip and host or for neither of them
+		if (! Audit_formatter::thd_offsets.sec_ctx_ip)
 		{
 			// interface changed in 5.5.34 and 5.6.14 and up host changed to get_host()
 			// see: http://bazaar.launchpad.net/~mysql/mysql-server/5.5/revision/4407.1.1/sql/sql_class.h
