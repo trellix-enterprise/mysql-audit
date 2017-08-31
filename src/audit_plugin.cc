@@ -397,20 +397,25 @@ PeerInfo *retrieve_peerinfo(THD *thd)
 	return NULL;
 }
 
-static int check_array(const char *cmds[],const char *array, int length)
+// cmds[] is a list of "commands" (names, commands, whatever) to
+// check against the list stored in `array'.  Although declared
+// here as simple `char *', the `array' is actually a two-dimensional
+// array where each element is `length' bytes long. (An array of
+// strings.)
+//
+// We loop over the array and for each element see if it's also
+// in `cmds'.  If so, we return 1, otherwise we return 0.
+//
+// This should really be of type bool and return true/false.
+static int check_array(const char *cmds[], const char *array, int length)
 {
 	for (int k = 0; array[k * length] !='\0';k++)
 	{
+		const char *elem = array + (k * length);
 		for (int q = 0; cmds[q] != NULL; q++)
 		{
 			const char *cmd = cmds[q];
-			int j = 0;
-			while (array[k * length + j] != '\0' && cmd[j] != '\0'
-					&& array[k * length + j] == tolower(cmd[j]))
-			{
-				j++;
-			}
-			if (array[k * length + j] == '\0' && j != 0)
+			if (strcasecmp(cmd, elem) == 0)
 			{
 				return 1;
 			}
@@ -665,8 +670,9 @@ static int  audit_send_result_to_client(Query_cache *pthis, THD *thd, const LEX_
 #endif
 	if (res)
 	{
-		ThdSesData thd_data(thd, ThdSesData::SOURCE_QUERY_CACHE);
-		audit(&thd_data);
+		ThdSesData thdData(thd, ThdSesData::SOURCE_QUERY_CACHE);
+		thdData.storeErrorCode();
+		audit(&thdData);
 	}
 	THDVAR(thd, query_cache_table_list) = 0;
 	return res;
@@ -697,7 +703,8 @@ static int audit_open_tables(THD *thd, TABLE_LIST **start, uint *counter, uint f
 	    && (Audit_formatter::thd_inst_thread_id(thd)
 			    || Audit_formatter::thd_inst_query_id(thd)))
 	{
-		ThdSesData thd_data (thd);
+		ThdSesData thd_data(thd);
+		// This is before something is run, so no need to set exit status
 		audit(&thd_data);
 	}
 	return res;
@@ -712,10 +719,11 @@ static void audit_post_execute(THD * thd)
 	// query events are audited by mysql execute command
 	if (Audit_formatter::thd_inst_command(thd) != COM_QUERY)
 	{
-		ThdSesData ThdData(thd);
-		if (strcasestr(ThdData.getCmdName(), "show_fields") == NULL)
+		ThdSesData thdData(thd);
+		if (strcasestr(thdData.getCmdName(), "show_fields") == NULL)
 		{
-			audit(&ThdData);
+			thdData.storeErrorCode();
+			audit(&thdData);
 		}
 	}
 }
@@ -779,6 +787,7 @@ static int audit_notify(THD *thd, mysql_event_class_t event_class,
 			case ER_ACCOUNT_HAS_BEEN_LOCKED:
 #endif
 				ThdData.setCmdName("Failed Login");
+				ThdData.setErrorCode(event_general->general_error_code);
 				audit(&ThdData);
 				break;
 			default:
@@ -939,9 +948,11 @@ int is_remove_patches(ThdSesData *pThdData)
 #endif
 		if (strncasecmp(Lex_comment.str, PLUGIN_NAME, strlen(PLUGIN_NAME)) == 0)
 		{
+			char msgBuffer[200];
 			if (! uninstall_plugin_enable)
 			{
-				my_message(ER_NOT_ALLOWED_COMMAND, "Uninstall AUDIT plugin disabled", MYF(0));
+				sprintf(msgBuffer, "Uninstall %s plugin disabled", PLUGIN_NAME);
+				my_message(ER_NOT_ALLOWED_COMMAND, msgBuffer, MYF(0));
 				return 2;
 			}
 
@@ -951,7 +962,8 @@ int is_remove_patches(ThdSesData *pThdData)
 			if (! called_once)
 			{
 				called_once = true;
-				my_message(WARN_PLUGIN_BUSY, "Uninstall AUDIT plugin must be called again to complete", MYF(0));
+				sprintf(msgBuffer, "Uninstall %s plugin must be called again to complete", PLUGIN_NAME);
+				my_message(WARN_PLUGIN_BUSY, msgBuffer, MYF(0));
 				return 2;
 			}
 			return 1;
@@ -989,10 +1001,10 @@ static int audit_mysql_execute_command(THD *thd)
 		}
 	}
 
-	ThdSesData thd_data(thd);
-	const char *cmd = thd_data.getCmdName();
+	ThdSesData thdData(thd);
+	const char *cmd = thdData.getCmdName();
 
-	do_delay(& thd_data);
+	do_delay(& thdData);
 
 	if (before_after_mode == AUDIT_BEFORE || before_after_mode == AUDIT_BOTH)
 	{
@@ -1002,7 +1014,7 @@ static int audit_mysql_execute_command(THD *thd)
 		    strcasestr(cmd, "truncate") != NULL ||
 		    strcasestr(cmd, "rename") != NULL)
 		{
-			audit(&thd_data);
+			audit(&thdData);
 		}
 	}
 
@@ -1017,7 +1029,7 @@ static int audit_mysql_execute_command(THD *thd)
 	}
 	else
 	{
-		switch (is_remove_patches(&thd_data))
+		switch (is_remove_patches(&thdData))
 		{
 		case 1:
 			// hot patch function were removed and we call the real execute (restored)
@@ -1037,10 +1049,11 @@ static int audit_mysql_execute_command(THD *thd)
 		}
 	}
 
+	thdData.storeErrorCode();
 
 	if (before_after_mode == AUDIT_AFTER || before_after_mode == AUDIT_BOTH)
 	{
-		audit(&thd_data);
+		audit(&thdData);
 	}
 
 	if (pThdPrintedList && pThdPrintedList->cur_index > 0)
@@ -1070,9 +1083,9 @@ static int audit_check_user(THD *thd, enum enum_server_command command,
 	       bool check_count)
 {
 	int res = trampoline_check_user(thd, command, passwd, passwd_len, db, check_count);
-	ThdSesData ThdData(thd);
-
-	audit(&ThdData);
+	ThdSesData thdData(thd);
+	thdData.storeErrorCode();
+	audit(&thdData);
 
 	return (res);
 }
@@ -1082,9 +1095,9 @@ static int audit_check_user(THD *thd, enum enum_server_command command,
 static bool audit_acl_authenticate(THD *thd, uint connect_errors, uint com_change_user_pkt_len)
 {
 	bool res = trampoline_acl_authenticate(thd, connect_errors, com_change_user_pkt_len);
-	ThdSesData ThdData(thd);
-
-	audit(&ThdData);
+	ThdSesData thdData(thd);
+	thdData.storeErrorCode();
+	audit(&thdData);
 
 	return (res);
 }
@@ -1257,9 +1270,17 @@ static bool calc_file_md5(const char *file_name, char *digest_str)
 
 	if ((fd = my_open(file_name, O_RDONLY, MYF(MY_WME))) < 0)
 	{
-		sql_print_error("%s Failed file open: [%s], errno: %d.",
-				log_prefix, file_name, errno);
-		return false;
+		sql_print_error("%s Failed file open: [%s], errno: %d. Retrying with /proc/%d/exe.",
+				log_prefix, file_name, errno, getpid());
+
+		char pidFilename[100];
+		sprintf(pidFilename, "/proc/%d/exe", getpid());
+		if ((fd = my_open(pidFilename, O_RDONLY, MYF(MY_WME))) < 0)
+		{
+			sql_print_error("%s Failed file open: [%s], errno: %d.",
+				log_prefix, pidFilename, errno);
+			return false;
+		}
 	}
 
 	my_MD5Context context;
@@ -1348,7 +1369,7 @@ static int setup_offsets()
 
 		if (parse_thd_offsets_string(offsets_string))
 		{
-			sql_print_information ("%s setup_offsets Audit_formatter::thd_offsets values: %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu", log_prefix,
+			sql_print_information ("%s setup_offsets Audit_formatter::thd_offsets values: %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu", log_prefix,
 					Audit_formatter::thd_offsets.query_id,
 					Audit_formatter::thd_offsets.thread_id,
 					Audit_formatter::thd_offsets.main_security_ctx,
@@ -1370,7 +1391,10 @@ static int setup_offsets()
 					Audit_formatter::thd_offsets.uninstall_cmd_comment,
 					Audit_formatter::thd_offsets.found_rows,
 					Audit_formatter::thd_offsets.sent_row_count,
-					Audit_formatter::thd_offsets.row_count_func
+					Audit_formatter::thd_offsets.row_count_func,
+					Audit_formatter::thd_offsets.stmt_da,
+					Audit_formatter::thd_offsets.da_status,
+					Audit_formatter::thd_offsets.da_sql_errno
 			);
 
 			if (! validate_offsets(&Audit_formatter::thd_offsets))
@@ -1485,11 +1509,23 @@ static int setup_offsets()
 						{
 							decoffsets.row_count_func -= dec;
 						}
+						if (decoffsets.stmt_da)
+						{
+							decoffsets.stmt_da -= dec;
+						}
+						if (decoffsets.da_status)
+						{
+							decoffsets.da_status -= dec;
+						}
+						if (decoffsets.da_sql_errno)
+						{
+							decoffsets.da_sql_errno -= dec;
+						}
 
 						if (validate_offsets(&decoffsets))
 						{
 							Audit_formatter::thd_offsets = decoffsets;
-							sql_print_information("%s Using decrement (%zu) offsets from offset version: %s (%s) values: %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu",
+							sql_print_information("%s Using decrement (%zu) offsets from offset version: %s (%s) values: %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu",
 									log_prefix, dec, offset->version, offset->md5digest,
 									Audit_formatter::thd_offsets.query_id,
 									Audit_formatter::thd_offsets.thread_id,
@@ -1511,7 +1547,10 @@ static int setup_offsets()
 									Audit_formatter::thd_offsets.uninstall_cmd_comment,
 									Audit_formatter::thd_offsets.found_rows,
 									Audit_formatter::thd_offsets.sent_row_count,
-									Audit_formatter::thd_offsets.row_count_func
+									Audit_formatter::thd_offsets.row_count_func,
+									Audit_formatter::thd_offsets.stmt_da,
+									Audit_formatter::thd_offsets.da_status,
+									Audit_formatter::thd_offsets.da_sql_errno
 							);
 
 							DBUG_RETURN(0);
@@ -1529,7 +1568,7 @@ static int setup_offsets()
 					if (validate_offsets(&incoffsets))
 					{
 						Audit_formatter::thd_offsets = incoffsets;
-						sql_print_information("%s Using increment (%zu) offsets from offset version: %s (%s) values: %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu",
+						sql_print_information("%s Using increment (%zu) offsets from offset version: %s (%s) values: %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu",
 								log_prefix, inc, offset->version, offset->md5digest,
 								Audit_formatter::thd_offsets.query_id,
 								Audit_formatter::thd_offsets.thread_id,
@@ -1551,7 +1590,10 @@ static int setup_offsets()
 								Audit_formatter::thd_offsets.uninstall_cmd_comment,
 								Audit_formatter::thd_offsets.found_rows,
 								Audit_formatter::thd_offsets.sent_row_count,
-								Audit_formatter::thd_offsets.row_count_func
+								Audit_formatter::thd_offsets.row_count_func,
+								Audit_formatter::thd_offsets.stmt_da,
+								Audit_formatter::thd_offsets.da_status,
+								Audit_formatter::thd_offsets.da_sql_errno
 						);
 						DBUG_RETURN(0);
 					}
@@ -1976,7 +2018,7 @@ static int audit_plugin_init(void *p)
 	interface_ver = interface_ver >> 8;
 #endif
 	sql_print_information(
-			"%s starting up. Version: %s , Revision: %s (%s). AUDIT plugin interface version: %d (0x%x). MySQL Server version: %s.",
+			"%s starting up. Version: %s , Revision: %s (%s). MySQL AUDIT plugin interface version: %d (0x%x). MySQL Server version: %s.",
 			log_prefix, MYSQL_AUDIT_PLUGIN_VERSION,
 			MYSQL_AUDIT_PLUGIN_REVISION, arch, interface_ver, interface_ver,
 			server_version);

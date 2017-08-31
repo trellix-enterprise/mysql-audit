@@ -945,6 +945,12 @@ ssize_t Audit_json_formatter::event_format(ThdSesData *pThdData, IWriter *writer
 		yajl_add_uint64(gen, "rows", rows);
 	}
 
+	uint code;
+	if (pThdData->getErrorCode(code))
+	{
+		yajl_add_uint64(gen, "status", code); // 0 - success, otherwise reports specific errno
+	}
+
 	yajl_add_string_val(gen, "cmd", cmd);
 
 	// get objects
@@ -1074,7 +1080,7 @@ ThdSesData::ThdSesData(THD *pTHD, StatementSource source)
       : m_pThd (pTHD), m_CmdName(NULL), m_UserName(NULL),
         m_objIterType(OBJ_NONE), m_tables(NULL), m_firstTable(true),
         m_tableInf(NULL), m_index(0), m_isSqlCmd(false),
-	m_port(-1), m_source(source)
+	m_port(-1), m_source(source), m_errorCode(0), m_setErrorCode(false)
 {
 	m_CmdName = retrieve_command (m_pThd, m_isSqlCmd);
 	m_UserName = retrieve_user (m_pThd);
@@ -1084,6 +1090,15 @@ ThdSesData::ThdSesData(THD *pTHD, StatementSource source)
 	{
 		// not UDS, get remote port
 		m_port = Audit_formatter::thd_client_port(m_pThd);
+	}
+}
+
+void ThdSesData::storeErrorCode()
+{
+	uint code = 0;
+	if (Audit_formatter::thd_error_code(m_pThd, code))
+	{
+		setErrorCode(code);
 	}
 }
 

@@ -44,6 +44,7 @@
 #include <sql/sql_base.h>
 #include <sql/sql_table.h>
 #include <sql/sql_view.h>
+#include <sql/sql_error.h>
 
 // TODO: use mysql mutex instead of pthread
 /*

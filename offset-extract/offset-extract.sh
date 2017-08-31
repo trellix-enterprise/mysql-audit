@@ -110,6 +110,26 @@ else
 	LEX_SQL='printf ", 0, 0"'
 fi
 
+# Exit status info 5.5, 5.6, 5.7
+DA_STATUS="print_offset Diagnostics_area m_status"		# 5.5, 5.6, 5.7, mariadb 10.0, 10.1, 10.2
+DA_SQL_ERRNO="print_offset Diagnostics_area m_sql_errno"	# 5.5, 5.6, mariadb 10.0, 10.1, 10.2
+STMT_DA="print_offset THD m_stmt_da"				# 5.6, 5.7, mariadb 10.0, 10.1, 10.2
+
+if echo $MYVER | grep -P '^(5\.7)' > /dev/null
+then
+	DA_SQL_ERRNO="print_offset Diagnostics_area m_mysql_errno"
+elif echo $MYVER | grep -P '^(5\.6|10\.)' > /dev/null
+then
+	: place holder
+elif echo $MYVER | grep -P '^(5\.5)' > /dev/null
+then
+	STMT_DA="print_offset THD stmt_da"
+else
+	STMT_DA='printf ", 0"'
+	DA_STATUS='printf ", 0"'
+	DA_SQL_ERRNO='printf ", 0"'
+fi
+
 cat <<EOF > offsets.gdb
 set logging on
 set width 0
@@ -136,6 +156,9 @@ $LEX_SQL
 $FOUND_ROWS
 $SENT_ROW_COUNT
 $ROW_COUNT_FUNC
+$STMT_DA
+$DA_STATUS
+$DA_SQL_ERRNO
 printf "}"
 EOF
 

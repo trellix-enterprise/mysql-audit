@@ -101,6 +101,9 @@ typedef struct ThdOffsets {
 	OFFSET found_rows;
 	OFFSET sent_row_count;
 	OFFSET row_count_func;
+	OFFSET stmt_da;
+	OFFSET da_status;
+	OFFSET da_sql_errno;
 } ThdOffsets;
 
 /*
@@ -145,6 +148,9 @@ public:
 	const char *getOsUser() const;
 	const int getPort() const { return m_port; }
 	const StatementSource getStatementSource() const { return m_source; }
+	void storeErrorCode();
+	void setErrorCode(uint code) { m_errorCode = code; m_setErrorCode = true; }
+	bool getErrorCode(uint & code) const { code = m_errorCode; return m_setErrorCode; }
 	/**
 	 * Start fetching objects. Return true if there are objects available.
 	 */
@@ -177,6 +183,9 @@ private:
 	PeerInfo *m_peerInfo;
 
 	int m_port;	// TCP port of remote side
+
+	uint m_errorCode;
+	bool m_setErrorCode;
 
 protected:
 	ThdSesData(const ThdSesData&);
@@ -391,23 +400,19 @@ public:
 
 	static inline const char * pfs_connect_attrs(void * pfs)
 	{
-		if (! Audit_formatter::thd_offsets.pfs_connect_attrs)
+		if (! Audit_formatter::thd_offsets.pfs_connect_attrs || pfs == NULL)
 		{
 			//no offsets - return null
 			return NULL;
 		}
 		const char **pfs_pointer = (const char **) (((unsigned char *) pfs) + Audit_formatter::thd_offsets.pfs_connect_attrs);
-		if (pfs_pointer == NULL)
-		{
-			return NULL;
-		}
 
 		return *pfs_pointer;
 	}
 
 	static inline uint pfs_connect_attrs_length(void * pfs)
 	{
-		if (! Audit_formatter::thd_offsets.pfs_connect_attrs_length)
+		if (! Audit_formatter::thd_offsets.pfs_connect_attrs_length || pfs == NULL)
 		{
 			//no offsets - return 0
 			return 0;
@@ -417,7 +422,7 @@ public:
   
 static inline const CHARSET_INFO * pfs_connect_attrs_cs(void * pfs)
 {
-	if (! Audit_formatter::thd_offsets.pfs_connect_attrs_cs)
+	if (! Audit_formatter::thd_offsets.pfs_connect_attrs_cs || pfs == NULL)
 	{
 		//no offsets - return null
 		return NULL;
@@ -516,6 +521,47 @@ static inline const CHARSET_INFO * pfs_connect_attrs_cs(void * pfs)
 				+ Audit_formatter::thd_offsets.row_count_func));
 
 		return *rows;
+	}
+
+	static inline bool thd_error_code(THD *thd, uint & code)
+	{
+#if MYSQL_VERSION_ID >= 50534
+
+		if ( Audit_formatter::thd_offsets.stmt_da == 0      ||
+		     Audit_formatter::thd_offsets.da_status == 0    ||
+		     Audit_formatter::thd_offsets.da_sql_errno == 0 )
+		{
+			return false;
+		}
+
+		Diagnostics_area **stmt_da = ((Diagnostics_area **) (((unsigned char *) thd)
+						+ Audit_formatter::thd_offsets.stmt_da));
+
+		enum Diagnostics_area::enum_diagnostics_status *status =
+			((enum Diagnostics_area::enum_diagnostics_status *) (((unsigned char *) (*stmt_da))
+						+ Audit_formatter::thd_offsets.da_status));
+
+		uint *sql_errno = ((uint *) (((unsigned char *) (*stmt_da))
+						+ Audit_formatter::thd_offsets.da_sql_errno));
+
+		if (*status == Diagnostics_area::DA_OK  ||
+			*status == Diagnostics_area::DA_EOF	)
+		{
+			code = 0;
+			return true;
+		}
+		else if (*status == Diagnostics_area::DA_ERROR)
+		{
+			code = *sql_errno;
+			return true;
+		}
+		else // DA_EMPTY, DA_DISABLE
+		{
+			return false;
+		}
+#else
+		return false;
+#endif
 	}
 
 #if !defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50709
