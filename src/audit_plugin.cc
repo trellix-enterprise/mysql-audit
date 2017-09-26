@@ -104,12 +104,12 @@ static char password_masking_regex_buff[4096] = {0};
 
 static const char default_pw_masking_regex[] =
 	// identified by [password] '***'
-	"identified"_COMMENT_SPACE_"by"_COMMENT_SPACE_"(?:password)?"_COMMENT_SPACE_ _QUOTED_PSW_
+	"identified" _COMMENT_SPACE_ "by" _COMMENT_SPACE_ "(?:password)?" _COMMENT_SPACE_ _QUOTED_PSW_ 
 	// password function
-	"|password"_COMMENT_SPACE_"\\("_COMMENT_SPACE_ _QUOTED_PSW_ _COMMENT_SPACE_"\\)"
+	"|password" _COMMENT_SPACE_ "\\(" _COMMENT_SPACE_ _QUOTED_PSW_ _COMMENT_SPACE_ "\\)" 
 	// Used at: CHANGE MASTER TO MASTER_PASSWORD='new3cret', SET PASSWORD [FOR user] = 'hash', password 'user_pass';
-	"|password"_COMMENT_SPACE_"(?:for"_COMMENT_SPACE_"\\S+?)?"_COMMENT_SPACE_"="_COMMENT_SPACE_ _QUOTED_PSW_
-	"|password"_COMMENT_SPACE_ _QUOTED_PSW_
+	"|password" _COMMENT_SPACE_ "(?:for" _COMMENT_SPACE_ "\\S+?)?" _COMMENT_SPACE_ "=" _COMMENT_SPACE_ _QUOTED_PSW_ 
+	"|password" _COMMENT_SPACE_ _QUOTED_PSW_
 	// federated engine create table with connection. See: http://dev.mysql.com/doc/refman/5.5/en/federated-create-connection.html
 	// commented out as federated engine is disabled by default
 	// "|ENGINE"_COMMENT_SPACE_"="_COMMENT_SPACE_"FEDERATED"_COMMENT_SPACE_".*CONNECTION"_COMMENT_SPACE_"="_COMMENT_SPACE_"[\'|\"]\\S+?://\\S+?:(?<psw>.*)@\\S+[\'|\"]"
@@ -388,7 +388,7 @@ PeerInfo *retrieve_peerinfo(THD *thd)
 	{
 		PeerInfo *peer = (PeerInfo *) THDVAR(thd, peer_info);
 
-		if (THDVAR(thd, peer_is_uds) && peer != NULL);
+		if (THDVAR(thd, peer_is_uds) && peer != NULL)//;
 		{
 			return peer;
 		}
