@@ -696,7 +696,7 @@ ssize_t Audit_json_formatter::start_msg_format(IWriter *writer)
 	yajl_add_string_val(gen, "msg-type", "header");
 	uint64 ts = my_getsystime() / (10000);
 	yajl_add_uint64(gen, "date", ts);
-	yajl_add_string_val(gen, "audit-version", MYSQL_AUDIT_PLUGIN_VERSION"-"MYSQL_AUDIT_PLUGIN_REVISION);
+	yajl_add_string_val(gen, "audit-version", MYSQL_AUDIT_PLUGIN_VERSION "-" MYSQL_AUDIT_PLUGIN_REVISION);
 	yajl_add_string_val(gen, "audit-protocol-version", AUDIT_PROTOCOL_VERSION);
 	yajl_add_string_val(gen, "hostname", glob_hostname);
 	yajl_add_string_val(gen, "mysql-version", server_version);
