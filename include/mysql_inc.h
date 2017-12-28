@@ -17,12 +17,6 @@
 #include <my_config.h>
 #include <mysql_version.h>
 
-#if MYSQL_VERSION_ID < 50505
-#include <mysql_priv.h>
-#else
-
-// version 5.5.x doesn't contain mysql_priv.h . We need to add the includes provided by it.
-#if MYSQL_VERSION_ID >= 50505
 
 // These two are not present in 5.7.9
 #if MYSQL_VERSION_ID < 50709
@@ -54,8 +48,6 @@
 #define pthread_mutex_destroy mysql_mutex_destroy
 #define pthread_mutex_t mysql_mutex_t
 */
-#endif /* ! if MYSQL_VERSION_ID >= 50505 */
-#endif /* ! if MYSQL_VERSION_ID < 50505 */
 
 #if MYSQL_VERSION_ID >= 50709
 #include <sql/log.h>

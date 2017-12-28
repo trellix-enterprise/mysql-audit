@@ -133,12 +133,6 @@ static unsigned int trampoline_mysql_execute_size = 0;
 #if MYSQL_VERSION_ID < 50600
 static void (*trampoline_log_slow_statement)(THD *thd) = NULL;
 static unsigned int trampoline_log_slow_statement_size = 0;
-#endif
-
-#if MYSQL_VERSION_ID < 50505
-static int (*trampoline_check_user)(THD *thd, enum enum_server_command command, const char *passwd, uint passwd_len, const char *db, bool check_count) = NULL;
-static unsigned int trampoline_check_user_size = 0;
-#elif MYSQL_VERSION_ID < 50600
 static bool (*trampoline_acl_authenticate)(THD *thd, uint connect_errors, uint com_change_user_pkt_len) = NULL;
 static unsigned int trampoline_acl_authenticate_size = 0;
 #endif
@@ -602,22 +596,16 @@ QueryTableInf *Audit_formatter::getQueryCacheTableList1(THD *thd)
 }
 
 static bool (*trampoline_check_table_access)(THD *thd, ulong want_access,TABLE_LIST *tables,
-#if defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID >= 50505
 						bool any_combination_of_privileges_will_do,
-#endif
 						uint number, bool no_errors) = NULL;
 
 static bool audit_check_table_access(THD *thd, ulong want_access,TABLE_LIST *tables,
-#if defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID >= 50505
 		bool any_combination_of_privileges_will_do,
-#endif
 		uint number, bool no_errors)
 {
 	TABLE_LIST *pTables;
 	bool res = trampoline_check_table_access(thd, want_access, tables,
-#if defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID >= 50505
 						any_combination_of_privileges_will_do,
-#endif
 						number, no_errors);
 	if (!res &&  tables)
 	{
@@ -854,12 +842,6 @@ static int (*trampoline_end_connection)(THD *thd) = NULL;
 static unsigned int trampoline_end_connection_size = 0;
 #endif
 
-#if MYSQL_VERSION_ID >= 50505
-// in 5.5 builtins is named differently
-#define mysqld_builtins mysql_mandatory_plugins
-#endif
-extern struct st_mysql_plugin *mysqld_builtins[];
-
 void remove_hot_functions()
 {
 	void * target_function = NULL;
@@ -869,14 +851,6 @@ void remove_hot_functions()
 	remove_hot_patch_function(target_function,
 			(void*) trampoline_log_slow_statement, trampoline_log_slow_statement_size, true);
 	trampoline_log_slow_statement_size = 0;
-#endif
-
-#if MYSQL_VERSION_ID < 50505
-	target_function = (void *) check_user;
-	remove_hot_patch_function(target_function,
-			(void*) trampoline_check_user, trampoline_check_user_size, true);
-	trampoline_check_user_size = 0;
-#elif MYSQL_VERSION_ID < 50600
 	target_function = (void *) acl_authenticate;
 	remove_hot_patch_function(target_function,
 			(void*) trampoline_acl_authenticate, trampoline_acl_authenticate_size, true);
@@ -1075,21 +1049,7 @@ static void audit_log_slow_statement(THD *thd)
 	trampoline_log_slow_statement(thd);
 	audit_post_execute(thd);
 }
-#endif
 
-#if MYSQL_VERSION_ID < 50505
-static int audit_check_user(THD *thd, enum enum_server_command command,
-	       const char *passwd, uint passwd_len, const char *db,
-	       bool check_count)
-{
-	int res = trampoline_check_user(thd, command, passwd, passwd_len, db, check_count);
-	ThdSesData thdData(thd);
-	thdData.storeErrorCode();
-	audit(&thdData);
-
-	return (res);
-}
-#elif MYSQL_VERSION_ID < 50600
 // only for 5.5
 // in 5.6: we use audit plugin event to get the login event
 static bool audit_acl_authenticate(THD *thd, uint connect_errors, uint com_change_user_pkt_len)
@@ -2194,15 +2154,7 @@ static int audit_plugin_init(void *p)
 				log_prefix);
 
 	}
-#endif
 
-#if MYSQL_VERSION_ID < 50505
-	if (do_hot_patch((void **)&trampoline_check_user, &trampoline_check_user_size,
-				(void *)check_user, (void *)audit_check_user,  "check_user"))
-	{
-		DBUG_RETURN(1);
-	}
-#elif MYSQL_VERSION_ID < 50600
 	if (do_hot_patch((void **)&trampoline_acl_authenticate, &trampoline_acl_authenticate_size,
 				(void *)acl_authenticate, (void *)audit_acl_authenticate,  "acl_authenticate"))
 	{
@@ -2584,32 +2536,7 @@ static inline void set_plugin_name_from_env()
 	}
 }
 
-#if MYSQL_VERSION_ID < 50505
-/**
- * DLL constructor method.
- * We set here the audit plugin version to the same as the first built in plugin.
- * This is so we can have a single lib for all versions (needed in 5.1)
- */
-extern "C" void __attribute__ ((constructor)) audit_plugin_so_init(void)
-{
-	if (mysqld_builtins && mysqld_builtins[0])
-	{
-		audit_plugin.interface_version = *(int *) mysqld_builtins[0]->info;
-		sql_print_information("%s Set interface version to: %d (%d)",
-				log_prefix, audit_plugin.interface_version,
-				audit_plugin.interface_version >> 8);
-	}
-	else
-	{
-		sql_print_error(
-				"%s mysqld_builtins are null. Plugin will not load unless the mysql version is: %d. \n",
-				log_prefix, audit_plugin.interface_version >> 8);
-	}
-
-	init_peer_info();
-	set_plugin_name_from_env();
-}
-#elif MYSQL_VERSION_ID < 50600
+#if MYSQL_VERSION_ID < 50600
 extern struct st_mysql_plugin *mysql_mandatory_plugins[];
 extern "C"  void __attribute__ ((constructor)) audit_plugin_so_init(void)
 {

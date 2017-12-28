@@ -128,6 +128,10 @@ CPPFLAGS="$CPPFLAGS -DMYSQL_AUDIT_PLUGIN_VERSION='\"$MYSQL_AUDIT_PLUGIN_VERSION\
 CPPFLAGS="$CPPFLAGS -DMYSQL_AUDIT_PLUGIN_REVISION='\"$MYSQL_AUDIT_PLUGIN_REVISION\"'"
 CPPFLAGS="$CPPFLAGS '-DMYSQL_AUDIT_PLUGIN_SYMBOL_VERSION()=extern const char audit_plugin_version_$MYSQL_AUDIT_PLUGIN_SYMBOL_VERSION'"
 
+# Percona`s MySQL macro
+if [[ "$PERCONA_BUILD" = "true" ]]; then
+	CPPFLAGS="$CPPFLAGS -DPERCONA_BUILD" # Percona`s build macro, used to distinguish between MySQL/MariaDB build VS Percona build
+fi
 
 #subst the relevant variables
 AC_SUBST(CPPFLAGS)

@@ -348,15 +348,9 @@ public:
 			return sctx->priv_user().str;
 #endif
 		}
-#if MYSQL_VERSION_ID < 50505
-		// in 5.1.x priv_user is a pointer
-		return *(const char **) (((unsigned char *) sctx)
-				+ Audit_formatter::thd_offsets.sec_ctx_priv_user);
-#else
 		// in 5.5 and up priv_user is an array (char priv_user[USERNAME_LENGTH])
 		return (const char *) (((unsigned char *) sctx)
 				+ Audit_formatter::thd_offsets.sec_ctx_priv_user);
-#endif
 	}
 
 	static inline int thd_inst_command(THD *thd)

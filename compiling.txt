@@ -52,6 +52,8 @@ first (see www.boost.org). In such a case, use:
 
 Note: For MariaDB use:  cmake . -DBUILD_CONFIG=mysql_release
 
+Note: For Percona`s MySQL use: cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DBUILD_CONFIG=mysql_release -DWITH_BOOST=boost_1_59_0 .
+
 Note: to speed things up it is possible to build just the following directories:  
 libservices 
 extra
@@ -62,6 +64,8 @@ chmod +x bootstrap.sh
 ./bootstrap.sh
 CXX='gcc -static-libgcc' CC='gcc -static-libgcc' ./configure --with-mysql=mysql-5.x.x --with-mysql-libservices=mysql-5.x.x/libservices/libmysqlservices.a
 make
+
+Note: For Percona`s MySQL define also PERCONA_BUILD=true variable, like "PERCONA_BUILD=true ./configure..."
 
 ==== Compiling with make =====
 
