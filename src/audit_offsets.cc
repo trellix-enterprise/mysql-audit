@@ -25,6 +25,8 @@
 const ThdOffsets thd_offsets_arr[] =
 {
 	/* +++ PERCONA 64 OFFSETS GO HERE +++ */
+	//offsets for: /perconarpm/usr/sbin/mysqld (5.7.21-20)
+	{"5.7.21-20","d0816b67f96d9275eca4e186ef97065d", 8296, 8360, 3928, 5080, 456, 360, 0, 32, 64, 160, 536, 8492, 4656, 3648, 3656, 3660, 6496, 2080, 8, 7528, 7568, 7552, 14240, 148, 672},
 	//offsets for: /perconarpm/usr/sbin/mysqld (5.7.20-19)
 	{"5.7.20-19","a81ce351893c7d4efd1878e95ce8e186", 8296, 8360, 3928, 5080, 456, 360, 0, 32, 64, 160, 536, 8492, 4656, 3648, 3656, 3660, 6496, 2080, 8, 7528, 7568, 7552, 14240, 148, 672},
 	//offsets for: /perconarpm/usr/sbin/mysqld (5.7.20-18)
