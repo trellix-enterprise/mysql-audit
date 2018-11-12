@@ -69,7 +69,7 @@ typedef size_t OFFSET;
 
 // mysql max identifier is 64 so 2*64 + . and null
 #define MAX_OBJECT_CHAR_NUMBERS 131
-#define MAX_USER_CHAR_NUMBERS 20
+#define MAX_USER_CHAR_NUMBERS 32
 #define MAX_NUM_OBJECT_ELEM 256
 #define MAX_NUM_USER_ELEM 256
 
