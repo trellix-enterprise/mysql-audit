@@ -53,6 +53,8 @@ const ThdOffsets thd_offsets_arr[] =
 const ThdOffsets thd_offsets_arr[] =
 {
 	/* +++ MYSQL 64 OFFSETS GO HERE +++ */
+	//offsets for: /mysqlrpm/5.7.27/usr/sbin/mysqld (5.7.27)
+	{"5.7.27","3022293bb5c3e4ff7eeaabd80b636d2a", 7824, 7872, 3632, 4792, 456, 360, 0, 32, 64, 160, 536, 7988, 4360, 3648, 3656, 3660, 6072, 2072, 8, 7056, 7096, 7080, 13472, 148, 672},
 	//offsets for: /mysqlrpm/5.6.43/usr/sbin/mysqld (5.6.43)
 	{"5.6.43","9475a14433d66a8cedaaa76c6bb3d78e", 6992, 7040, 4000, 4520, 72, 2704, 96, 0, 32, 104, 136, 7128, 4392, 2800, 2808, 2812, 536, 0, 0, 6360, 6384, 6368, 13048, 548, 516},
 	//offsets for: /mysqlrpm/5.7.25/usr/sbin/mysqld (5.7.25)
