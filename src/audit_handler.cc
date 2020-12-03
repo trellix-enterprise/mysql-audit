@@ -508,7 +508,7 @@ int Audit_socket_handler::open(const char *io_dest, bool log_errors)
 				m_connect_timeout))
 #else
 	// in 5.6 timeout is in ms
-	if (vio_socket_connect((Vio*)m_vio,(struct sockaddr *) &UNIXaddr, sizeof(UNIXaddr),
+	if (compat::vio_socket_connect((Vio*)m_vio,(struct sockaddr *) &UNIXaddr, sizeof(UNIXaddr),
 				m_connect_timeout * 1000))
 #endif
 	{
@@ -585,7 +585,7 @@ static void yajl_add_uint64(yajl_gen gen, const char *name, uint64 num)
 {
 	const size_t max_int64_str_len = 21;
 	char buf[max_int64_str_len];
-	snprintf(buf, max_int64_str_len, "%llu", num);
+	snprintf(buf, max_int64_str_len, "%llu", (unsigned long long)num);
 	yajl_add_string_val(gen, name, buf);
 }
 
@@ -622,8 +622,11 @@ static const char *retrieve_user(THD *thd)
 // starting with MySQL version 5.1.41 thd_query_string is added
 // And at 5.7 it changed
 #if ! defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50709
-
+#if MYSQL_VERSION_ID >= 80000
+extern LEX_CSTRING thd_query_unsafe(MYSQL_THD thd);
+#else
 extern "C" LEX_CSTRING thd_query_unsafe(MYSQL_THD thd);
+#endif
 
 static const char *thd_query_str(THD *thd, size_t *len)
 {
@@ -694,7 +697,7 @@ ssize_t Audit_json_formatter::start_msg_format(IWriter *writer)
 	yajl_gen gen = yajl_gen_alloc(NULL);
 	yajl_gen_map_open(gen);
 	yajl_add_string_val(gen, "msg-type", "header");
-	uint64 ts = my_getsystime() / (10000);
+	uint64 ts = compat::my_getsystime() / (10000);
 	yajl_add_uint64(gen, "date", ts);
 	yajl_add_string_val(gen, "audit-version", MYSQL_AUDIT_PLUGIN_VERSION "-" MYSQL_AUDIT_PLUGIN_REVISION);
 	yajl_add_string_val(gen, "audit-protocol-version", AUDIT_PROTOCOL_VERSION);
@@ -758,6 +761,7 @@ static const char *replace_in_string(THD *thd,
 #ifdef HAVE_SESS_CONNECT_ATTRS
 #include <storage/perfschema/pfs_instr.h>
 
+#if defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID < 80000
 //declare the function: parse_length_encoded_string from: storage/perfschema/table_session_connect.cc
 bool parse_length_encoded_string(const char **ptr,
 	char *dest, uint dest_size,
@@ -767,6 +771,72 @@ bool parse_length_encoded_string(const char **ptr,
 	const CHARSET_INFO *from_cs,
 	uint nchars_max);
 
+#else
+// the function is not exported in MySQL 8
+/**
+  Take a length encoded string
+
+  @arg ptr  inout       the input string array
+  @arg dest             where to store the result
+  @arg dest_size        max size of @c dest
+  @arg copied_len       the actual length of the data copied
+  @arg start_ptr        pointer to the start of input
+  @arg input_length     the length of the incoming data
+  @arg from_cs          character set in which @c ptr is encoded
+  @arg nchars_max       maximum number of characters to read
+  @return status
+    @retval true    parsing failed
+    @retval false   parsing succeeded
+*/
+static bool parse_length_encoded_string(
+    const char **ptr
+    ,char *dest
+    ,uint dest_size
+    ,uint *copied_len
+    ,const char *start_ptr
+    ,uint input_length
+    ,bool /* unused */
+    ,const CHARSET_INFO *from_cs
+    ,uint nchars_max
+)
+{
+  ulong copy_length, data_length;
+  const char *well_formed_error_pos = NULL, *cannot_convert_error_pos = NULL,
+             *from_end_pos = NULL;
+
+  copy_length = data_length = net_field_length((uchar **)ptr);
+
+  /* we don't tolerate NULL as a length */
+  if (data_length == NULL_LENGTH) {
+    return true;
+  }
+
+  if (*ptr - start_ptr + data_length > input_length) {
+    return true;
+  }
+
+  /*
+    TODO: Migrate the data itself to UTF8MB4,
+    this is still UTF8MB3 printed in a UTF8MB4 column.
+  */
+  copy_length = well_formed_copy_nchars(
+      &my_charset_utf8_bin
+    , dest
+    , dest_size
+    , from_cs
+    , *ptr
+    , data_length
+    , nchars_max
+    , &well_formed_error_pos
+    , &cannot_convert_error_pos
+    , &from_end_pos
+  );
+  *copied_len = copy_length;
+  (*ptr) += data_length;
+
+  return false;
+}
+#endif
 /**
  * Code based upon read_nth_attribute of storage/perfschema/table_session_connect.cc
  * Only difference we do once loop and write out the attributes
@@ -776,7 +846,11 @@ static void log_session_connect_attrs(yajl_gen gen, THD *thd)
 	PFS_thread * pfs = PFS_thread::get_current_thread();
 	const char * connect_attrs = Audit_formatter::pfs_connect_attrs(pfs);
 	const uint connect_attrs_length = Audit_formatter::pfs_connect_attrs_length(pfs);
+#if defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID < 80000
 	const CHARSET_INFO *connect_attrs_cs = Audit_formatter::pfs_connect_attrs_cs(pfs);  
+#else
+	const CHARSET_INFO *connect_attrs_cs = get_charset(pfs->m_session_connect_attrs_cs_number, MYF(0));
+#endif
 
 	//sanity max attributes
 	const uint max_idx = 32;
@@ -861,7 +935,7 @@ ssize_t Audit_json_formatter::event_format(ThdSesData *pThdData, IWriter *writer
 	// TODO: get the start date from THD (but it is not in millis. Need to think about how we handle this)
 	// for now simply use the current time.
 	// my_getsystime() time since epoc in 100 nanosec units. Need to devide by 1000*(1000/100) to reach millis
-	uint64 ts = my_getsystime() / (10000);
+	uint64 ts = compat::my_getsystime() / (10000);
 	yajl_add_uint64(gen, "date", ts);
 	yajl_add_uint64(gen, "thread-id", thdid);
 	yajl_add_uint64(gen, "query-id", qid);
@@ -1077,10 +1151,19 @@ ssize_t Audit_json_formatter::event_format(ThdSesData *pThdData, IWriter *writer
 }
 
 ThdSesData::ThdSesData(THD *pTHD, StatementSource source)
-      : m_pThd (pTHD), m_CmdName(NULL), m_UserName(NULL),
-        m_objIterType(OBJ_NONE), m_tables(NULL), m_firstTable(true),
-        m_tableInf(NULL), m_index(0), m_isSqlCmd(false),
-	m_port(-1), m_source(source), m_errorCode(0), m_setErrorCode(false)
+      : m_pThd (pTHD)
+      , m_CmdName()
+      , m_UserName()
+      , m_isSqlCmd()
+      , m_objIterType(OBJ_NONE)
+      , m_tables()
+      , m_firstTable(true)
+      , m_tableInf()
+      , m_index()
+      , m_source(source)
+      , m_port(-1)
+      , m_errorCode()
+      , m_setErrorCode()
 {
 	m_CmdName = retrieve_command (m_pThd, m_isSqlCmd);
 	m_UserName = retrieve_user (m_pThd);
@@ -1109,15 +1192,17 @@ bool ThdSesData::startGetObjects()
 	m_tables = NULL;
 	m_firstTable = true;
 	m_index = 0;
-	m_tableInf = Audit_formatter::getQueryCacheTableList1(getTHD());
 	int command = Audit_formatter::thd_inst_command(getTHD());
 	LEX *pLex = Audit_formatter::thd_lex(getTHD());
+#if defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID < 80000
 	// query cache case
+	m_tableInf = Audit_formatter::getQueryCacheTableList1(getTHD());
 	if (pLex && command == COM_QUERY && m_tableInf && m_tableInf->num_of_elem > 0)
 	{
 		m_objIterType = OBJ_QUERY_CACHE;
 		return true;
 	}
+#endif
 	const char *cmd = getCmdName();
 	// commands which have single database object
 	if (strcmp(cmd,"Init DB") == 0

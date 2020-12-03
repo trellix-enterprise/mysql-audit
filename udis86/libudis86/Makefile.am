@@ -22,3 +22,6 @@ libudis86_la_SOURCES =	itab.c \
 
 itab.c itab.h: ../docs/x86optable.xml opgen.py
 	python ./opgen.py
+
+# generate the generated sources prior to the compilation
+BUILT_SOURCES = itab.c itab.h

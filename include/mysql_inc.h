@@ -33,7 +33,26 @@
 
 #include <sql_parse.h>
 #include <sql_class.h>
+#if !defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 80019
+#include <mysql/components/services/mysql_connection_attributes_iterator.h>
+#include <mysql/components/my_service.h>
+#include <mysql/service_plugin_registry.h>
+#endif
+#if !defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 80000
+using my_bool = bool;
+#if MYSQL_VERSION_ID < 80012
+#define PLUGIN_VAR_NOSYSVAR 0x0400
+#endif
+#include <sql/item.h>
+#include <sql/log.h>
+#include <sql/log_event.h>
+#include <sql/mysqld.h>
+#include <sql/protocol.h>
+#include <sql/sql_lex.h>
+#else
 #include <my_global.h>
+typedef struct st_mysql_sys_var SYS_VAR;
+#endif
 #include <sql_connect.h>
 #include <sql/sql_base.h>
 #include <sql/sql_table.h>
@@ -73,10 +92,7 @@
 # endif
 #endif
 
-// MariaDB doesn't have my_getsystime (returns 100 nano seconds) function. They replaced with my_hrtime_t my_hrtime() which returns microseconds
-#if  defined(MARIADB_BASE_VERSION)
-
-#define my_getsystime() ((my_hrtime()).val * 10)
+#if defined(MARIADB_BASE_VERSION)
 // MariaDB has a kill service that overrides thd_killed as a macro. It also has thd_killed function defined for backwards compatibility, so we redefine it.
 #undef thd_killed
 extern "C" int thd_killed(const MYSQL_THD thd);
@@ -85,12 +101,87 @@ extern "C" int thd_killed(const MYSQL_THD thd);
 #if MYSQL_VERSION_ID >= 100010
 extern "C"  char *thd_security_context(MYSQL_THD thd, char *buffer, unsigned int length, unsigned int max_query_len);
 #endif
-
 #endif
 
 //Define HAVE_SESS_CONNECT_ATTRS. We define it for mysql 5.6 and above
 #if (!defined(MARIADB_BASE_VERSION)) && MYSQL_VERSION_ID >= 50600
 #define HAVE_SESS_CONNECT_ATTRS 1
 #endif
+
+
+#if defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID < 80000
+#include <dlfcn.h>
+#endif
+
+namespace compat {
+/*************************/
+/*     my_getsystime     */
+/*************************/
+#if  defined(MARIADB_BASE_VERSION)
+// MariaDB doesn't have my_getsystime (returns 100 nano seconds) function. They replaced with my_hrtime_t my_hrtime() which returns microseconds
+static inline unsigned long long int my_getsystime() { return (my_hrtime()).val * 10; }
+#elif MYSQL_VERSION_ID < 80000
+static inline unsigned long long int my_getsystime() { return ::my_getsystime(); }
+#else
+static inline unsigned long long int my_getsystime() {
+#ifdef HAVE_CLOCK_GETTIME
+  // Performance regression testing showed this to be preferable
+  struct timespec tp;
+  clock_gettime(CLOCK_REALTIME, &tp);
+  return (static_cast<unsigned long long int>(tp.tv_sec) * 10000000 +
+          static_cast<unsigned long long int>(tp.tv_nsec) / 100);
+#else
+  return std::chrono::duration_cast<
+             std::chrono::duration<std::int64_t, std::ratio<1, 10000000>>>(
+             UTC_clock::now().time_since_epoch())
+      .count();
+#endif /* HAVE_CLOCK_GETTIME */
+}
+#endif
+
+/*********************************************/
+/*   vio_socket_connect                      */
+/*********************************************/
+#if MYSQL_VERSION_ID >= 50600
+#ifndef MYSQL_VIO
+#define MYSQL_VIO Vio*
+#endif
+#if defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID < 80000
+static inline bool vio_socket_connect(MYSQL_VIO vio, struct sockaddr *addr, socklen_t len, int timeout)
+{
+    return ::vio_socket_connect(vio, addr, len, timeout);
+}
+#else
+/*********************************************/
+/*                                           */
+/*  resolve the symbols manualy to permit    */
+/*  loading of the plugin in their absence   */
+/*                                           */
+/*********************************************/
+extern bool (*_vio_socket_connect)(MYSQL_VIO vio, struct sockaddr *addr, socklen_t len, int timeout);
+extern bool (*_vio_socket_connect_80016)(MYSQL_VIO vio, struct sockaddr *addr, socklen_t len, bool nonblocking, int timeout);
+extern bool (*_vio_socket_connect_80020)(MYSQL_VIO vio, struct sockaddr *addr, socklen_t len, bool nonblocking, int timeout, bool *connect_done);
+
+static inline bool vio_socket_connect(MYSQL_VIO vio, struct sockaddr *addr, socklen_t len, int timeout)
+{
+    if (_vio_socket_connect) return _vio_socket_connect(vio, addr, len, timeout);
+    if (_vio_socket_connect_80016) return _vio_socket_connect_80016(vio, addr, len, false, timeout);
+    if (_vio_socket_connect_80020) return _vio_socket_connect_80020(vio, addr, len, false, timeout, nullptr);
+    return true;
+}
+static inline bool init()
+{
+    void* handle = dlopen(NULL, RTLD_LAZY);
+    if (!handle)
+        return false;
+    _vio_socket_connect = (decltype(_vio_socket_connect))dlsym(handle, "_Z18vio_socket_connectP3VioP8sockaddrji");
+    _vio_socket_connect_80016 = (decltype(_vio_socket_connect_80016))dlsym(handle, "_Z18vio_socket_connectP3VioP8sockaddrjbi");
+    _vio_socket_connect_80020 = (decltype(_vio_socket_connect_80020))dlsym(handle, "_Z18vio_socket_connectP3VioP8sockaddrjbiPb");
+    dlclose(handle);
+    return _vio_socket_connect || _vio_socket_connect_80016 || _vio_socket_connect_80020;
+}
+#endif
+#endif
+}
 
 #endif // MYSQL_INCL_H

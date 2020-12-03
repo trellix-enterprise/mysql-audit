@@ -96,8 +96,7 @@ AC_PATH_PROG(DIFF, diff, diff)
 #we can add the following flags for better error catching: -Werror -Wimplicit
 CPPFLAGS="$CPPFLAGS -Werror -Wall"
 CFLAGS="$CFLAGS -Wimplicit"
-# From MySQL: Disable exceptions as they seams to create problems with gcc and threads.
-CXXFLAGS="-fno-implicit-templates -fno-exceptions -fno-rtti -Wno-reorder -Wno-strict-aliasing"
+CXXFLAGS="-fno-implicit-templates -fno-strict-aliasing"
 
 #add pthread libs
 LIBS="$LIBS -lpthread"

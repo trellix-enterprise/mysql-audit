@@ -81,3 +81,20 @@ Some documentation about configure command for mysql:
 
 http://dev.mysql.com/doc/refman/5.1/en/source-configuration-options.html
 
+
+==== MariaDB 10.2.10 ======
+1. Firstly checkout the source code:-
+	- svn co https://beasource3.corp.nai.org/svn/projects/DBSec-MySQL audit_plugin_mysql
+2. cd audit_plugin_mysql
+3. unzip zip-sources/mariadb-10.2.10.zip
+4. cd mariadb-10.2.10
+5. CC=gcc CXX=g++ cmake .    -DBUILD_CONFIG=mysql_release -DGNUTLS_INCLUDE_DIR=./zip-sources/mariadb-10.2.10/gnutls-3.3.24/64b/include -DGNUTLS_LIBRARY=./zip-sources/mariadb-10.2.10/gnutls-3.3.24/64b/lib
+6. cd mariadb-10.2.10/libservices
+7. make
+8. cd ../extra
+9. make
+10. cd ../..
+11. chmod +x bootstrap.sh
+12. ./bootstrap.sh
+13. CXX='gcc -static-libgcc' CC='gcc -static-libgcc' MYSQL_AUDIT_PLUGIN_VERSION=1.1.7 MYSQL_AUDIT_PLUGIN_REVISION=`svn info|grep ^Revision|awk -F ": " '{print $2}'` ./configure --enable-debug=no --with-mysql=mariadb-10.2.10 --with-mysql-libservices=mariadb-10.2.10/libservices/libmysqlservices.a
+14. gmake <======== This will create the plugin "libaudit_plugin.so"

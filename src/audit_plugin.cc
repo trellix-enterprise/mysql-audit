@@ -11,7 +11,6 @@
  You should have received a copy of the GNU General Public License
  along with this program; if not, write to the Free Software
  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA */
-
 #include "mysql_inc.h"
 #include "hot_patch.h"
 #include <stdlib.h>
@@ -47,14 +46,14 @@ static Audit_socket_handler json_socket_handler;
 static Audit_json_formatter json_formatter;
 
 // flags to hold if audit handlers are enabled
-static my_bool json_file_handler_enable = FALSE;
-static my_bool force_record_logins_enable = FALSE;
-static my_bool json_file_handler_flush = FALSE;
-static my_bool json_socket_handler_enable = FALSE;
-static my_bool uninstall_plugin_enable = FALSE;
-static my_bool validate_checksum_enable = FALSE;
-static my_bool offsets_by_version_enable = FALSE;
-static my_bool validate_offsets_extended_enable = FALSE;
+static my_bool json_file_handler_enable;
+static my_bool force_record_logins_enable;
+static my_bool json_file_handler_flush;
+static my_bool json_socket_handler_enable;
+static my_bool uninstall_plugin_enable;
+static my_bool validate_checksum_enable;
+static my_bool offsets_by_version_enable;
+static my_bool validate_offsets_extended_enable;
 static char *offsets_string = NULL;
 static char *checksum_string = NULL;
 static int delay_ms_val = 0;
@@ -129,12 +128,15 @@ static char json_socket_name_buff[1024] = {0};
  */
 static int (*trampoline_mysql_execute_command)(THD *thd) = NULL;
 static unsigned int trampoline_mysql_execute_size = 0;
+SavedCode trampoline_mysql_execute_saved_code;
 
 #if MYSQL_VERSION_ID < 50600
 static void (*trampoline_log_slow_statement)(THD *thd) = NULL;
 static unsigned int trampoline_log_slow_statement_size = 0;
+SavedCode trampoline_log_slow_statement_saved_code;
 static bool (*trampoline_acl_authenticate)(THD *thd, uint connect_errors, uint com_change_user_pkt_len) = NULL;
 static unsigned int trampoline_acl_authenticate_size = 0;
+SavedCode trampoline_acl_authenticate_saved_code;
 #endif
 
 static MYSQL_THDVAR_ULONG(is_thd_printed_list,
@@ -245,7 +247,7 @@ static void initializePeerCredentials(THD *pThd)
 	peer = (PeerInfo *) THDVAR(pThd, peer_info);
 	if (peer != NULL)
 	{
-		memset(peer, 0, sizeof(PeerInfo));
+		*peer = PeerInfo();
 	}
 #endif
 
@@ -365,10 +367,10 @@ static void initializePeerCredentials(THD *pThd)
 	}
 
 	// set that we have a UDS, so that THD vars will be used
-	THDVAR(pThd, peer_is_uds) = TRUE;
+	THDVAR(pThd, peer_is_uds) = true;
 
 done:
-	THDVAR(pThd, set_peer_cred) = TRUE;
+	THDVAR(pThd, set_peer_cred) = true;
 }
 
 PeerInfo *retrieve_peerinfo(THD *thd)
@@ -575,11 +577,15 @@ static void audit(ThdSesData *pThdData)
 
 #if defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID < 50709
 static int  (*trampoline_send_result_to_client)(Query_cache *pthis, THD *thd, char *sql, uint query_length) = NULL;
-#else
+#elif MYSQL_VERSION_ID < 80000
 static int  (*trampoline_send_result_to_client)(Query_cache *pthis, THD *thd, const LEX_CSTRING& sql_query) = NULL;
 #endif
 
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100108
+
+#if defined(MARIADB_BASE_VERSION) &&  MYSQL_VERSION_ID == 100224
+static bool (*trampoline_open_tables)(THD *thd, const DDL_options_st &options, TABLE_LIST **start, uint *counter,
+				Sroutine_hash_entry **sroutine_to_open, uint flags, Prelocking_strategy *prelocking_strategy) = NULL;
+#elif defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100108
 static bool (*trampoline_open_tables)(THD *thd, const DDL_options_st &options, TABLE_LIST **start, uint *counter, uint flags,
                 Prelocking_strategy *prelocking_strategy) = NULL;
 #elif MYSQL_VERSION_ID > 50505
@@ -590,10 +596,12 @@ static int (*trampoline_open_tables)(THD *thd, TABLE_LIST **start, uint *counter
 #endif
 
 
+#if defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID < 80000
 QueryTableInf *Audit_formatter::getQueryCacheTableList1(THD *thd)
 {
 	return (QueryTableInf*)	THDVAR(thd, query_cache_table_list);
 }
+#endif
 
 static bool (*trampoline_check_table_access)(THD *thd, ulong want_access,TABLE_LIST *tables,
 						bool any_combination_of_privileges_will_do,
@@ -635,7 +643,9 @@ static bool audit_check_table_access(THD *thd, ulong want_access,TABLE_LIST *tab
 }
 
 static unsigned int trampoline_check_table_access_size = 0;
+SavedCode trampoline_check_table_access_saved_code;
 
+#if defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID < 80000
 #if defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID < 50709
 static int  audit_send_result_to_client(Query_cache *pthis, THD *thd, char *sql, uint query_length)
 #else
@@ -667,8 +677,16 @@ static int  audit_send_result_to_client(Query_cache *pthis, THD *thd, const LEX_
 }
 
 static unsigned int trampoline_send_result_to_client_size = 0;
+SavedCode trampoline_send_result_to_client_saved_code;
+#endif  // defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID < 80000
 
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100108
+#if defined(MARIADB_BASE_VERSION) &&  MYSQL_VERSION_ID == 100224
+static bool audit_open_tables(THD *thd, const DDL_options_st &options, TABLE_LIST **start, uint *counter,
+				Sroutine_hash_entry **sroutine_to_open, uint flags, Prelocking_strategy *prelocking_strategy)
+{
+	bool res;
+	res = trampoline_open_tables (thd, options, start, counter, sroutine_to_open, flags, prelocking_strategy);
+#elif defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100108
 static bool audit_open_tables(THD *thd, const DDL_options_st &options, TABLE_LIST **start, uint *counter, uint flags,
                 Prelocking_strategy *prelocking_strategy)
 {
@@ -699,6 +717,7 @@ static int audit_open_tables(THD *thd, TABLE_LIST **start, uint *counter, uint f
 }
 
 static unsigned int trampoline_open_tables_size = 0;
+SavedCode trampoline_open_tables_saved_code;
 
 // called by log_slow_statement and general audit event caught by audit interface
 static void audit_post_execute(THD * thd)
@@ -833,13 +852,16 @@ static struct st_mysql_audit audit_plugin =
 #endif
 
 // some extern definitions which are not in include files
+#if defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID < 80000
 extern void log_slow_statement(THD *thd);
+#endif
 extern int mysql_execute_command(THD *thd);
 
 #if defined(MARIADB_BASE_VERSION)
 extern void end_connection(THD *thd);
 static int (*trampoline_end_connection)(THD *thd) = NULL;
 static unsigned int trampoline_end_connection_size = 0;
+SavedCode trampoline_end_connection_saved_code;
 #endif
 
 void remove_hot_functions()
@@ -849,15 +871,21 @@ void remove_hot_functions()
 #if MYSQL_VERSION_ID < 50600
 	target_function = (void *) log_slow_statement;
 	remove_hot_patch_function(target_function,
-			(void*) trampoline_log_slow_statement, trampoline_log_slow_statement_size, true);
+            (void*) trampoline_log_slow_statement, trampoline_log_slow_statement_size, true, &trampoline_log_slow_statement_saved_code);
 	trampoline_log_slow_statement_size = 0;
+    trampoline_log_slow_statement_saved_code.size = 0;
 	target_function = (void *) acl_authenticate;
 	remove_hot_patch_function(target_function,
-			(void*) trampoline_acl_authenticate, trampoline_acl_authenticate_size, true);
+            (void*) trampoline_acl_authenticate, trampoline_acl_authenticate_size, true, &trampoline_acl_authenticate_saved_code);
 	trampoline_acl_authenticate_size = 0;
+    trampoline_acl_authenticate_saved_code.size = 0;
 #endif
 
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100108
+
+#if defined(MARIADB_BASE_VERSION) &&  MYSQL_VERSION_ID == 100224
+	target_function = (void *)*(bool (*)(THD *thd, const DDL_options_st &options, TABLE_LIST **start, uint *counter,
+				Sroutine_hash_entry **sroutine_to_open, uint flags, Prelocking_strategy *prelocking_strategy)) &open_tables;
+#elif defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100108
 	target_function = (void *)*(bool (*)(THD *thd, const DDL_options_st &options, TABLE_LIST **start, uint *counter, uint flags,
 				Prelocking_strategy *prelocking_strategy)) &open_tables;
 #elif MYSQL_VERSION_ID > 50505
@@ -867,9 +895,11 @@ void remove_hot_functions()
 	target_function = (void *)*(int (*)(THD *thd, TABLE_LIST **start, uint *counter, uint flags)) &open_tables;
 #endif
 	remove_hot_patch_function(target_function,
-			(void*) trampoline_open_tables, trampoline_open_tables_size, true);
+            (void*) trampoline_open_tables, trampoline_open_tables_size, true, &trampoline_open_tables_saved_code);
 	trampoline_open_tables_size = 0;
+    trampoline_open_tables_saved_code.size = 0;
 
+#if defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID < 80000
 #if defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID < 50709
 	int (Query_cache::*pf_send_result_to_client)(THD *,char *, uint) = &Query_cache::send_result_to_client;
 #else
@@ -877,13 +907,16 @@ void remove_hot_functions()
 #endif
 	target_function = *(void **) &pf_send_result_to_client;
 	remove_hot_patch_function(target_function,
-			(void*) trampoline_send_result_to_client, trampoline_send_result_to_client_size, true);
+            (void*) trampoline_send_result_to_client, trampoline_send_result_to_client_size, true, &trampoline_send_result_to_client_saved_code);
 	trampoline_send_result_to_client_size = 0;
+    trampoline_send_result_to_client_saved_code.size = 0;
+#endif
 
 	remove_hot_patch_function((void*) check_table_access,
 			(void*) trampoline_check_table_access,
-			trampoline_check_table_access_size, true);
+            trampoline_check_table_access_size, true, &trampoline_check_table_access_saved_code);
 	trampoline_check_table_access_size=0;
+    trampoline_check_table_access_saved_code.size = 0;
 
 #if defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID < 50709
 	target_function = (void*) mysql_execute_command;
@@ -896,14 +929,16 @@ void remove_hot_functions()
 	target_function = (void*) end_connection;
 	remove_hot_patch_function(target_function,
 			(void*) trampoline_end_connection,
-			trampoline_end_connection_size, true);
+            trampoline_end_connection_size, true, &trampoline_end_connection_saved_code);
 	trampoline_end_connection_size = 0;
+    trampoline_end_connection_saved_code.size = 0;
 #endif
 
 	remove_hot_patch_function(target_function,
 			(void*) trampoline_mysql_execute_command,
-			trampoline_mysql_execute_size, true);
+            trampoline_mysql_execute_size, true, &trampoline_mysql_execute_saved_code);
 	trampoline_mysql_execute_size = 0;
+    trampoline_mysql_execute_saved_code.size = 0;
 }
 
 int is_remove_patches(ThdSesData *pThdData)
@@ -1083,10 +1118,10 @@ static void audit_end_connection(THD *thd)
 
 static bool parse_thd_offsets_string (char *poffsets_string)
 {
-	char offset_str[2048] = {0};
+	char offset_str[2049] = {0};
 	char *poffset_str = offset_str;
 
-	strncpy(poffset_str,poffsets_string,array_elements(offset_str));
+	strncpy(poffset_str,poffsets_string,array_elements(offset_str)-1);
 
 	char *comma_delimiter = strchr(poffset_str, ',');
 	size_t i = 0;
@@ -1197,9 +1232,16 @@ static bool validate_offsets(const ThdOffsets *offset)
 			(*(const char **) (((unsigned char *) sctx) + offset->sec_ctx_user)) = user_test_val;
 		}
 
+#if !defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 80000
+		PSI_mutex_key key_LOCK_thd_query_validate=99999;
+		mysql_mutex_init(key_LOCK_thd_query_validate, &thd->LOCK_thd_query, MY_MUTEX_INIT_FAST);
+#endif
 		char buffer[2048] = {0};
 		thd_security_context(thd, buffer, 2048, 1000);
 
+#if !defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 80000
+		mysql_mutex_destroy(&thd->LOCK_thd_query);
+#endif
 		// verfiy our buffer contains query id
 		if (strstr(buffer, " 789") == NULL || strstr(buffer, user_test_val) == NULL)
 		{
@@ -1739,7 +1781,7 @@ static void *trampoline_mem_free = NULL;
  * Utility method for hot patching
  */
 static int do_hot_patch(void ** trampoline_func_pp, unsigned int * trampoline_size,
-	void* target_function, void* audit_function,  const char * func_name)
+    void* target_function, void* audit_function,  const char * func_name, SavedCode* saved_code)
 {
 	// 16 byte align the pointer
 	DATATYPE_ADDRESS addrs = (DATATYPE_ADDRESS)trampoline_mem_free + 15;
@@ -1748,7 +1790,7 @@ static int do_hot_patch(void ** trampoline_func_pp, unsigned int * trampoline_si
 	// hot patch functions
 	unsigned int used_size;
 	int res = hot_patch_function(target_function, audit_function,
-			*trampoline_func_pp, trampoline_size, &used_size, true);
+            *trampoline_func_pp, trampoline_size, &used_size, true, saved_code);
 	if (res != 0)
 	{
 		// hot patch failed.
@@ -1764,7 +1806,7 @@ static int do_hot_patch(void ** trampoline_func_pp, unsigned int * trampoline_si
 }
 
 #define DECLARE_STRING_ARR_UPDATE_FUNC(NAME) \
-static void NAME ## _string_update(THD *thd, struct st_mysql_sys_var *var, void *tgt, const void *save)\
+static void NAME ## _string_update(THD *thd, SYS_VAR *var, void *tgt, const void *save)\
 {\
 	num_ ## NAME = string_to_array(save, NAME ## _array, array_elements( NAME ## _array), sizeof( NAME ## _array[0]));\
 	/* handle "set global audit_xxx = null;" */ \
@@ -1788,7 +1830,7 @@ DECLARE_STRING_ARR_UPDATE_FUNC(password_masking_cmds)
 DECLARE_STRING_ARR_UPDATE_FUNC(whitelist_users)
 DECLARE_STRING_ARR_UPDATE_FUNC(record_objs)
 
-static void password_masking_regex_string_update(THD *thd, struct st_mysql_sys_var *var, void *tgt, const void *save)
+static void password_masking_regex_string_update(THD *thd, SYS_VAR *var, void *tgt, const void *save)
 {
 	const char *str_val = "";
 	char *const* save_p = static_cast<char*const*>(save);
@@ -1846,7 +1888,7 @@ static void replace_char(char *str, const char tofind, const char rplc)
 	}
 }
 
-static void json_socket_name_update(THD *thd, struct st_mysql_sys_var *var, void *tgt, const void *save)
+static void json_socket_name_update(THD *thd, SYS_VAR *var, void *tgt, const void *save)
 {
 	const char *str_val = NULL;
 	char *const* save_p = static_cast<char*const*>(save);
@@ -1917,7 +1959,7 @@ static void json_socket_name_update(THD *thd, struct st_mysql_sys_var *var, void
 }
 
 // check that the regex compiles. Return 0 on success.
-static int password_masking_regex_check(THD *thd, struct st_mysql_sys_var *var, void *save, st_mysql_value *value)
+static int password_masking_regex_check(THD *thd, SYS_VAR *var, void *save, st_mysql_value *value)
 {
 	int length = array_elements(password_masking_regex_check_buff);
 	const char *str = value->val_str(value, password_masking_regex_check_buff, &length);
@@ -1937,7 +1979,7 @@ static int password_masking_regex_check(THD *thd, struct st_mysql_sys_var *var, 
 }
 
 // extended method to set also record_empty_objs_set
-static void record_objs_string_update_extended(THD *thd, struct st_mysql_sys_var *var, void *tgt, const void *save)
+static void record_objs_string_update_extended(THD *thd, SYS_VAR *var, void *tgt, const void *save)
 {
 	record_objs_string_update(thd, var, tgt, save);
 	if (num_record_objs > 0) // check if to record also the empty set of objects
@@ -1962,10 +2004,24 @@ static void record_objs_string_update_extended(THD *thd, struct st_mysql_sys_var
  * 0                    success
  * 1                    failure
  */
+
+#if !defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID > 80000
+bool (*compat::_vio_socket_connect)(MYSQL_VIO vio, struct sockaddr *addr, socklen_t len, int timeout);
+bool (*compat::_vio_socket_connect_80016)(MYSQL_VIO vio, struct sockaddr *addr, socklen_t len, bool nonblocking, int timeout);
+bool (*compat::_vio_socket_connect_80020)(MYSQL_VIO vio, struct sockaddr *addr, socklen_t len, bool nonblocking, int timeout, bool *connect_done);
+#endif
 static int audit_plugin_init(void *p)
 {
 
 	DBUG_ENTER("audit_plugin_init");
+#if !defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID > 80000
+	const bool compat_init_ok = compat::init();
+	if (!compat_init_ok)
+	{
+		sql_print_error("%s unable to init compatibility layer. Aborting.", log_prefix);
+		DBUG_RETURN(1);
+	}
+#endif
 
 #ifdef __x86_64__
 	const char * arch = "64bit";
@@ -2080,7 +2136,7 @@ static int audit_plugin_init(void *p)
 	trampoline_mem = NULL;
 
 #ifdef __x86_64__
-	size_t func_in_mysqld = (size_t)log_slow_statement;
+	size_t func_in_mysqld = (size_t)check_table_access;
 	size_t func_in_plugin = (size_t)trampoline_dummy_func_for_mem;
 	if (func_in_mysqld < INT_MAX && func_in_plugin > INT_MAX)
 	{
@@ -2141,14 +2197,14 @@ static int audit_plugin_init(void *p)
 #endif
 
 	if (do_hot_patch((void **)&trampoline_mysql_execute_command, &trampoline_mysql_execute_size,
-				target_function, (void *)audit_mysql_execute_command,  "mysql_execute_command"))
+                target_function, (void *)audit_mysql_execute_command,  "mysql_execute_command", &trampoline_mysql_execute_saved_code))
 	{
 		DBUG_RETURN(1);
 	}
 
 #if MYSQL_VERSION_ID < 50600
 	if (do_hot_patch((void **)&trampoline_log_slow_statement, &trampoline_log_slow_statement_size,
-				(void *)log_slow_statement, (void *)audit_log_slow_statement,  "log_slow_statement"))
+                (void *)log_slow_statement, (void *)audit_log_slow_statement,  "log_slow_statement", &trampoline_log_slow_statement_saved_code))
 	{
 		sql_print_error("%s Failed hot patch. Continuing as non-critical.",
 				log_prefix);
@@ -2156,13 +2212,14 @@ static int audit_plugin_init(void *p)
 	}
 
 	if (do_hot_patch((void **)&trampoline_acl_authenticate, &trampoline_acl_authenticate_size,
-				(void *)acl_authenticate, (void *)audit_acl_authenticate,  "acl_authenticate"))
+                (void *)acl_authenticate, (void *)audit_acl_authenticate,  "acl_authenticate", &trampoline_acl_authenticate_saved_code))
 	{
 		DBUG_RETURN(1);
 	}
 #endif
 
 
+#if defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID < 80000
 #if defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID < 50709
 	int (Query_cache::*pf_send_result_to_client)(THD *,char *, uint) = &Query_cache::send_result_to_client;
 #else
@@ -2170,18 +2227,22 @@ static int audit_plugin_init(void *p)
 #endif
 	target_function = *(void **)  &pf_send_result_to_client;
 	if (do_hot_patch((void **)&trampoline_send_result_to_client, &trampoline_send_result_to_client_size,
-				(void *)target_function, (void *)audit_send_result_to_client,  "send_result_to_client"))
+                (void *)target_function, (void *)audit_send_result_to_client,  "send_result_to_client", &trampoline_send_result_to_client_saved_code))
 	{
 		DBUG_RETURN(1);
 	}
+#endif
 
 	if (do_hot_patch((void **)&trampoline_check_table_access, &trampoline_check_table_access_size,
-				(void *)check_table_access, (void *)audit_check_table_access,  "check_table_access"))
+                (void *)check_table_access, (void *)audit_check_table_access,  "check_table_access", &trampoline_check_table_access_saved_code))
 	{
 		DBUG_RETURN(1);
 	}
 
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100108
+#if defined(MARIADB_BASE_VERSION) &&  MYSQL_VERSION_ID == 100224
+	target_function = (void *)*(bool (*)(THD *thd, const DDL_options_st &options, TABLE_LIST **start, uint *counter,
+				Sroutine_hash_entry **sroutine_to_open, uint flags, Prelocking_strategy *prelocking_strategy)) &open_tables;
+#elif defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100108
 	target_function = (void *)*(bool (*)(THD *thd, const DDL_options_st &options, TABLE_LIST **start, uint *counter, uint flags,
 				Prelocking_strategy *prelocking_strategy)) &open_tables;
 #elif MYSQL_VERSION_ID > 50505
@@ -2191,7 +2252,7 @@ static int audit_plugin_init(void *p)
 	target_function = (void *)*(int (*)(THD *thd, TABLE_LIST **start, uint *counter, uint flags)) &open_tables;
 #endif
 	if (do_hot_patch((void **)&trampoline_open_tables, &trampoline_open_tables_size,
-				(void *)target_function, (void *)audit_open_tables,  "open_tables"))
+                (void *)target_function, (void *)audit_open_tables,  "open_tables", &trampoline_open_tables_saved_code))
 	{
 		DBUG_RETURN(1);
 	}
@@ -2199,7 +2260,7 @@ static int audit_plugin_init(void *p)
 #if defined(MARIADB_BASE_VERSION)
 	target_function = (void*) end_connection;
 	if (do_hot_patch((void **)&trampoline_end_connection, &trampoline_end_connection_size,
-				(void *)target_function, (void *)audit_end_connection,  "end_connection"))
+                (void *)target_function, (void *)audit_end_connection,  "end_connection", &trampoline_end_connection_saved_code))
 	{
 		DBUG_RETURN(1);
 	}
@@ -2239,7 +2300,7 @@ static int audit_plugin_deinit(void *p)
  Plugin status variables for SHOW STATUS
  */
 
-static struct st_mysql_show_var audit_status[] =
+static SHOW_VAR audit_status[] =
 {
 { "Audit_version",
         (char *) MYSQL_AUDIT_PLUGIN_VERSION "-" MYSQL_AUDIT_PLUGIN_REVISION,
@@ -2260,32 +2321,32 @@ static struct st_mysql_show_var audit_status[] =
 
 
 
-static void json_log_file_enable(THD *thd, struct st_mysql_sys_var *var,
+static void json_log_file_enable(THD *thd, SYS_VAR *var,
 		void *tgt, const void *save)
 {
-	json_file_handler_enable = *(my_bool *) save ? TRUE : FALSE;
+	json_file_handler_enable = *(my_bool *) save ? true : false;
 	if (json_file_handler.is_init())
 	{
 		json_file_handler.set_enable(json_file_handler_enable);
 	}
 }
 
-static void json_log_file_flush(THD *thd, struct st_mysql_sys_var *var,
+static void json_log_file_flush(THD *thd, SYS_VAR *var,
 		void *tgt, const void *save)
 {
 	// always set to false. as we just flush if set to true and leave at 0
-	json_file_handler_flush = FALSE;
-	my_bool val = *(my_bool *) save ? TRUE : FALSE;
+	json_file_handler_flush = false;
+	my_bool val = *(my_bool *) save ? true : false;
 	if (val && json_file_handler.is_init())
 	{
 		json_file_handler.flush();
 	}
 }
 
-static void json_log_socket_enable(THD *thd, struct st_mysql_sys_var *var,
+static void json_log_socket_enable(THD *thd, SYS_VAR *var,
 		void *tgt, const void *save)
 {
-	json_socket_handler_enable = *(my_bool *) save ? TRUE : FALSE;
+	json_socket_handler_enable = *(my_bool *) save ? true : false;
 	if (json_socket_handler.is_init())
 	{
 		json_socket_handler.set_enable(json_socket_handler_enable);
@@ -2456,7 +2517,7 @@ static MYSQL_SYSVAR_ENUM(before_after, before_after_mode,
 /*
  * Plugin system vars
  */
-static struct st_mysql_sys_var* audit_system_variables[] =
+static SYS_VAR* audit_system_variables[] =
 {
 #ifdef HAVE_SESS_CONNECT_ATTRS
 	MYSQL_SYSVAR(sess_connect_attrs),
@@ -2508,12 +2569,18 @@ mysql_declare_plugin(audit_plugin)
 	"McAfee Inc",
 	"AUDIT plugin, creates a file mysql-audit.log to log activity",
 	PLUGIN_LICENSE_GPL,
-	audit_plugin_init, /* Plugin Init */
-	audit_plugin_deinit, /* Plugin Deinit */
-	0x0100 /* 1.0 */,
-	audit_status, /* status variables                */
+	audit_plugin_init,      /* Plugin Init */
+#if !defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 80000
+	nullptr,                /* check uninstall function       */
+#endif
+	audit_plugin_deinit,    /* Plugin Deinit */
+	0x0100                  /* 1.0 */,
+	audit_status,           /* status variables                */
 	audit_system_variables, /* system variables                */
-	NULL /* config options                  */
+	NULL,                   /* config options                  */
+#if MYSQL_VERSION_ID >= 50516
+	0                       /* flags for plugin                */
+#endif
 }
 mysql_declare_plugin_end;
 

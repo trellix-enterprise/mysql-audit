@@ -228,7 +228,7 @@ static void WriteJump32(void *pAddress, ULONG_PTR JumpTo)
 // Hooks a function
 //
 static bool HookFunction(ULONG_PTR targetFunction, ULONG_PTR newFunction, ULONG_PTR trampolineFunction,
-	unsigned int *trampolinesize, unsigned int *usedsize)
+    unsigned int *trampolinesize, unsigned int *usedsize, SavedCode* saved_code)
 {
 #define MAX_INSTRUCTIONS 100
 	uint8_t raw[MAX_INSTRUCTIONS];
@@ -293,6 +293,9 @@ static bool HookFunction(ULONG_PTR targetFunction, ULONG_PTR newFunction, ULONG_
 				ud_obj.operand[0].type == UD_OP_JIMM)
 		{
 			bool cannot_disassemble = true;
+            sql_print_information("ud_obj.mnemonic == UD_Ijmp: %d", ud_obj.mnemonic == UD_Ijmp);
+            sql_print_information("ud_obj.mnemonic == UD_Icall: %d", ud_obj.mnemonic == UD_Icall);
+            sql_print_information("ud_obj.operand[0].type == UD_OP_JIMM: %d", ud_obj.operand[0].type == UD_OP_JIMM);
 
 #ifdef __i386__
 			const BYTE *pc = (const BYTE *)targetFunction + InstrSize;
@@ -324,7 +327,59 @@ static bool HookFunction(ULONG_PTR targetFunction, ULONG_PTR newFunction, ULONG_
 					cannot_disassemble = false;
 				}
 			}
+            sql_print_error("in __i386__");
 
+#else
+            // If there is a relative jump or call in the to be overwritten chunk,
+            // construct an absolute jump/call in the trampoline.
+#ifdef __x86_64__
+            sql_print_information("__x86_64__");
+#endif
+            if (ud_obj.operand[0].type == UD_OP_JIMM && (ud_obj.mnemonic == UD_Ijmp || ud_obj.mnemonic == UD_Icall)) {
+                // jump or call
+                size_t rewrite_size = 0;
+                switch (ud_obj.mnemonic) {
+                case UD_Ijmp:
+                    sql_print_information("rewriting relative jump as absolute");
+                    memcpy((void*)(trampolineFunction + uCurrentSize), "\xff\x25\x00\x00\x00\x00", 6);  // jmpq *0x0(%rip)
+                    rewrite_size = 6;
+                    break;
+                case UD_Icall:
+                    sql_print_information("rewriting relative call as absolute");
+                    memcpy((void*)(trampolineFunction + uCurrentSize),     "\xff\x15\x02\x00\x00\x00", 6);  // callq *0x2(%rip)  -- call the function via the address stored at RIP+2
+                    memcpy((void*)(trampolineFunction + uCurrentSize + 6), "\xeb\x08", 2);                  // jmp   0x08        -- jump over the function address (8 bytes forward)
+                    rewrite_size = 8;
+                    break;
+                default:
+                    break;
+                }
+
+                // calculate the jump target from the instruction pointer and the immediate operand
+                unsigned long jump_target = ud_obj.pc;
+                switch (ud_obj.operand[0].size) {
+                case 8:
+                    jump_target += ud_obj.operand[0].lval.sbyte;
+                    break;
+                case 16:
+                    jump_target += ud_obj.operand[0].lval.sword;
+                    break;
+                case 32:
+                    jump_target += ud_obj.operand[0].lval.sdword;
+                    break;
+                }
+                memcpy((void*)(trampolineFunction + uCurrentSize + rewrite_size), &jump_target, 8);
+                rewrite_size += 8;
+
+                // update the indexes
+                uCurrentSize += rewrite_size;
+                InstrSize += ud_insn_len (&ud_obj);
+
+                // clear the flag
+                cannot_disassemble = false;
+
+                sql_print_information("target address: [0x%016lx]", jump_target);
+                sql_print_information("original instruction: [%s]", ud_insn_asm(&ud_obj));
+            }
 #endif
 			if (cannot_disassemble)
 			{
@@ -381,8 +436,17 @@ static bool HookFunction(ULONG_PTR targetFunction, ULONG_PTR newFunction, ULONG_
 		return false;
 	}
 
-	WriteJump((BYTE*)trampolineFunction + uCurrentSize, targetFunction + InstrSize);
+    // Save the original code that is going to be overwitten by the jump.
+    // The code in the trampoline can be larger due to rewriting of RIP
+    // relative instructions and unsuitable for writting back on unhook.
+    memcpy(saved_code->code, (void*)targetFunction, InstrSize);
+    saved_code->size = InstrSize;
+
+    // jump from trampoline back to continue the original function
+    WriteJump((BYTE*)trampolineFunction + uCurrentSize, targetFunction + InstrSize);
 	*usedsize = uCurrentSize + JUMP_SIZE;
+
+    // jump from the begin of the original function to our function
 #ifndef __x86_64__
 	WriteJump((void *) targetFunction, newFunction);
 #else
@@ -411,7 +475,7 @@ static bool HookFunction(ULONG_PTR targetFunction, ULONG_PTR newFunction, ULONG_
 //
 
 
-static void UnhookFunction(ULONG_PTR Function, ULONG_PTR trampolineFunction, unsigned int trampolinesize)
+static void UnhookFunction(ULONG_PTR Function, ULONG_PTR trampolineFunction, unsigned int trampolinesize, SavedCode* saved_code)
 {
 	DATATYPE_ADDRESS FunctionPage = get_page_address((void*)Function);
 	if (unprotect((void*)FunctionPage, PAGE_SIZE) != 0)
@@ -421,7 +485,7 @@ static void UnhookFunction(ULONG_PTR Function, ULONG_PTR trampolineFunction, uns
 				log_prefix, (void *) FunctionPage);
 		return;
 	}
-	memcpy((void *) Function, (void*)trampolineFunction,trampolinesize);
+    memcpy((void *) Function, saved_code->code, saved_code->size);
 	protect((void*)FunctionPage, PAGE_SIZE);
 }
 
@@ -442,12 +506,12 @@ static void UnhookFunction(ULONG_PTR Function, ULONG_PTR trampolineFunction, uns
  * @Return 0 on success otherwise failure
  * @See MS Detours paper: http:// research.microsoft.com/pubs/68568/huntusenixnt99.pdf for some background info.
  */
-int hot_patch_function(void *targetFunction, void *newFunction, void *trampolineFunction, unsigned int *trampolinesize, unsigned int *usedsize, bool info_print)
+int hot_patch_function(void *targetFunction, void *newFunction, void *trampolineFunction, unsigned int *trampolinesize, unsigned int *usedsize, bool info_print, SavedCode* saved_code)
 {
 	DATATYPE_ADDRESS trampolinePage = get_page_address(trampolineFunction);
 	cond_info_print(info_print, "%s hot patching function: %p, trampolineFunction: %p trampolinePage: %p",log_prefix, (void *)targetFunction, (void *)trampolineFunction, (void *)trampolinePage);
 	if (HookFunction((ULONG_PTR) targetFunction, (ULONG_PTR) newFunction,
-				(ULONG_PTR) trampolineFunction, trampolinesize, usedsize))
+                (ULONG_PTR) trampolineFunction, trampolinesize, usedsize, saved_code))
 	{
 		return 0;
 	}
@@ -466,15 +530,18 @@ int hot_patch_function(void *targetFunction, void *newFunction, void *trampoline
  * @param trampolineFunction a function which contains a jump back to the targetFunction.
  * @param log_file if not null will log about progress of installing the plugin
  */
-void remove_hot_patch_function(void *targetFunction, void *trampolineFunction, unsigned int trampolinesize, bool info_print)
+void remove_hot_patch_function(void *targetFunction, void *trampolineFunction, unsigned int trampolinesize, bool info_print, SavedCode* saved_code)
 {
-	if (trampolinesize == 0)
+    sql_print_information("trampolinesize: %d", trampolinesize);
+    sql_print_information("saved_code->size: %zd", saved_code->size);
+    if (trampolinesize == 0 || !saved_code->size)
 	{
 		// nothing todo. As hot patch was not set.
-		return;
+        cond_info_print(info_print, "%s not removing as hot patch was not set: %p",log_prefix, (void *)targetFunction);
+        return;
 	}
 	DATATYPE_ADDRESS targetPage = get_page_address(targetFunction);
 	cond_info_print(info_print, "%s removing hot patching function: %p targetPage: %p trampolineFunction: %p",log_prefix, (void *)targetFunction, (void *)targetPage, (void *)trampolineFunction);
-	UnhookFunction ((ULONG_PTR) targetFunction, (ULONG_PTR)trampolineFunction,trampolinesize);
+    UnhookFunction ((ULONG_PTR) targetFunction, (ULONG_PTR)trampolineFunction,trampolinesize, saved_code);
 	return;
 }

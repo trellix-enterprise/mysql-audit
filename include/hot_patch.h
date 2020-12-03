@@ -4,7 +4,6 @@
  *  Created on: Jan 10, 2011
  *      Author: Guyl
  */
-
 #ifndef HOT_PATCH_H_
 #define HOT_PATCH_H_
 
@@ -14,9 +13,14 @@
 
 #define GETPAGESIZE()         sysconf (_SC_PAGE_SIZE)
 
-int hot_patch_function(void* targetFunction, void* newFunction, void* trampolineFunction, unsigned int *trampolinesize, unsigned int *usedsize, bool log_info);
+struct SavedCode {
+    char code [1024];
+    size_t size;
+};
 
-void remove_hot_patch_function(void* targetFunction, void* trampolineFunction, unsigned int trampolinesize, bool log_info);
+int hot_patch_function(void* targetFunction, void* newFunction, void* trampolineFunction, unsigned int *trampolinesize, unsigned int *usedsize, bool log_info, SavedCode* saved_code);
+
+void remove_hot_patch_function(void* targetFunction, void* trampolineFunction, unsigned int trampolinesize, bool log_info, SavedCode* saved_code);
 
 //8KB NOP + 16
 //can be used to define a block of memory to use for trampolines

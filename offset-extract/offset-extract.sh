@@ -32,7 +32,7 @@ DB=db
 CLIENT_CAPS="print_offset THD client_capabilities"
 
 # In 5.6 command member is named m_command
-if echo $MYVER | grep -P '^(5\.6|5\.7|10\.)' > /dev/null
+if echo $MYVER | grep -P '^(5\.6|5\.7|8\.|10\.)' > /dev/null
 then
 	COMMAND_MEMBER=m_command
 	HAS_CONNECT_ATTRS=yes
@@ -40,7 +40,7 @@ fi
 
 CONNECT_ATTRS_CS=m_session_connect_attrs_cs
 # In 5.7 thread_id changed to m_thread_id. main_security_ctx changed to m_main_security_ctx
-if echo $MYVER | grep -P '^(5\.7)' > /dev/null
+if echo $MYVER | grep -P '^(5\.7|8\.)' > /dev/null
 then
 	THREAD_ID=m_thread_id
 	SEC_CONTEXT=m_main_security_ctx
@@ -59,7 +59,7 @@ fi
 
 # In 5.6.15 and up, 5.7 and mariabdb 10.0.11 and up, mariadb 10.1 
 # m_session_connect_attrs_cs changed to m_session_connect_attrs_cs_number
-if echo $MYVER | grep -P '^(5\.7|10\.[1-2]|5\.6\.(1[5-9]|[2-9][0-9])|10.0.(1[1-9]|[2-9][0-9]))' > /dev/null
+if echo $MYVER | grep -P '^(5\.7|8\.|10\.[1-2]|5\.6\.(1[5-9]|[2-9][0-9])|10.0.(1[1-9]|[2-9][0-9]))' > /dev/null
 then
 	CONNECT_ATTRS_CS=m_session_connect_attrs_cs_number
 fi
@@ -75,7 +75,7 @@ else
 	CONNECT_ATTRS='printf ", 0, 0, 0"'
 fi
 
-if echo $MYVER | grep -P '^5\.7' > /dev/null
+if echo $MYVER | grep -P '^(5\.7|8\.0)' > /dev/null
 then
 	if echo $MYVER | grep -P '^5\.7\.8' > /dev/null
 	then
@@ -115,7 +115,7 @@ DA_STATUS="print_offset Diagnostics_area m_status"		# 5.5, 5.6, 5.7, mariadb 10.
 DA_SQL_ERRNO="print_offset Diagnostics_area m_sql_errno"	# 5.5, 5.6, mariadb 10.0, 10.1, 10.2
 STMT_DA="print_offset THD m_stmt_da"				# 5.6, 5.7, mariadb 10.0, 10.1, 10.2
 
-if echo $MYVER | grep -P '^(5\.7)' > /dev/null
+if echo $MYVER | grep -P '^(5\.7|8\.0)' > /dev/null
 then
 	DA_SQL_ERRNO="print_offset Diagnostics_area m_mysql_errno"
 elif echo $MYVER | grep -P '^(5\.6|10\.)' > /dev/null
@@ -130,6 +130,17 @@ else
 	DA_SQL_ERRNO='printf ", 0"'
 fi
 
+LEX_COMMENT=""
+VIEW_TABLES=""
+if echo $MYVER | grep -P '^(8\.0)' > /dev/null
+then
+	LEX_COMMENT='printf ", 0"'
+	VIEW_TABLES="print_offset TABLE_LIST view_tables"
+else
+	LEX_COMMENT="print_offset LEX comment"
+	VIEW_TABLES='printf ", 0"'
+fi
+
 cat <<EOF > offsets.gdb
 set logging on
 set width 0
@@ -142,7 +153,7 @@ print_offset THD $THREAD_ID
 print_offset THD $SEC_CONTEXT
 print_offset THD $COMMAND_MEMBER
 print_offset THD lex
-print_offset LEX comment
+$LEX_COMMENT
 print_offset Security_context $USER
 print_offset Security_context $HOST
 print_offset Security_context $IP
@@ -159,6 +170,7 @@ $ROW_COUNT_FUNC
 $STMT_DA
 $DA_STATUS
 $DA_SQL_ERRNO
+$VIEW_TABLES
 printf "}"
 EOF
 

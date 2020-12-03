@@ -104,6 +104,7 @@ typedef struct ThdOffsets {
 	OFFSET stmt_da;
 	OFFSET da_status;
 	OFFSET da_sql_errno;
+	OFFSET view_tables;
 } ThdOffsets;
 
 /*
@@ -224,7 +225,9 @@ public:
 	virtual ssize_t stop_msg_format(IWriter *writer) { return 0; }
 
 	static const char *retrieve_object_type(TABLE_LIST *pObj);
+#if defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID < 80000
 	static QueryTableInf *getQueryCacheTableList1(THD *thd);
+#endif
 
 	// utility functions for fetching thd stuff
 	static int thd_client_port(THD *thd);
@@ -579,7 +582,10 @@ static inline const CHARSET_INFO * pfs_connect_attrs_cs(void * pfs)
 
 	static inline bool table_is_view(TABLE_LIST *table)
 	{
-		return table->view_tables != 0;
+		if (!Audit_formatter::thd_offsets.view_tables)
+			return table->view_tables != 0;
+		List<TABLE_LIST> **view_tables = (List<TABLE_LIST> **)((char*)table + Audit_formatter::thd_offsets.view_tables);
+		return *view_tables;
 	}
 };
 
@@ -592,14 +598,14 @@ public:
 	static const char *DEF_MSG_DELIMITER;
 
 	Audit_json_formatter()
-		: m_msg_delimiter(NULL),
-		m_write_start_msg(true),
+		: m_write_start_msg(true),
 		m_write_sess_connect_attrs(true),
 		m_write_client_capabilities(false),
 		m_write_socket_creds(true),
-		m_password_mask_regex_preg(NULL),
+		m_perform_password_masking(NULL),
+		m_msg_delimiter(NULL),
 		m_password_mask_regex_compiled(false),
-		m_perform_password_masking(NULL)
+		m_password_mask_regex_preg(NULL)
 	{
 
 	}
@@ -706,8 +712,12 @@ public:
 	static void stop_all();
 
 	Audit_handler() :
-		m_initialized(false), m_enabled(false), m_print_offset_err(true),
-		m_formatter(NULL), m_failed(false), m_log_io_errors(true)
+		m_formatter()
+		,m_initialized()
+		,m_enabled()
+		,m_failed()
+		,m_log_io_errors(true)
+		,m_print_offset_err(true)
 	{
 	}
 
@@ -873,7 +883,10 @@ class Audit_file_handler: public Audit_io_handler {
 public:
 
 	Audit_file_handler() :
-		m_sync_period(0), m_log_file(NULL), m_sync_counter(0), m_bufsize(0)
+		m_sync_period(0)
+		, m_bufsize(0)
+		, m_log_file(NULL)
+		, m_sync_counter(0)
 	{
 		m_io_type = "file";
 	}
@@ -920,8 +933,10 @@ class Audit_socket_handler: public Audit_io_handler {
 public:
 
 	Audit_socket_handler() :
-		m_vio(NULL), m_connect_timeout(1), m_write_timeout(0),
-		m_log_with_error_severity(false)
+		m_connect_timeout(1)
+		, m_write_timeout()
+		, m_vio()
+		, m_log_with_error_severity()
 	{
 		m_io_type = "socket";
 	}
