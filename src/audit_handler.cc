@@ -846,19 +846,16 @@ static void log_session_connect_attrs(yajl_gen gen, THD *thd)
 	PFS_thread * pfs = PFS_thread::get_current_thread();
 	const char * connect_attrs = Audit_formatter::pfs_connect_attrs(pfs);
 	const uint connect_attrs_length = Audit_formatter::pfs_connect_attrs_length(pfs);
-#if defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID < 80000
 	const CHARSET_INFO *connect_attrs_cs = Audit_formatter::pfs_connect_attrs_cs(pfs);  
-#else
-	const CHARSET_INFO *connect_attrs_cs = get_charset(pfs->m_session_connect_attrs_cs_number, MYF(0));
-#endif
 
 	//sanity max attributes
 	const uint max_idx = 32;
 	uint idx;
 	const char *ptr;  
-	bool array_start = false;
+	// bool array_start = false;
 	if(!connect_attrs || !connect_attrs_length || !connect_attrs_cs)
 	{
+		sql_print_information("%s Failed to compute offsets connect_attrs. pfs [%p], connect_attrs [%p], connect_attrs_length [%d], connect_attrs_cs [%p]", AUDIT_LOG_PREFIX, pfs, connect_attrs, connect_attrs_length, connect_attrs_cs);
 		//either offsets are wrong or not set
 		return;
 	}
@@ -886,6 +883,7 @@ static void log_session_connect_attrs(yajl_gen gen, THD *thd)
 					connect_attrs_cs, MAX_COPY_CHARS_NAME) || !copy_length)
 		{
 			//something went wrong or we are done
+			// sql_print_information("%s something went wrong or we are done 1", AUDIT_LOG_PREFIX);
 			break;
 		}
 
@@ -899,23 +897,14 @@ static void log_session_connect_attrs(yajl_gen gen, THD *thd)
 					fill_in_attr_value,
 					connect_attrs_cs, MAX_COPY_CHARS_VAL) || !copy_length)
 		{
+			// sql_print_information("%s something went wrong or we are done 2", AUDIT_LOG_PREFIX);
 			break;
 		}          
 		attr_value_length= copy_length;
-		if(!array_start)
-		{
-			yajl_add_string(gen, "connect_attrs");
-			yajl_gen_map_open(gen);
-			array_start = true;
-		}
 		yajl_gen_string(gen, (const unsigned char*)attr_name, attr_name_length);
 		yajl_gen_string(gen, (const unsigned char*)attr_value, attr_value_length);
 
 	} //close for loop
-	if(array_start)
-	{
-		yajl_gen_map_close(gen);
-	}
 	return;
 }
 #endif
