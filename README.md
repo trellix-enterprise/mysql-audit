@@ -9,10 +9,11 @@ as a standalone audit solution or configured to feed data to external monitoring
 Installation and Configuration 
 ------------------------------
 
-Please check out our wiki on github for detailed installation and configuration instructions:
+Official McAfee plugin binary releases can be downloaded from the Releases page on GitHub: <br/>
+https://github.com/mcafee/mysql-audit/releases
 
+Please check out our wiki on GitHub for detailed installation and configuration instructions: <br/>
 https://github.com/mcafee/mysql-audit/wiki 
-
 
 Issues
 ------------------------------
