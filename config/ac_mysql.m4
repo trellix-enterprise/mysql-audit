@@ -33,7 +33,7 @@ dnl
 dnl table_id.h included from table.h included by mysql_inc.h is
 dnl in libbinlogevents/include.
     AC_DEFINE([MYSQL_SRC], [1], [Source directory for MySQL])
-    MYSQL_INC="-I$withval/sql -I$withval/libbinlogevents/export -I$withval/libbinlogevents/include -I$withval/include -I$withval/regex -I$withval -I$withval/extra/rapidjson/include"
+    MYSQL_INC="-I$withval/sql -I$withval/libbinlogevents/export -I$withval/libbinlogevents/include -I$withval/include -I$withval/regex -I$withval -I$withval/extra/rapidjson/include -I$withval/wsrep-lib/include -I$withval/wsrep-lib/wsrep-API/v26"
     AC_MSG_RESULT(["$withval"])
   ],
   [

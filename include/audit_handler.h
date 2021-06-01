@@ -252,8 +252,14 @@ public:
 	{
 		if (! Audit_formatter::thd_offsets.db) // no offsets use compiled in header
 		{
-#if defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID < 50709
+#if !defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID < 50709
 			return thd->db;
+#elif defined(MARIADB_BASE_VERSION)
+#if MYSQL_VERSION_ID >= 100504
+			return thd->db.str;
+#else
+			return thd->db;
+#endif
 #else
 			return thd->db().str;
 #endif
@@ -395,7 +401,7 @@ public:
 	}
 #endif
 
-	static inline const char * pfs_connect_attrs(void * pfs)
+	static inline const char * pfs_connect_attrs(const void * pfs)
 	{
 		if (! Audit_formatter::thd_offsets.pfs_connect_attrs || pfs == NULL)
 		{
@@ -407,7 +413,7 @@ public:
 		return *pfs_pointer;
 	}
 
-	static inline uint pfs_connect_attrs_length(void * pfs)
+	static inline uint pfs_connect_attrs_length(const void * pfs)
 	{
 		if (! Audit_formatter::thd_offsets.pfs_connect_attrs_length || pfs == NULL)
 		{
@@ -417,7 +423,7 @@ public:
 		return *(uint *) (((unsigned char *) pfs) + Audit_formatter::thd_offsets.pfs_connect_attrs_length);
 	}
   
-static inline const CHARSET_INFO * pfs_connect_attrs_cs(void * pfs)
+static inline const CHARSET_INFO * pfs_connect_attrs_cs(const void * pfs)
 {
 	if (! Audit_formatter::thd_offsets.pfs_connect_attrs_cs || pfs == NULL)
 	{
@@ -572,12 +578,20 @@ static inline const CHARSET_INFO * pfs_connect_attrs_cs(void * pfs)
 	// and it may return an invalid value for view_db
 	static inline const char *table_get_db_name(TABLE_LIST *table)
 	{
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100504
+		return table->db.str;
+#else
 		return table->db;
+#endif
 	}
 
 	static inline const char *table_get_name(TABLE_LIST *table)
 	{
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100504
+		return table->table_name.str;
+#else
 		return table->table_name;
+#endif
 	}
 
 	static inline bool table_is_view(TABLE_LIST *table)

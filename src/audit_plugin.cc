@@ -2009,19 +2009,20 @@ static void record_objs_string_update_extended(THD *thd, SYS_VAR *var, void *tgt
 bool (*compat::_vio_socket_connect)(MYSQL_VIO vio, struct sockaddr *addr, socklen_t len, int timeout);
 bool (*compat::_vio_socket_connect_80016)(MYSQL_VIO vio, struct sockaddr *addr, socklen_t len, bool nonblocking, int timeout);
 bool (*compat::_vio_socket_connect_80020)(MYSQL_VIO vio, struct sockaddr *addr, socklen_t len, bool nonblocking, int timeout, bool *connect_done);
+#elif defined(HAVE_SESS_CONNECT_ATTRS) && defined(MARIADB_BASE_VERSION)
+compat::pfs_thread_t compat::_pfs_thread_get_current_thread;
+PSI_v1* compat::_psi_interface;
 #endif
 static int audit_plugin_init(void *p)
 {
 
 	DBUG_ENTER("audit_plugin_init");
-#if !defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID > 80000
 	const bool compat_init_ok = compat::init();
 	if (!compat_init_ok)
 	{
 		sql_print_error("%s unable to init compatibility layer. Aborting.", log_prefix);
 		DBUG_RETURN(1);
 	}
-#endif
 
 #ifdef __x86_64__
 	const char * arch = "64bit";
@@ -2583,6 +2584,26 @@ mysql_declare_plugin(audit_plugin)
 #endif
 }
 mysql_declare_plugin_end;
+
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100504
+maria_declare_plugin(audit_plugin)
+{
+	plugin_type, /* the plugin type (see include/mysql/plugin.h) */
+	&audit_plugin, /* pointer to type-specific plugin descriptor   */
+	PLUGIN_NAME, /* plugin name */
+	"McAfee Inc", /* plugin author */
+	"AUDIT plugin, creates a file mysql-audit.log to log activity", /* the plugin description */
+	PLUGIN_LICENSE_GPL, /* the plugin license (see include/mysql/plugin.h) */
+	audit_plugin_init, /* Pointer to plugin initialization function */
+	audit_plugin_deinit, /* Pointer to plugin deinitialization function */
+	0x0100, /* Numeric version 0xAABB means AA.BB version */
+	audit_status, /* Status variables */
+	audit_system_variables, /* System variables */
+	"1.0", /* String version representation */
+	MariaDB_PLUGIN_MATURITY_STABLE /* Maturity (see include/mysql/plugin.h)*/
+}
+maria_declare_plugin_end;
+#endif
 
 static inline void init_peer_info()
 {

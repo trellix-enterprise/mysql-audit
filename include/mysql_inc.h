@@ -31,13 +31,21 @@
 #include <mysql/plugin_audit.h>
 #endif
 
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100504
+// From MariaDB 10.5 we include macro definitions for items like MY_GNUC_PREREQ
+#include <my_compiler.h>
+#include <my_global.h>
+#endif
+
 #include <sql_parse.h>
 #include <sql_class.h>
+
 #if !defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 80019
 #include <mysql/components/services/mysql_connection_attributes_iterator.h>
 #include <mysql/components/my_service.h>
 #include <mysql/service_plugin_registry.h>
 #endif
+
 #if !defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 80000
 using my_bool = bool;
 #if MYSQL_VERSION_ID < 80012
@@ -50,9 +58,12 @@ using my_bool = bool;
 #include <sql/protocol.h>
 #include <sql/sql_lex.h>
 #else
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID < 100504
 #include <my_global.h>
+#endif
 typedef struct st_mysql_sys_var SYS_VAR;
 #endif
+
 #include <sql_connect.h>
 #include <sql/sql_base.h>
 #include <sql/sql_table.h>
@@ -103,10 +114,11 @@ extern "C"  char *thd_security_context(MYSQL_THD thd, char *buffer, unsigned int
 #endif
 #endif
 
-//Define HAVE_SESS_CONNECT_ATTRS. We define it for mysql 5.6 and above
-#if (!defined(MARIADB_BASE_VERSION)) && MYSQL_VERSION_ID >= 50600
+//Define HAVE_SESS_CONNECT_ATTRS. We define it for mysql 5.6 and above and MariaDB 10.0 and above
+#if MYSQL_VERSION_ID >= 50600
 #define HAVE_SESS_CONNECT_ATTRS 1
 #endif
+#include <storage/perfschema/pfs_instr.h>
 
 
 #if defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID < 80000
@@ -169,7 +181,7 @@ static inline bool vio_socket_connect(MYSQL_VIO vio, struct sockaddr *addr, sock
     if (_vio_socket_connect_80020) return _vio_socket_connect_80020(vio, addr, len, false, timeout, nullptr);
     return true;
 }
-static inline bool init()
+static inline bool init_vio_socket_connect()
 {
     void* handle = dlopen(NULL, RTLD_LAZY);
     if (!handle)
@@ -182,6 +194,57 @@ static inline bool init()
 }
 #endif
 #endif
+
+/*********************************************/
+/*      PFS_thread::get_current_thread       */
+/*********************************************/
+#if defined(HAVE_SESS_CONNECT_ATTRS) && defined(MARIADB_BASE_VERSION)
+typedef const ::PFS_thread* (*pfs_thread_t)();
+extern pfs_thread_t _pfs_thread_get_current_thread;
+extern PSI_v1* _psi_interface;
+namespace PFS_thread  {
+static inline const ::PFS_thread* get_current_thread()
+{
+    // Try PFS_thread and PSI_hook when MariaDB
+    if (_pfs_thread_get_current_thread) return _pfs_thread_get_current_thread();
+    if (_psi_interface) return (::PFS_thread*)_psi_interface->get_thread();
+    return NULL;
+}
+}
+static inline bool init_PFS_thread_get_current_thread()
+{
+    // obtain the PFS_thread::get_current_thread() address if it is exported
+    void* handle = dlopen(NULL, RTLD_LAZY);
+    if (handle) {
+        _pfs_thread_get_current_thread = (pfs_thread_t)dlsym(handle, "_ZN10PFS_thread18get_current_threadEv");
+        dlclose(handle);
+    }
+    // obtain the PSI interface address
+    if (PSI_hook)
+        _psi_interface = (PSI_v1*)PSI_hook->get_interface(PSI_VERSION_1);
+    if (!_pfs_thread_get_current_thread && !_psi_interface)
+        sql_print_information("Failed to initialize Performance Schema. 'osuser' and 'appname' will not be avalilable.");
+    return true;
+}
+#elif defined(HAVE_SESS_CONNECT_ATTRS)
+namespace PFS_thread  {
+static inline const ::PFS_thread* get_current_thread()
+{
+    // Use PFS_thread when MySQL
+    return ::PFS_thread::get_current_thread();
+}
+}
+#endif
+static inline bool init()
+{
+#if !defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 80000
+    return init_vio_socket_connect();
+#elif defined(HAVE_SESS_CONNECT_ATTRS) && defined(MARIADB_BASE_VERSION)
+    return init_PFS_thread_get_current_thread();
+#else
+    return true;
+#endif
+}
 }
 
 #endif // MYSQL_INCL_H

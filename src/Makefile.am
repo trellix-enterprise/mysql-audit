@@ -24,7 +24,11 @@ pkgplugin_LTLIBRARIES =	libaudit_plugin.la
 
 libaudit_plugin_la_DEPENDENCIESADD = pcre
 
-libaudit_plugin_la_LDFLAGS =	-module -Wl,--version-script=MySQLPlugin.map 
+if ENABLE_MARIADB_SYMBOLS
+libaudit_plugin_la_LDFLAGS =	-module -Wl,--version-script=MariadbPlugin.map
+else
+libaudit_plugin_la_LDFLAGS =	-module -Wl,--version-script=MySQLPlugin.map
+endif 
 
 libaudit_plugin_la_SOURCES =	hot_patch.cc audit_offsets.cc audit_plugin.cc audit_handler.cc md5.cc
 

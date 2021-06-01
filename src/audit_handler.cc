@@ -759,9 +759,7 @@ static const char *replace_in_string(THD *thd,
 }
 
 #ifdef HAVE_SESS_CONNECT_ATTRS
-#include <storage/perfschema/pfs_instr.h>
-
-#if defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID < 80000
+#if MYSQL_VERSION_ID < 80000
 //declare the function: parse_length_encoded_string from: storage/perfschema/table_session_connect.cc
 bool parse_length_encoded_string(const char **ptr,
 	char *dest, uint dest_size,
@@ -772,7 +770,7 @@ bool parse_length_encoded_string(const char **ptr,
 	uint nchars_max);
 
 #else
-// the function is not exported in MySQL 8
+// the function is not exported in MySQL 8 and neither in MariaDB
 /**
   Take a length encoded string
 
@@ -801,8 +799,6 @@ static bool parse_length_encoded_string(
 )
 {
   ulong copy_length, data_length;
-  const char *well_formed_error_pos = NULL, *cannot_convert_error_pos = NULL,
-             *from_end_pos = NULL;
 
   copy_length = data_length = net_field_length((uchar **)ptr);
 
@@ -815,10 +811,35 @@ static bool parse_length_encoded_string(
     return true;
   }
 
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100504
+  String_copier copier;
+  copy_length = copier.well_formed_copy(
+      &my_charset_utf8mb3_bin
+    , dest
+    , dest_size
+    , from_cs
+    , *ptr
+    , data_length
+    , nchars_max
+  );
+#elif defined(MARIADB_BASE_VERSION) && ( MYSQL_VERSION_ID >= 100104 && MYSQL_VERSION_ID < 100504 )
+  String_copier copier;
+  copy_length = copier.well_formed_copy(
+      &my_charset_utf8_bin
+    , dest
+    , dest_size
+    , from_cs
+    , *ptr
+    , data_length
+    , nchars_max
+  );
+#else
   /*
     TODO: Migrate the data itself to UTF8MB4,
     this is still UTF8MB3 printed in a UTF8MB4 column.
   */
+  const char *well_formed_error_pos = NULL, *cannot_convert_error_pos = NULL,
+             *from_end_pos = NULL;
   copy_length = well_formed_copy_nchars(
       &my_charset_utf8_bin
     , dest
@@ -831,6 +852,7 @@ static bool parse_length_encoded_string(
     , &cannot_convert_error_pos
     , &from_end_pos
   );
+ #endif
   *copied_len = copy_length;
   (*ptr) += data_length;
 
@@ -843,7 +865,9 @@ static bool parse_length_encoded_string(
  */ 
 static void log_session_connect_attrs(yajl_gen gen, THD *thd)
 {
-	PFS_thread * pfs = PFS_thread::get_current_thread();
+	const PFS_thread * pfs = compat::PFS_thread::get_current_thread();
+	if (!pfs)
+		return;
 	const char * connect_attrs = Audit_formatter::pfs_connect_attrs(pfs);
 	const uint connect_attrs_length = Audit_formatter::pfs_connect_attrs_length(pfs);
 	const CHARSET_INFO *connect_attrs_cs = Audit_formatter::pfs_connect_attrs_cs(pfs);  
@@ -1058,7 +1082,11 @@ ssize_t Audit_json_formatter::event_format(ThdSesData *pThdData, IWriter *writer
 			uint errors = 0;
 
 			size_t len = copy_and_convert(to, to_amount,
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100504
+					&my_charset_utf8mb3_general_ci,
+#else
 					&my_charset_utf8_general_ci,
+#endif
 					query, qlen,
 					col_connection, & errors);
 

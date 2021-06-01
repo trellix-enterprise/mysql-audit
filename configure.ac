@@ -137,6 +137,19 @@ AC_SUBST(CPPFLAGS)
 AC_SUBST(CXXLAGS)
 AC_SUBST(CLAGS)
 
+#mariadb-visibility section start
+AC_ARG_ENABLE(mariadb-visibility,
+[ --enable-mariadb-visibility, Enable symbol visibility for Mariadb, default:no ],
+[case "${enableval}" in
+	 yes) mariadb_visibility=yes ;;
+	 no) mariadb_visibility=no ;;
+	 *) AC_MSG_ERROR([bad value ${enableval} for --enable-mariadb-visibility]) ;;
+esac],
+[ mariadb_visibility=no ]
+)
+AC_MSG_RESULT($mariadb_visibility)
+AM_CONDITIONAL([ENABLE_MARIADB_SYMBOLS], [test "x$mariadb_visibility" = "xyes"])
+#mariadb-visibility section end
 
 AC_CONFIG_FILES([Makefile
 		src/Makefile
