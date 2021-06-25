@@ -1,23 +1,26 @@
-AUDIT Plugin for MySQL<sup>*</sup>
-===================
+# AUDIT Plugin for MySQL<sup>*</sup>
 
+
+## Overview
 A MySQL plugin from McAfee providing audit capabilities for MySQL, 
 designed with an emphasis on security and audit requirements. The plugin may be used 
 as a standalone audit solution or configured to feed data to external monitoring tools.
 
 
-Installation and Configuration 
-------------------------------
+## Documentation
+Please check out our wiki on GitHub. <br/>
+https://github.com/mcafee/mysql-audit/wiki 
 
+
+## Installation / Configuration
 Official McAfee plugin binary releases can be downloaded from the Releases page on GitHub: <br/>
 https://github.com/mcafee/mysql-audit/releases
 
 Please check out our wiki on GitHub for detailed installation and configuration instructions: <br/>
 https://github.com/mcafee/mysql-audit/wiki 
 
-Issues
-------------------------------
 
+## Feedback / Bug Reporting
 Found a bug? Got a feature request or question?
 
 Please feel free to report to: https://github.com/mcafee/mysql-audit/issues
@@ -33,16 +36,14 @@ To print MySQL Server version: log into MySQL and execute the command:
 Please include with the bug the MySQL error log. 
 Log file location can be queried by running the following command: 
 
-     show global variables like 'log_error'
+    show global variables like 'log_error'
 
 
-Source Code
--------------------------------
+## Source Code
 Source code is available at: https://github.com/mcafee/mysql-audit
 
-	
-License
--------------------------------
+
+## License
 Copyright (C) 2011-2021 McAfee, LLC.
 
 This program is free software; you can redistribute it and/or modify it under the terms of the GNU 
