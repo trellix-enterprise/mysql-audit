@@ -23,20 +23,7 @@ https://github.com/mcafee/mysql-audit/wiki
 ## Feedback / Bug Reporting
 Found a bug? Got a feature request or question?
 
-Please feel free to report to: https://github.com/mcafee/mysql-audit/issues
-
-If reporting a bug, please describe the problem verbosely. Try to see if it reproduces and 
-include a detailed description on how to reproduce.
- 
-Make sure to include your MySQL Server version and Audit Plugin version.
-To print MySQL Server version: log into MySQL and execute the command: 
-
-    status
-
-Please include with the bug the MySQL error log. 
-Log file location can be queried by running the following command: 
-
-    show global variables like 'log_error'
+Check out the [CONTRIBUTING.md](https://github.com/mcafee/mysql-audit/blob/master/CONTRIBUTING.md) to see how you can get involved.
 
 
 ## Source Code
