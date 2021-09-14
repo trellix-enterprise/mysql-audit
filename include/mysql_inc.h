@@ -31,8 +31,8 @@
 #include <mysql/plugin_audit.h>
 #endif
 
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100504
-// From MariaDB 10.5 we include macro definitions for items like MY_GNUC_PREREQ
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100307
+// From MariaDB 10.3 we include macro definitions for items like MY_GNUC_PREREQ
 #include <my_compiler.h>
 #include <my_global.h>
 #endif

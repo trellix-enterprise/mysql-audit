@@ -59,7 +59,7 @@ fi
 
 # In 5.6.15 and up, 5.7 and mariabdb 10.0.11 and up, mariadb 10.1 
 # m_session_connect_attrs_cs changed to m_session_connect_attrs_cs_number
-if echo $MYVER | grep -P '^(5\.7|8\.|10\.[1-2]|5\.6\.(1[5-9]|[2-9][0-9])|10.0.(1[1-9]|[2-9][0-9]))' > /dev/null
+if echo $MYVER | grep -P '^(5\.7|8\.|10\.[1-5]|5\.6\.(1[5-9]|[2-9][0-9])|10.0.(1[1-9]|[2-9][0-9]))' > /dev/null
 then
 	CONNECT_ATTRS_CS=m_session_connect_attrs_cs_number
 fi
@@ -111,9 +111,9 @@ else
 fi
 
 # Exit status info 5.5, 5.6, 5.7
-DA_STATUS="print_offset Diagnostics_area m_status"		# 5.5, 5.6, 5.7, mariadb 10.0, 10.1, 10.2
-DA_SQL_ERRNO="print_offset Diagnostics_area m_sql_errno"	# 5.5, 5.6, mariadb 10.0, 10.1, 10.2
-STMT_DA="print_offset THD m_stmt_da"				# 5.6, 5.7, mariadb 10.0, 10.1, 10.2
+DA_STATUS="print_offset Diagnostics_area m_status"		# 5.5, 5.6, 5.7, mariadb 10.0 to 10.5
+DA_SQL_ERRNO="print_offset Diagnostics_area m_sql_errno"	# 5.5, 5.6, mariadb 10.0 to 10.5
+STMT_DA="print_offset THD m_stmt_da"				# 5.6, 5.7, mariadb 10.0 to 10.5
 
 if echo $MYVER | grep -P '^(5\.7|8\.0)' > /dev/null
 then

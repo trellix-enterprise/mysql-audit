@@ -1175,6 +1175,7 @@ static bool parse_thd_offsets_string (char *poffsets_string)
 	if ((size_t)pOffset- (size_t)&Audit_formatter::thd_offsets < sizeof (Audit_formatter::thd_offsets))
 	{
 		sql_print_error("%s Failed parsing audit_offsets: not all offsets specified. This may happen if you used an old version of offset-extract.sh script.", log_prefix);
+		sql_print_error("%s Got %zu quantity of offsets, but expected more", log_prefix, i);
 		return false;
 	}
 	return true;
@@ -1371,7 +1372,7 @@ static int setup_offsets()
 
 		if (parse_thd_offsets_string(offsets_string))
 		{
-			sql_print_information ("%s setup_offsets Audit_formatter::thd_offsets values: %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu", log_prefix,
+			sql_print_information ("%s setup_offsets Audit_formatter::thd_offsets values: %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu", log_prefix,
 					Audit_formatter::thd_offsets.query_id,
 					Audit_formatter::thd_offsets.thread_id,
 					Audit_formatter::thd_offsets.main_security_ctx,
@@ -1396,7 +1397,8 @@ static int setup_offsets()
 					Audit_formatter::thd_offsets.row_count_func,
 					Audit_formatter::thd_offsets.stmt_da,
 					Audit_formatter::thd_offsets.da_status,
-					Audit_formatter::thd_offsets.da_sql_errno
+					Audit_formatter::thd_offsets.da_sql_errno,
+					Audit_formatter::thd_offsets.view_tables
 			);
 
 			if (! validate_offsets(&Audit_formatter::thd_offsets))
@@ -1527,7 +1529,7 @@ static int setup_offsets()
 						if (validate_offsets(&decoffsets))
 						{
 							Audit_formatter::thd_offsets = decoffsets;
-							sql_print_information("%s Using decrement (%zu) offsets from offset version: %s (%s) values: %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu",
+							sql_print_information("%s Using decrement (%zu) offsets from offset version: %s (%s) values: %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu",
 									log_prefix, dec, offset->version, offset->md5digest,
 									Audit_formatter::thd_offsets.query_id,
 									Audit_formatter::thd_offsets.thread_id,
@@ -1539,6 +1541,7 @@ static int setup_offsets()
 									Audit_formatter::thd_offsets.sec_ctx_host,
 									Audit_formatter::thd_offsets.sec_ctx_ip,
 									Audit_formatter::thd_offsets.sec_ctx_priv_user,
+									Audit_formatter::thd_offsets.db,
 									Audit_formatter::thd_offsets.killed,
 									Audit_formatter::thd_offsets.client_capabilities,
 									Audit_formatter::thd_offsets.pfs_connect_attrs,
@@ -1552,7 +1555,8 @@ static int setup_offsets()
 									Audit_formatter::thd_offsets.row_count_func,
 									Audit_formatter::thd_offsets.stmt_da,
 									Audit_formatter::thd_offsets.da_status,
-									Audit_formatter::thd_offsets.da_sql_errno
+									Audit_formatter::thd_offsets.da_sql_errno,
+									Audit_formatter::thd_offsets.view_tables
 							);
 
 							DBUG_RETURN(0);
@@ -1570,7 +1574,7 @@ static int setup_offsets()
 					if (validate_offsets(&incoffsets))
 					{
 						Audit_formatter::thd_offsets = incoffsets;
-						sql_print_information("%s Using increment (%zu) offsets from offset version: %s (%s) values: %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu",
+						sql_print_information("%s Using increment (%zu) offsets from offset version: %s (%s) values: %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu",
 								log_prefix, inc, offset->version, offset->md5digest,
 								Audit_formatter::thd_offsets.query_id,
 								Audit_formatter::thd_offsets.thread_id,
@@ -1582,6 +1586,7 @@ static int setup_offsets()
 								Audit_formatter::thd_offsets.sec_ctx_host,
 								Audit_formatter::thd_offsets.sec_ctx_ip,
 								Audit_formatter::thd_offsets.sec_ctx_priv_user,
+								Audit_formatter::thd_offsets.db,
 								Audit_formatter::thd_offsets.killed,
 								Audit_formatter::thd_offsets.client_capabilities,
 								Audit_formatter::thd_offsets.pfs_connect_attrs,
@@ -1595,7 +1600,8 @@ static int setup_offsets()
 								Audit_formatter::thd_offsets.row_count_func,
 								Audit_formatter::thd_offsets.stmt_da,
 								Audit_formatter::thd_offsets.da_status,
-								Audit_formatter::thd_offsets.da_sql_errno
+								Audit_formatter::thd_offsets.da_sql_errno,
+								Audit_formatter::thd_offsets.view_tables
 						);
 						DBUG_RETURN(0);
 					}
@@ -2585,7 +2591,7 @@ mysql_declare_plugin(audit_plugin)
 }
 mysql_declare_plugin_end;
 
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100504
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100307
 maria_declare_plugin(audit_plugin)
 {
 	plugin_type, /* the plugin type (see include/mysql/plugin.h) */

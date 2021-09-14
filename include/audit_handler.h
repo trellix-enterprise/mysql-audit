@@ -255,7 +255,7 @@ public:
 #if !defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID < 50709
 			return thd->db;
 #elif defined(MARIADB_BASE_VERSION)
-#if MYSQL_VERSION_ID >= 100504
+#if MYSQL_VERSION_ID >= 100307
 			return thd->db.str;
 #else
 			return thd->db;
@@ -578,7 +578,7 @@ static inline const CHARSET_INFO * pfs_connect_attrs_cs(const void * pfs)
 	// and it may return an invalid value for view_db
 	static inline const char *table_get_db_name(TABLE_LIST *table)
 	{
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100504
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100307
 		return table->db.str;
 #else
 		return table->db;
@@ -587,7 +587,7 @@ static inline const CHARSET_INFO * pfs_connect_attrs_cs(const void * pfs)
 
 	static inline const char *table_get_name(TABLE_LIST *table)
 	{
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100504
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100307
 		return table->table_name.str;
 #else
 		return table->table_name;
