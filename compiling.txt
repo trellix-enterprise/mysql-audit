@@ -96,5 +96,5 @@ http://dev.mysql.com/doc/refman/5.1/en/source-configuration-options.html
 10. cd ../..
 11. chmod +x bootstrap.sh
 12. ./bootstrap.sh
-13. CXX='gcc -static-libgcc' CC='gcc -static-libgcc' MYSQL_AUDIT_PLUGIN_VERSION=1.1.9 MYSQL_AUDIT_PLUGIN_REVISION=`svn info|grep ^Revision|awk -F ": " '{print $2}'` ./configure --enable-debug=no --with-mysql=mariadb-10.2.10 --with-mysql-libservices=mariadb-10.2.10/libservices/libmysqlservices.a
+13. CXX='gcc -static-libgcc' CC='gcc -static-libgcc' MYSQL_AUDIT_PLUGIN_VERSION=1.1.10 MYSQL_AUDIT_PLUGIN_REVISION=`svn info|grep ^Revision|awk -F ": " '{print $2}'` ./configure --enable-debug=no --with-mysql=mariadb-10.2.10 --with-mysql-libservices=mariadb-10.2.10/libservices/libmysqlservices.a
 14. gmake <======== This will create the plugin "libaudit_plugin.so"
