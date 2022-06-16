@@ -2,7 +2,7 @@ Compiling instructions
 =======================
 
 Make sure you have installed the following packages:
-
+ 
 autoconf
 automake
 gcc-c++
