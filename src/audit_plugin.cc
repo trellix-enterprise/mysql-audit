@@ -1648,6 +1648,47 @@ const char *retrieve_command(THD *thd, bool &is_sql_cmd)
 
 	if (! cmd)
 	{
+#if MYSQL_VERSION_ID > 80025
+        const LEX_CSTRING command_name[] = {
+            {STRING_WITH_LEN("Sleep")},
+            {STRING_WITH_LEN("Quit")},
+            {STRING_WITH_LEN("Init DB")},
+            {STRING_WITH_LEN("Query")},
+            {STRING_WITH_LEN("Field List")},
+            {STRING_WITH_LEN("Create DB")},
+            {STRING_WITH_LEN("Drop DB")},
+            {STRING_WITH_LEN("Refresh")},
+            {STRING_WITH_LEN("Shutdown")},
+            {STRING_WITH_LEN("Statistics")},
+            {STRING_WITH_LEN("Processlist")},
+            {STRING_WITH_LEN("Connect")},
+            {STRING_WITH_LEN("Kill")},
+            {STRING_WITH_LEN("Debug")},
+            {STRING_WITH_LEN("Ping")},
+            {STRING_WITH_LEN("Time")},
+            {STRING_WITH_LEN("Delayed insert")},
+            {STRING_WITH_LEN("Change user")},
+            {STRING_WITH_LEN("Binlog Dump")},
+            {STRING_WITH_LEN("Table Dump")},
+            {STRING_WITH_LEN("Connect Out")},
+            {STRING_WITH_LEN("Register Slave")},
+            {STRING_WITH_LEN("Prepare")},
+            {STRING_WITH_LEN("Execute")},
+            {STRING_WITH_LEN("Long Data")},
+            {STRING_WITH_LEN("Close stmt")},
+            {STRING_WITH_LEN("Reset stmt")},
+            {STRING_WITH_LEN("Set option")},
+            {STRING_WITH_LEN("Fetch")},
+            {STRING_WITH_LEN("Daemon")},
+            {STRING_WITH_LEN("Binlog Dump GTID")},
+            {STRING_WITH_LEN("Reset Connection")},
+            {STRING_WITH_LEN("clone")},
+#if MYSQL_VERSION_ID > 80026
+            {STRING_WITH_LEN("Group Replication Data Stream subscription")},
+#endif
+            {STRING_WITH_LEN("Error")}  // Last command number
+        };
+#endif
 		cmd = command_name[command].str;
 	}
 
