@@ -166,7 +166,7 @@ static inline bool vio_socket_connect(MYSQL_VIO vio, struct sockaddr *addr, sock
 #else
 /*********************************************/
 /*                                           */
-/*  resolve the symbols manualy to permit    */
+/*  resolve the symbols manually to permit   */
 /*  loading of the plugin in their absence   */
 /*                                           */
 /*********************************************/
@@ -181,6 +181,7 @@ static inline bool vio_socket_connect(MYSQL_VIO vio, struct sockaddr *addr, sock
     if (_vio_socket_connect_80020) return _vio_socket_connect_80020(vio, addr, len, false, timeout, nullptr);
     return true;
 }
+
 static inline bool init_vio_socket_connect()
 {
     void* handle = dlopen(NULL, RTLD_LAZY);
@@ -191,6 +192,27 @@ static inline bool init_vio_socket_connect()
     _vio_socket_connect_80020 = (decltype(_vio_socket_connect_80020))dlsym(handle, "_Z18vio_socket_connectP3VioP8sockaddrjbiPb");
     dlclose(handle);
     return _vio_socket_connect || _vio_socket_connect_80016 || _vio_socket_connect_80020;
+}
+
+extern const std::string & (*_str_session_80026)(int cmd);
+extern const LEX_STRING *_command_name;
+
+static inline const char* str_session(int cmd)
+{
+    if (_str_session_80026) return _str_session_80026(cmd).c_str();
+    if (_command_name) return _command_name[cmd].str;
+    return "";
+}
+
+static inline bool init_str_session()
+{
+    void* handle = dlopen(NULL, RTLD_LAZY);
+    if (!handle)
+        return false;
+    _command_name = (decltype(_command_name))dlsym(handle, "command_name");
+    _str_session_80026 = (decltype(_str_session_80026))dlsym(handle, "_ZN13Command_names11str_sessionE19enum_server_command");
+    dlclose(handle);
+    return _command_name || _str_session_80026;
 }
 #endif
 #endif
@@ -238,7 +260,7 @@ static inline const ::PFS_thread* get_current_thread()
 static inline bool init()
 {
 #if !defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 80000
-    return init_vio_socket_connect();
+    return init_vio_socket_connect() && init_str_session();
 #elif defined(HAVE_SESS_CONNECT_ATTRS) && defined(MARIADB_BASE_VERSION)
     return init_PFS_thread_get_current_thread();
 #else

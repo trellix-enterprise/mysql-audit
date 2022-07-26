@@ -17,7 +17,7 @@
 
 #include <pcre.h>
 
-#define AUDIT_LOG_PREFIX "McAfee Audit Plugin:"
+#define AUDIT_LOG_PREFIX "Trellix Audit Plugin:"
 #define AUDIT_PROTOCOL_VERSION "1.0"
 
 #if !defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 50709

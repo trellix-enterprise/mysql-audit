@@ -1073,7 +1073,11 @@ ssize_t Audit_json_formatter::event_format(ThdSesData *pThdData, IWriter *writer
 		const char *query_text = query;
 		size_t query_len = qlen;
 
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100603
+		if (strcmp(col_connection->cs_name.str, "utf8") != 0)
+#else
 		if (strcmp(col_connection->csname, "utf8") != 0)
+#endif
 		{
 			// max UTF-8 bytes per char is 4.
 			size_t to_amount = (qlen * 4) + 1;

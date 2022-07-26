@@ -16,10 +16,19 @@ AC_DEFUN([CHECK_DEBUG], [
         AC_MSG_CHECKING(whether to enable debugging)
 
         if test "x$enable_debug" = "xyes"; then
-        CPPFLAGS="$CPPFLAGS -g -D_DEBUG"
+# Note that SAFE_MUTEX is needed in debug plugin compilation, in order that
+# it aligns with MySQL at debug level. Specifically, in the MySQL source file
+# "include/thr_mutex.h", we need both the my_mutex_init() function and the
+# my_mutex_lock() function to use the same paradigm (i.e. both using
+# "safe_mutex_*" calls ... or both using "native_mutex_*" calls ... but
+# definitely NOT a mix of 'safe' and 'native').
+        CPPFLAGS="$CPPFLAGS -g -D_DEBUG -DSAFE_MUTEX"
                 AC_MSG_RESULT(yes)
         else
-        		CPPFLAGS="$CPPFLAGS -g -O2 -DDBUG_OFF"
+# We need to specify -DDBUG_OFF and -DNDEBUG in order to compile the plugin
+# without MySQL debug components. Later versions of MySQL ignore the DBUG_OFF
+# flag, but continue to respect the NDEBUG flag.
+        CPPFLAGS="$CPPFLAGS -g -O2 -DDBUG_OFF -DNDEBUG"
                 AC_MSG_RESULT(no)
 		fi
 

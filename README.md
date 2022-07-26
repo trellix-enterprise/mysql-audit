@@ -2,7 +2,7 @@
 
 
 ## Overview
-A MySQL plugin from McAfee providing audit capabilities for MySQL, 
+A MySQL plugin from Trellix providing audit capabilities for MySQL, 
 designed with an emphasis on security and audit requirements. The plugin may be used 
 as a standalone audit solution or configured to feed data to external monitoring tools.
 
@@ -13,7 +13,7 @@ https://github.com/mcafee/mysql-audit/wiki
 
 
 ## Installation / Configuration
-Official McAfee plugin binary releases can be downloaded from the Releases page on GitHub: <br/>
+Official Trellix plugin binary releases can be downloaded from the Releases page on GitHub: <br/>
 https://github.com/mcafee/mysql-audit/releases
 
 Please check out our wiki on GitHub for detailed installation and configuration instructions: <br/>

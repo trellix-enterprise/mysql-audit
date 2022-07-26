@@ -1,7 +1,7 @@
-Tue, Jun 27, 2017 10:48:38 AM
+Mon, Apr 11, 2022 10:48:38 AM
 =============================
 
-By default, the McAfee AUDIT plugin for MySQL* is named "AUDIT" and
+By default, the Trellix AUDIT plugin for MySQL* is named "AUDIT" and
 that is the name you should use when installing the plugin with the SQL
 "INSTALL PLUGIN" command.
 
@@ -10,10 +10,10 @@ various configuration variables.
 
 In order to avoid conflict with other vendors' auditing plugins whose
 names may start with "audit" (such as MySQL's "audit_log" plugin) it
-is possible to change the name of the McAfee plugin.  The steps are
+is possible to change the name of the Trellix plugin.  The steps are
 as follows:
 
-1. If you're currently using the McAfee plugin, unload it.
+1. If you're currently using the Trellix plugin, unload it.
 
 2. Edit the /usr/bin/mysqld_safe shell script (using the correct location
 for your system). For MySQL 5.7.9, look for the eval_log_error() function.
@@ -23,9 +23,9 @@ Before the line that says:
 
 add a line like this:
 
-	export MCAFEE_AUDIT_PLUGIN_NAME=MCAFEE # use any name you want
+	export MCAFEE_AUDIT_PLUGIN_NAME=TRELLIX # use any name you want
 
-You can use any name you like, "MCAFEE" is just an example.
+You can use any name you like, "TRELLIX" is just an example.
 
 For other MySQL versions, determine where the mysqld daemon is actually
 started, and set the environment variable right before that.
@@ -33,16 +33,16 @@ started, and set the environment variable right before that.
 3. After restarting MySQL, you will need to load the plugin using the
 new name. From the MySQL client:
 
-	install plugin MCAFEE soname 'libaudit_plugin.so';
+	install plugin TRELLIX soname 'libaudit_plugin.so';
 
 and/or from /etc/my.cnf:
 
 	[mysqld]
-	plugin-load=MCAFEE=libaudit_plugin.so
+	plugin-load=TRELLIX=libaudit_plugin.so
 
 Once you've done that, you must remember that the names of ALL the
 configuration variables will start with the lowercase version of the
-name you've chosen. For example, "mcafee_json_log_file" instead of
+name you've chosen. For example, "trellix_json_log_file" instead of
 "audit_json_log_file".
 
 If you previously had various "audit_XXX" variables set in your

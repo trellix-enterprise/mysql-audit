@@ -855,7 +855,12 @@ static struct st_mysql_audit audit_plugin =
 #if defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID < 80000
 extern void log_slow_statement(THD *thd);
 #endif
+
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100603
+extern int mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt);
+#else
 extern int mysql_execute_command(THD *thd);
+#endif
 
 #if defined(MARIADB_BASE_VERSION)
 extern void end_connection(THD *thd);
@@ -918,7 +923,12 @@ void remove_hot_functions()
 	trampoline_check_table_access_size=0;
     trampoline_check_table_access_saved_code.size = 0;
 
-#if defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID < 50709
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100603
+	target_function = (void*)
+		(int (*)(THD *thd, bool is_called_from_prepared_stmt)) &mysql_execute_command;
+#elif defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID < 100603
+	target_function = (void*) mysql_execute_command;
+#elif MYSQL_VERSION_ID < 50709
 	target_function = (void*) mysql_execute_command;
 #else
 	target_function = (void*)
@@ -1236,6 +1246,25 @@ static bool validate_offsets(const ThdOffsets *offset)
 #if !defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 80000
 		PSI_mutex_key key_LOCK_thd_query_validate=99999;
 		mysql_mutex_init(key_LOCK_thd_query_validate, &thd->LOCK_thd_query, MY_MUTEX_INIT_FAST);
+
+#ifdef _DEBUG
+		my_mutex_t *mp = &thd->LOCK_thd_query.m_mutex;
+		if (mp == nullptr)
+		{
+			sql_print_information(
+					"%s validate offsets - mutex for query string is null", log_prefix);
+		}
+		else if (mp->m_u.m_safe_ptr != nullptr)
+		{
+			sql_print_information(
+					"%s validate offsets - mutex for query string is safe pointer", log_prefix);
+		}
+		else if (mp->m_u.m_safe_ptr == nullptr)
+		{
+			sql_print_information(
+					"%s validate offsets - mutex for query string is native pointer", log_prefix);
+		}
+#endif
 #endif
 		char buffer[2048] = {0};
 		thd_security_context(thd, buffer, 2048, 1000);
@@ -1648,7 +1677,11 @@ const char *retrieve_command(THD *thd, bool &is_sql_cmd)
 
 	if (! cmd)
 	{
+#if defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID < 80000
 		cmd = command_name[command].str;
+#else
+		cmd = compat::str_session(command);
+#endif
 	}
 
 #if MYSQL_VERSION_ID < 50600
@@ -2015,6 +2048,8 @@ static void record_objs_string_update_extended(THD *thd, SYS_VAR *var, void *tgt
 bool (*compat::_vio_socket_connect)(MYSQL_VIO vio, struct sockaddr *addr, socklen_t len, int timeout);
 bool (*compat::_vio_socket_connect_80016)(MYSQL_VIO vio, struct sockaddr *addr, socklen_t len, bool nonblocking, int timeout);
 bool (*compat::_vio_socket_connect_80020)(MYSQL_VIO vio, struct sockaddr *addr, socklen_t len, bool nonblocking, int timeout, bool *connect_done);
+const std::string & (*compat::_str_session_80026)(int cmd);
+const LEX_STRING *compat::_command_name;
 #elif defined(HAVE_SESS_CONNECT_ATTRS) && defined(MARIADB_BASE_VERSION)
 compat::pfs_thread_t compat::_pfs_thread_get_current_thread;
 PSI_v1* compat::_psi_interface;
@@ -2196,7 +2231,12 @@ static int audit_plugin_init(void *p)
 	// hot patch stuff
 	void * target_function = NULL;
 
-#if defined(MARIADB_BASE_VERSION) || MYSQL_VERSION_ID < 50709
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100603
+	target_function = (void*)
+		(int (*)(THD *thd, bool is_called_from_prepared_stmt)) &mysql_execute_command;
+#elif defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID < 100603
+	target_function = (void*) mysql_execute_command;
+#elif MYSQL_VERSION_ID < 50709
 	target_function = (void*) mysql_execute_command;
 #else
 	target_function = (void*)
@@ -2573,7 +2613,7 @@ mysql_declare_plugin(audit_plugin)
 	plugin_type,
 	&audit_plugin,
 	PLUGIN_NAME,
-	"McAfee Inc",
+	"Musarubra US LLC",
 	"AUDIT plugin, creates a file mysql-audit.log to log activity",
 	PLUGIN_LICENSE_GPL,
 	audit_plugin_init,      /* Plugin Init */
@@ -2597,7 +2637,7 @@ maria_declare_plugin(audit_plugin)
 	plugin_type, /* the plugin type (see include/mysql/plugin.h) */
 	&audit_plugin, /* pointer to type-specific plugin descriptor   */
 	PLUGIN_NAME, /* plugin name */
-	"McAfee Inc", /* plugin author */
+	"Musarubra US LLC", /* plugin author */
 	"AUDIT plugin, creates a file mysql-audit.log to log activity", /* the plugin description */
 	PLUGIN_LICENSE_GPL, /* the plugin license (see include/mysql/plugin.h) */
 	audit_plugin_init, /* Pointer to plugin initialization function */
