@@ -135,7 +135,14 @@ VIEW_TABLES=""
 if echo $MYVER | grep -P '^(8\.0)' > /dev/null
 then
 	LEX_COMMENT='printf ", 0"'
-	VIEW_TABLES="print_offset TABLE_LIST view_tables"
+	if echo $MYVER | grep -P '^8\.0\.(3[2-9]|[4-9]\d)' > /dev/null
+	then
+		# MySQL 8.0.32 and laters
+		VIEW_TABLES="print_offset Table_ref view_tables"
+	else
+		# MySQL 8.0.32 and ealiers
+		VIEW_TABLES="print_offset TABLE_LIST view_tables"
+	fi
 else
 	LEX_COMMENT="print_offset LEX comment"
 	VIEW_TABLES='printf ", 0"'
