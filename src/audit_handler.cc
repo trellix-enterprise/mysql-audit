@@ -833,6 +833,25 @@ static bool parse_length_encoded_string(
     , data_length
     , nchars_max
   );
+#elif MYSQL_VERSION_ID >= 80031
+  /*
+    TODO: Migrate the data itself to UTF8MB4,
+    this is still UTF8MB3 printed in a UTF8MB4 column.
+  */
+  const char *well_formed_error_pos = NULL, *cannot_convert_error_pos = NULL,
+             *from_end_pos = NULL;
+  copy_length = well_formed_copy_nchars(
+      &my_charset_utf8mb3_bin
+    , dest
+    , dest_size
+    , from_cs
+    , *ptr
+    , data_length
+    , nchars_max
+    , &well_formed_error_pos
+    , &cannot_convert_error_pos
+    , &from_end_pos
+  );
 #else
   /*
     TODO: Migrate the data itself to UTF8MB4,
@@ -1086,7 +1105,7 @@ ssize_t Audit_json_formatter::event_format(ThdSesData *pThdData, IWriter *writer
 			uint errors = 0;
 
 			size_t len = copy_and_convert(to, to_amount,
-#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100504
+#if (defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100504) || (!defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 80031)
 					&my_charset_utf8mb3_general_ci,
 #else
 					&my_charset_utf8_general_ci,
