@@ -450,6 +450,8 @@ const ThdOffsets thd_offsets_arr[] =
 const ThdOffsets thd_offsets_arr[] =
 {
 	/* +++ MARIADB 64 OFFSETS GO HERE +++ */
+	//offsets for: /usr/sbin/mysqld (10.11.7-MariaDB)
+	{"10.11.7-MariaDB","8fe88522e48c2ddee912e27e8d97db0e", 15936, 16112, 7952, 10160, 88, 3656, 8, 0, 16, 24, 160, 16244, 9744, 5688, 5696, 5700, 696, 0, 0, 15192, 15216, 15200, 25160, 564, 8, 0},
 	//offsets for: /mariadb/10.5.16/bin/mysqld (10.5.16-MariaDB)
 	{"10.5.16-MariaDB","a99e23ae8a2a5d1cd2fa802503b68c84", 15248, 15408, 7736, 9504, 88, 3552, 8, 0, 16, 24, 152, 15524, 9136, 5480, 5488, 5492, 672, 0, 0, 14504, 14528, 14512, 24072, 564, 8, 0},
 	//offsets for: /mariadb/10.7.4/bin/mysqld (10.7.4-MariaDB)
