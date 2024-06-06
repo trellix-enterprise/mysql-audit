@@ -32,6 +32,10 @@
 #define my_rwlock_init(lock, unused)	native_rw_init(lock)
 #endif
 
+#if (!defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 80031)
+using TABLE_LIST = Table_ref;
+#endif
+
 class THD;
 
 #define MAX_NUM_QUERY_TABLE_ELEM 100
