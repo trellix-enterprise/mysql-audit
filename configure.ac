@@ -158,6 +158,7 @@ esac],
 )
 AC_MSG_RESULT($mariadb_visibility)
 AM_CONDITIONAL([ENABLE_MARIADB_SYMBOLS], [test "x$mariadb_visibility" = "xyes"])
+AM_CONDITIONAL(TARGET_WINDOWS, test "$TARGET_OS" = windows)
 #mariadb-visibility section end
 
 AC_CONFIG_FILES([Makefile

@@ -17,6 +17,9 @@
 #include <my_config.h>
 #include <mysql_version.h>
 
+#if MYSQL_VERSION_ID >= 80032
+#define TABLE_LIST Table_ref
+#endif
 
 // These two are not present in 5.7.9
 #if MYSQL_VERSION_ID < 50709
@@ -210,7 +213,9 @@ static inline bool init_str_session()
     if (!handle)
         return false;
     _command_name = (decltype(_command_name))dlsym(handle, "command_name");
-    _str_session_80026 = (decltype(_str_session_80026))dlsym(handle, "_ZN13Command_names11str_sessionE19enum_server_command");
+    _str_session_80026 = ((decltype(_str_session_80026))dlsym(handle, "_ZN13Command_names11str_sessionE19enum_server_command") != NULL) 
+	? (decltype(_str_session_80026))dlsym(handle, "_ZN13Command_names11str_sessionE19enum_server_command") :
+	(decltype(_str_session_80026))dlsym(handle, "_ZN13Command_names11str_sessionB5cxx11E19enum_server_command");
     dlclose(handle);
     return _command_name || _str_session_80026;
 }

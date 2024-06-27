@@ -135,7 +135,9 @@ VIEW_TABLES=""
 if echo $MYVER | grep -P '^(8\.0)' > /dev/null
 then
 	LEX_COMMENT='printf ", 0"'
-	VIEW_TABLES="print_offset TABLE_LIST view_tables"
+	# TABLE_LIST struct was used in older versions of mysql, its replacement is Table_ref class
+	# VIEW_TABLES="print_offset TABLE_LIST view_tables" 
+	VIEW_TABLES="print_offset Table_ref view_tables"
 else
 	LEX_COMMENT="print_offset LEX comment"
 	VIEW_TABLES='printf ", 0"'

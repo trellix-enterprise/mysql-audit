@@ -841,7 +841,7 @@ static bool parse_length_encoded_string(
   const char *well_formed_error_pos = NULL, *cannot_convert_error_pos = NULL,
              *from_end_pos = NULL;
   copy_length = well_formed_copy_nchars(
-      &my_charset_utf8_bin
+      &my_charset_utf8mb4_bin //migrated to utf8mb4 character encoding which is modern version
     , dest
     , dest_size
     , from_cs
@@ -1089,7 +1089,7 @@ ssize_t Audit_json_formatter::event_format(ThdSesData *pThdData, IWriter *writer
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100504
 					&my_charset_utf8mb3_general_ci,
 #else
-					&my_charset_utf8_general_ci,
+					&my_charset_utf8mb4_general_ci, //migrated to utf8mb4 character encoding which is modern version
 #endif
 					query, qlen,
 					col_connection, & errors);
