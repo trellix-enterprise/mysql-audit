@@ -227,10 +227,9 @@ static void initializePeerCredentials(THD *pThd)
 #if defined(MARIADB_BASE_VERSION)
 	if (THDVAR(pThd, peer_info) == 0)
 	{
-		peer = (PeerInfo *) malloc(sizeof(PeerInfo));
+		peer = (PeerInfo *) calloc(1,sizeof(PeerInfo));
 		if (peer)
 		{
-			memset(peer, 0, sizeof(PeerInfo));
 			THDVAR(pThd, peer_info) = (ulong) peer;
 		}
 		else

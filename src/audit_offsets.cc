@@ -83,9 +83,9 @@ const ThdOffsets thd_offsets_arr[] =
 	/* +++ MYSQL 64 OFFSETS GO HERE +++ */
         //offsets for: /usr/sbin/mysqld (8.0.36)
         {"8.0.36","9ba2568aeceed956bc047f4913f8285a", 9448, 9488, 4952, 6388, 1288, 0, 0, 32, 64, 160, 1376, 9588, 6008, 4248, 4256, 4260, 7672, 1576, 32, 8632, 8672, 8656, 12832, 140, 668, 320},
-	//offsets for: /usr/sbin/mysqld (8.0.35)
-	{"8.0.35","465a40519e83cab54735ba515ba596bc", 9496, 9536, 4952, 6436, 1288, 0, 0, 32, 64, 160, 1376, 9636, 6056, 4248, 4256, 4260, 7720, 1576, 32, 8680, 8720, 8704, 12880, 140, 664, 320},
-        //offsets for: /usr/sbin/mysqld (8.0.34)
+         //offsets for: /usr/sbin/mysqld (8.0.35)
+         {"8.0.35","465a40519e83cab54735ba515ba596bc", 9496, 9536, 4952, 6436, 1288, 0, 0, 32, 64, 160, 1376, 9636, 6056, 4248, 4256, 4260, 7720, 1576, 32, 8680, 8720, 8704, 12880, 140, 664, 320},
+	//offsets for: /usr/sbin/mysqld (8.0.34)
 	{"8.0.34","2bf7588f074ff87a28dcc5fdc781d6e4", 9496, 9536, 4952, 6436, 1288, 0, 0, 32, 64, 160, 1376, 9636, 6056, 4248, 4256, 4260, 7720, 1576, 32, 8680, 8720, 8704, 12880, 140, 664, 320},
 	//offsets for: /usr/sbin/mysqld (8.0.33)
         {"8.0.33","5ef11079d4a42b8d9e23ddd8af825ea3", 9504, 9544, 4960, 6444, 1288, 0, 0, 32, 64, 160, 1376, 9644, 6064, 4248, 4256, 4260, 7728, 1576, 32, 8688, 8728, 8712, 12568, 140, 664, 320},
@@ -468,12 +468,26 @@ const ThdOffsets thd_offsets_arr[] =
 const ThdOffsets thd_offsets_arr[] =
 {
 	/* +++ MARIADB 64 OFFSETS GO HERE +++ */
+	//offsets for: mariadbd (10.11.7-MariaDB)
+	{"10.11.7-MariaDB","d84a65522e255859aa02332b1464e20c", 15936, 16112, 7952, 10160, 88, 3656, 8, 0, 16, 24, 160, 16244, 9744, 5688, 5696, 5700, 696, 0, 0, 15192, 15216, 15200, 25160, 564, 8, 0},
+	//offsets for: mariadbd (10.11.6-MariaDB)
+	{"10.11.6-MariaDB","e222e9b500c9d86d749822ce79d5d542", 15928, 16104, 7944, 10152, 88, 3648, 8, 0, 16, 24, 160, 16236, 9736, 5688, 5696, 5700, 696, 0, 0, 15184, 15208, 15192, 25144, 564, 8, 0},
+	//offsets for: /usr/sbin/mariadbd (10.11.5-MariaDB)
+	{"10.11.5-MariaDB","3a71523ec24c405713bacaff3088fe18", 15904, 16080, 7920, 10128, 88, 3640, 8, 0, 16, 24, 160, 16212, 9712, 5688, 5696, 5700, 696, 0, 0, 15160, 15184, 15168, 25008, 564, 8, 0},
+	//offsets for: /usr/sbin/mariadbd (10.11.4-MariaDB)
+	{"10.11.4-MariaDB","324bc29ac05a2afbd9b5ceeef8c5979a", 15848, 16024, 7864, 10072, 88, 3640, 8, 0, 16, 24, 160, 16156, 9656, 5688, 5696, 5700, 696, 0, 0, 15104, 15128, 15112, 24920, 564, 8, 0},
+	//offsets for: mariadbd (10.11.3-MariaDB)
+	{"10.11.3-MariaDB","f61b47c112bdc435d745064e22798e12", 15848, 16024, 7864, 10072, 88, 3640, 8, 0, 16, 24, 160, 16156, 9656, 5688, 5696, 5700, 696, 0, 0, 15104, 15128, 15112, 24920, 564, 8, 0},
+	//offsets for: mariadbd (10.11.2-MariaDB)
+	{"10.11.2-MariaDB","f3cceeaa18964418b7cace26257dce47", 15848, 16024, 7864, 10072, 88, 3632, 8, 0, 16, 24, 160, 16156, 9656, 5688, 5696, 5700, 696, 0, 0, 15104, 15128, 15112, 24904, 564, 8, 0},
+	//offsets for: mariadbd (10.11.1-MariaDB)
+	{"10.11.1-MariaDB","c7c20074d5641ad05af04b15ac7afd64", 15848, 16024, 7864, 10072, 88, 3576, 8, 0, 16, 24, 160, 16156, 9656, 5688, 5696, 5700, 696, 0, 0, 15104, 15128, 15112, 24896, 564, 8, 0},
 	//offsets for: /mariadb/10.6.11/bin/mysqld (10.6.11-MariaDB)
 	{"10.6.11-MariaDB","fcd5e6c4637f2cbfc69449d0ea81f050", 15704, 15864, 7784, 9944, 88, 3552, 8, 0, 16, 24, 160, 15980, 9576, 5680, 5688, 5692, 696, 0, 0, 14960, 14984, 14968, 24560, 564, 8, 0},
 	//offsets for: /mariadb/10.7.7/bin/mysqld (10.7.7-MariaDB)
 	{"10.7.7-MariaDB","52e002aa9ea7c3e792eb9a6da9ca88ce", 15800, 15976, 7816, 10024, 88, 3568, 8, 0, 16, 24, 160, 16108, 9608, 5672, 5680, 5684, 696, 0, 0, 15056, 15080, 15064, 24792, 564, 8, 0},
 	//offsets for: /mariadb/10.9.4/bin/mysqld (10.9.4-MariaDB)
-	{"10.9.4-MariaDB","0632c6ad7cfebb3ee580ae5c2abe56bb", 15824, 16000, 7840, 10048, 88, 3568, 8, 0, 16, 24, 160, 16132, 9632, 5680, 5688offsets.gdb:22: Error in sourced command file:
+	//{"10.9.4-MariaDB","0632c6ad7cfebb3ee580ae5c2abe56bb", 15824, 16000, 7840, 10048, 88, 3568, 8, 0, 16, 24, 160, 16132, 9632, 5680, 5688offsets.gdb:22: Error in sourced command file:
 	//offsets for: /mariadbrpm/10.5.18/usr/sbin/mariadbd (10.5.18-MariaDB)
 	{"10.5.18-MariaDB","3d904876b77dcaf6afa4ffcfeb9138c9", 15256, 15416, 7744, 9512, 88, 3592, 8, 0, 16, 24, 160, 15532, 9144, 5488, 5496, 5500, 680, 0, 0, 14512, 14536, 14520, 24120, 564, 8, 0},
 	//offsets for: /mariadbrpm/10.6.11/usr/sbin/mariadbd (10.6.11-MariaDB)
@@ -481,7 +495,7 @@ const ThdOffsets thd_offsets_arr[] =
 	//offsets for: /mariadbrpm/10.7.7/usr/sbin/mariadbd (10.7.7-MariaDB)
 	{"10.7.7-MariaDB","2ea3e576b259784525259f5852bd934b", 15800, 15976, 7816, 10024, 88, 3568, 8, 0, 16, 24, 160, 16108, 9608, 5672, 5680, 5684, 696, 0, 0, 15056, 15080, 15064, 24792, 564, 8, 0},
 	//offsets for: /mariadbrpm/10.9.4/usr/sbin/mariadbd (10.9.4-MariaDB)
-	{"10.9.4-MariaDB","293ab1a0f49b1fe6b5bfaeb97a695f41", 15824, 16000, 7840, 10048, 88, 3568, 8, 0, 16, 24, 160, 16132, 9632, 5680, 5688offsets.gdb:22: Error in sourced command file:
+	//{"10.9.4-MariaDB","293ab1a0f49b1fe6b5bfaeb97a695f41", 15824, 16000, 7840, 10048, 88, 3568, 8, 0, 16, 24, 160, 16132, 9632, 5680, 5688offsets.gdb:22: Error in sourced command file:
 	//offsets for: /mariadb/10.4.27/bin/mysqld (10.4.27-MariaDB)
 	{"10.4.27-MariaDB","506b4e0053605687b9b7ea080bf8d4fd", 14656, 14808, 7312, 9048, 88, 3576, 8, 0, 16, 24, 160, 14916, 8704, 2984, 2992, 2996, 680, 0, 0, 14032, 14056, 14040, 23456, 564, 8, 0},
 	//offsets for: /mariadb/10.5.18/bin/mysqld (10.5.18-MariaDB)
@@ -493,13 +507,13 @@ const ThdOffsets thd_offsets_arr[] =
 	//offsets for: /mariadbrpm/10.8.6/usr/sbin/mariadbd (10.8.6-MariaDB)
 	{"10.8.6-MariaDB","86083b4c7ab1d03f45f62ba558ea5b3f", 15808, 15984, 7824, 10032, 88, 3568, 8, 0, 16, 24, 160, 16116, 9616, 5672, 5680, 5684, 696, 0, 0, 15064, 15088, 15072, 24800, 564, 8, 0},
 	//offsets for: /mariadb/10.9.2/bin/mysqld (10.9.2-MariaDB)
-	{"10.9.2-MariaDB","019ab09000aa62762eb2cb7631d8b97d", 15816, 15992, 7832, 10040, 88, 3528, 8, 0, 16, 24, 152, 16124, 9624, 5680, 5688offsets.gdb:22: Error in sourced command file:
+	//{"10.9.2-MariaDB","019ab09000aa62762eb2cb7631d8b97d", 15816, 15992, 7832, 10040, 88, 3528, 8, 0, 16, 24, 152, 16124, 9624, 5680, 5688offsets.gdb:22: Error in sourced command file:
 	//offsets for: /mariadb/10.9.3/bin/mysqld (10.9.3-MariaDB)
-	{"10.9.3-MariaDB","d52836989b0857cd5f6c122e5cbf2bf0", 15816, 15992, 7832, 10040, 88, 3528, 8, 0, 16, 24, 152, 16124, 9624, 5680, 5688offsets.gdb:22: Error in sourced command file:
+	//{"10.9.3-MariaDB","d52836989b0857cd5f6c122e5cbf2bf0", 15816, 15992, 7832, 10040, 88, 3528, 8, 0, 16, 24, 152, 16124, 9624, 5680, 5688offsets.gdb:22: Error in sourced command file:
 	//offsets for: /mariadbrpm/10.9.2/usr/sbin/mariadbd (10.9.2-MariaDB)
-	{"10.9.2-MariaDB","7c772616443f29c4bb134b17d9b994e6", 15816, 15992, 7832, 10040, 88, 3528, 8, 0, 16, 24, 152, 16124, 9624, 5680, 5688offsets.gdb:22: Error in sourced command file:
+	//{"10.9.2-MariaDB","7c772616443f29c4bb134b17d9b994e6", 15816, 15992, 7832, 10040, 88, 3528, 8, 0, 16, 24, 152, 16124, 9624, 5680, 5688offsets.gdb:22: Error in sourced command file:
 	//offsets for: /mariadbrpm/10.9.3/usr/sbin/mariadbd (10.9.3-MariaDB)
-	{"10.9.3-MariaDB","7094d4cb6a8ab299ea8d80e272ac9c6c", 15816, 15992, 7832, 10040, 88, 3528, 8, 0, 16, 24, 152, 16124, 9624, 5680, 5688offsets.gdb:22: Error in sourced command file:
+	//{"10.9.3-MariaDB","7094d4cb6a8ab299ea8d80e272ac9c6c", 15816, 15992, 7832, 10040, 88, 3528, 8, 0, 16, 24, 152, 16124, 9624, 5680, 5688offsets.gdb:22: Error in sourced command file:
 	//offsets for: /mariadb/10.6.10/bin/mysqld (10.6.10-MariaDB)
 	{"10.6.10-MariaDB","89c1b2f6a4de72a78255604f735d3bb0", 15696, 15856, 7776, 9936, 88, 3512, 8, 0, 16, 24, 152, 15972, 9568, 5680, 5688, 5692, 688, 0, 0, 14952, 14976, 14960, 24512, 564, 8, 0},
 	//offsets for: /mariadb/10.7.6/bin/mysqld (10.7.6-MariaDB)

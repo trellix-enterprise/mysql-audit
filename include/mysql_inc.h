@@ -17,7 +17,11 @@
 #include <my_config.h>
 #include <mysql_version.h>
 
-#if MYSQL_VERSION_ID >= 80032
+#if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100307
+#include <my_global.h>
+#endif
+
+#if MYSQL_VERSION_ID >= 80032 && !defined(MARIADB_BASE_VERSION)
 #define TABLE_LIST Table_ref
 #endif
 
@@ -28,6 +32,10 @@
 #endif
 
 #include <mysql/plugin.h>
+#if defined(MARIADB_BASE_VERSION)
+#include <mysql/psi/psi_memory.h>
+#include <mysql/psi/psi.h>
+#endif
 
 #if MYSQL_VERSION_ID >= 50600
 // From 5.6 we use the audit plugin interface
@@ -37,7 +45,6 @@
 #if defined(MARIADB_BASE_VERSION) && MYSQL_VERSION_ID >= 100307
 // From MariaDB 10.3 we include macro definitions for items like MY_GNUC_PREREQ
 #include <my_compiler.h>
-#include <my_global.h>
 #endif
 
 #include <sql_parse.h>
