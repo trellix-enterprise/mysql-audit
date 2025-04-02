@@ -448,7 +448,7 @@ static inline const CHARSET_INFO * pfs_connect_attrs_cs(const void * pfs)
 	}
 
 	if (   ( major == 5  && ( (minor == 6 && patch >= 15) || minor >= 7) ) || (major == 8)	// MySQL
-	    || ( major == 10 && ( (minor == 0 && patch >= 11) || minor >= 1) ) )	// MariaDB
+	    || ( major == 10 && ( (minor == 0 && patch >= 11) || minor >= 1) ) || (major >= 11) ) // MariaDB
 	{
 		uint cs_number = *(uint *) (((unsigned char *) pfs) + Audit_formatter::thd_offsets.pfs_connect_attrs_cs);
 		if (!cs_number)
