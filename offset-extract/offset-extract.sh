@@ -75,7 +75,7 @@ else
 	CONNECT_ATTRS='printf ", 0, 0, 0"'
 fi
 
-if echo $MYVER | grep -P '^(5\.7|8\.0)' > /dev/null
+if echo $MYVER | grep -P '^(5\.7|8\.4|8\.0)' > /dev/null
 then
 	if echo $MYVER | grep -P '^5\.7\.8' > /dev/null
 	then
@@ -115,7 +115,7 @@ DA_STATUS="print_offset Diagnostics_area m_status"		# 5.5, 5.6, 5.7, mariadb 10.
 DA_SQL_ERRNO="print_offset Diagnostics_area m_sql_errno"	# 5.5, 5.6, mariadb 10.0 to 10.5
 STMT_DA="print_offset THD m_stmt_da"				# 5.6, 5.7, mariadb 10.0 to 10.5
 
-if echo $MYVER | grep -P '^(5\.7|8\.0)' > /dev/null
+if echo $MYVER | grep -P '^(5\.7|8\.4|8\.0)' > /dev/null
 then
 	DA_SQL_ERRNO="print_offset Diagnostics_area m_mysql_errno"
 elif echo $MYVER | grep -P '^(5\.6|10\.)' > /dev/null
@@ -132,7 +132,7 @@ fi
 
 LEX_COMMENT=""
 VIEW_TABLES=""
-if echo $MYVER | grep -P '^(8\.0)' > /dev/null
+if echo $MYVER | grep -P '^(8\.4|8\.0)' > /dev/null
 then
 	LEX_COMMENT='printf ", 0"'
 	# TABLE_LIST struct was used in older versions of mysql, its replacement is Table_ref class

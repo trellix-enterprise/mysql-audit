@@ -21,7 +21,7 @@ AC_DEFUN([MYSQL_SRC_TEST], [
   [
     withval=`dir_resolve "$withval"`
 	ac_mysql_source_dir="$withval"
-    HEADERS="include/my_dir.h include/mysql/plugin.h include/mysql.h include/mysql_version.h include/config.h include/my_config.h"
+    HEADERS="include/my_dir.h include/mysql/plugin.h include/mysql.h include/mysql_version.h include/my_config.h"
     for file in $HEADERS; do
       if ! test -r "$withval/$file"; then
          AC_MSG_ERROR([Failed to find required header file $file in $withval, check the path and make sure you've run './configure ..<options>.. && cd include && make' in MySQL 5.1 sources dir or 'cmake . && make' in MySQL 5.5 sources dir.])

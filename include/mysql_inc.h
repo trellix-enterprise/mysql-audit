@@ -5,6 +5,11 @@
 #define HAVE_CONFIG_H
 #endif
 
+// Compatibility shim for older zlib versions
+#if !defined(ZLIB_VERNUM) || ZLIB_VERNUM < 0x1290
+#define crc32_z(crc, buf, len) crc32((crc), (buf), (len))
+#endif
+
 #define MYSQL_DYNAMIC_PLUGIN 1
 #define MYSQL_SERVER 1
 
