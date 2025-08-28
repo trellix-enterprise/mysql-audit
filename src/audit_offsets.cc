@@ -81,6 +81,8 @@ const ThdOffsets thd_offsets_arr[] =
 const ThdOffsets thd_offsets_arr[] =
 {
 	/* +++ MYSQL 64 OFFSETS GO HERE +++ */
+	    //offsets for: mysqld (8.4.5-commercial)
+        {"8.4.5-commercial","dddd1b6411ef3412a692288d057a010b", 9512, 9552, 5024, 6452, 1280, 0, 0, 32, 64, 160, 1368, 9652, 6072, 4328, 4336, 4340, 7736, 1592, 32, 8696, 8736, 8720, 13032, 140, 668, 344},
         //offsets for: mysqld (8.4.4)
         {"8.4.4","3561a47b597886dd313e01c38c15b71f", 9512, 9552, 5024, 6452, 1280, 0, 0, 32, 64, 160, 1368, 9652, 6072, 4328, 4336, 4340, 7736, 1592, 32, 8696, 8736, 8720, 13032, 140, 668, 344},
 	    //offsets for: mysqld (8.0.41)
